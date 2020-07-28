@@ -1,0 +1,57 @@
+# Author            : Nuno Aguiar
+
+init:
+  port: &PORT 12345
+  uri : &URI  "/"
+  pid : &PID  echoHTTPd.pid
+
+ojob:
+  daemon    : true
+  sequential: true
+  opacks    :
+    - oJob-common
+  unique    :
+    pidFile     : *PID
+    killPrevious: false
+  argsFromEnvs: true
+
+include:
+  - oJobHTTPd.yaml
+
+todo:
+- name: HTTP Start Server
+  args: |
+    ({
+       port: _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(args.init.port)
+    })
+- name: Start Echo
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text: Creates a quick echo server for testing that will output the request received and send as plain text back to the sender.
+    expects:
+    - name: port
+      desc: The port where the echo server will be listening for requests (defaults to 12345)
+    - name: host
+      desc: To which host/listeners the echo server will be attached (defaults to 0.0.0.0)
+
+# ----------------    
+- name: Start Echo
+  to  : HTTP Service
+  args: 
+    execURI: |
+      var n = String(new Date());
+      var s = n.length + 2;
+
+      print(repeat(s, '-'));
+      print(" " + n);
+      print(repeat(s, '-'));
+      ow.oJob.output(request, args);
+      print(repeat(s, '='));
+
+      return stringify(request);
+  exec: |
+    args.port = _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(args.init.port);
+    args.uri  = _$(args.uri, "uri").default(args.init.uri);

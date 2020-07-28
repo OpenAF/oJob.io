@@ -1,0 +1,37 @@
+# Author: Nuno Aguiar
+
+todo:
+- Check YAML 
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Check the syntax of a YAML file by trying to read it.
+    expects: 
+    - name: file
+      desc: The YAML file to check
+
+# ----------------
+- name: Check YAML 
+  exec: |
+    _$(args.file, "file").$_();
+    args.res = { result: "not ok", message: "" };
+
+    try {
+      args.res.result = "not ok";
+      io.readFileYAML(args.file);
+      args.res.result = "ok";
+    } catch(e) {
+      args.res.message = String(e);
+    }
+
+    ow.oJob.output(args.res, args);
+

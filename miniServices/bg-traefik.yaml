@@ -1,0 +1,78 @@
+# Author: Nuno Aguiar
+
+init:
+  compose: | 
+    version: '3' 
+
+    services:
+      lb-proxy:
+        image: traefik
+        command: '--api.insecure=true --providers.docker'
+        ports:
+        - '8080:80'
+        - '8090:8080'
+        volumes:
+        - '/var/run/docker.sock:/var/run/docker.sock'
+
+      time-blue:
+        image: 'openaf/openaf:nightly'
+        environment:
+          OJOB: ojob.io/miniServices/TimeService
+        ports:
+        - 8080
+        labels:
+        - traefik.enable=true
+        - traefik.port=8080
+        - traefik.http.routers.time-blue.rule=PathPrefix(`/`)
+        - traefik.http.services.time.loadbalancer.server.port=8080
+        healthcheck:
+          test        : ["CMD", "/openaf/openaf", "-c", 'ow.loadFormat();var res=$$rest().get("http://" + ow.format.getHostName() + ":8080/healthz";exit(isDef(res.error) ? 1 : 0)'] 
+          interval    : 10s
+          timeout     : 30s
+          retries     : 3
+          start_period: 5s
+
+      time-green:
+        image: 'openaf/openaf:nightly'
+        environment:
+          OJOB: ojob.io/miniServices/TimeService
+        ports:
+        - 8080
+        labels:
+        - traefik.enable=true
+        - traefik.port=8080
+        - traefik.http.routers.time-green.rule=PathPrefix(`/`)
+        - traefik.http.services.time.loadbalancer.server.port=8080
+        healthcheck:
+          test        : ["CMD", "/openaf/openaf", "-c", 'ow.loadFormat();var res=$$rest().get("http://" + ow.format.getHostName() + ":8080/healthz";exit(isDef(res.error) ? 1 : 0)'] 
+          interval    : 10s
+          timeout     : 30s
+          retries     : 3
+          start_period: 5s        
+
+todo:
+- Generate docker-compose
+
+ojob:
+  sequential: true
+  opacks:
+  - openaf: 20200523
+  catch: logErr(exception);
+  logToConsole: false
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text: Generates a traefik services blue-green load-balancer sample
+    expects:
+    - name: file
+      desc: Generates to the provided file 
+
+# -----------------------------
+- name: Generate docker-compose
+  exec: |
+    if (isDef(args.file)) 
+       io.writeFileString(args.file, args.init.compose);
+    else
+       print(args.init.compose);

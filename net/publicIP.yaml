@@ -1,0 +1,22 @@
+// Author: Nuno Aguiar
+
+todo:
+- Get public IP info
+
+ojob:
+  logToConsole: false
+  sequential  : true
+
+jobs:
+# ----------
+- name: Help
+  help: |
+    Provides public IP information from the current internet connection.
+    Returns: publicIP
+
+# ------------------------
+- name: Get public IP info
+  exec: |
+    ow.loadFormat();
+    var info = ow.format.getPublicIP();
+    ow.oJob.output({ publicIP: info }, args);

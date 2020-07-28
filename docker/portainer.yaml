@@ -1,0 +1,78 @@
+# Author: Nuno Aguiar
+
+todo:
+- Check for docker
+- Install portainer
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Installs/Uninstalls a portainer container on the local docker installation.
+    expects: 
+    - name: port
+      desc: "The port where portainer will be exposed (default port=9000)"
+    - name: agentPort 
+      desc: "If defined the agent port should be exposed (e.g. agentPort=8000). Don't set it if you don't want the agent port exposed."
+    - name: uninstall
+      desc: "To uninstall an existing portainer container just use (uninstall=true)."
+
+# ----------------------
+- name: Check for docker
+  exec: |
+    var exists = $sh("docker").get(0).exitcode;
+    if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
+
+# -----------------------
+- name: Install portainer
+  deps:
+  - Check for docker
+  exec: |
+    args.port      = Number(_$(args.port, "port").default("9000"));
+    args.agentPort = _$(args.agentPort, "agentPort").default(void 0);
+    args.uninstall = _$(args.uninstall, "uninstall").default(void 0);
+    args.__format  = _$(args.__format).default("pm");
+
+    log("Checking for portainer...");
+    var res = $sh("docker ps -f name=portainer").get(0).stdout.split(/\n/).length;
+    var uni = false;
+    if (isDef(args.uninstall) && args.uninstall.toLowerCase() == "true") uni = true;
+    if (res >= 3) {
+      if (uni) {
+        $sh("docker stop portainer")
+        .sh("docker rm portainer")
+        .sh("docker volume rm portainer_data")
+        .prefix("uninstall")
+        .get(0);
+      } else {
+        throw "There is an existing portainer container running.";
+      }
+    } else {
+      if (uni) throw "Container portainer not found.";
+     
+      log("Creating the portainer_data volume...");
+      $sh("docker volume create portainer_data")
+      .prefix("create volume")
+      .get(0);
+
+      log("Creating the portainer container...");
+      var extra = "";
+      if (isDef(args.agentPort)) extra = "-p " + Number(args.agentPort) + ":8000";
+      $sh("docker run -d -p " + args.port + ":9000 " + extra + " --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer")
+      .exec(0);
+    } 
+
+    ow.loadFormat();
+    if (!uni) {
+       if (!openInBrowser("http://localhost:" + args.port)) logWarn("Please access http://" + ow.format.getHostName() + ":" + args.port + " to provide the admin credentials for portainer.");
+    }
+
+    ow.oJob.output(args, args);
+

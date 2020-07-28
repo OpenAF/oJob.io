@@ -1,0 +1,77 @@
+ojob:
+  opacks:
+    oJob-common: 20200520
+
+include:
+- oJobIO.yaml
+
+todo:
+- Configure PowerLine Bash
+- Configure PowerLine VI
+- Configure PowerLine tmux
+
+jobs:
+# ==============================
+- name: Configure PowerLine Bash
+  to  : 
+  - IO Modify text file
+  - Activate Bash
+  args:
+    find   : |
+      # Powerline configuration
+      if [ -f /usr/share/powerline/bindings/bash/powerline.sh ]; then
+        powerline-daemon -q
+        POWERLINE_BASH_CONTINUATION=1
+        POWERLINE_BASH_SELECT=1
+        source /usr/share/powerline/bindings/bash/powerline.sh
+      fi
+  exec   : |
+    args.file = getEnv("HOME") + "/.bashrc";
+
+    if (isDef(args.uninstall)) 
+      args.replace = "";
+    else
+      args.replace = args.find;
+
+# ============================
+- name: Configure PowerLine VI
+  to  : 
+  - IO Modify text file
+  args:
+    find   : |
+      python3 from powerline.vim import setup as powerline_setup
+      python3 powerline_setup()
+      python3 del powerline_setup
+
+      set laststatus=2
+  exec   : |
+    args.file = getEnv("HOME") + "/.vimrc";
+
+    if (isDef(args.uninstall)) 
+      args.replace = "";
+    else
+      args.replace = args.find;
+
+# ==============================
+- name: Configure PowerLine tmux
+  to  : 
+  - IO Modify text file
+  args:
+    find   : |
+      set -g default-terminal "screen-256color"
+      source "/usr/share/powerline/bindings/tmux/powerline.conf"
+  exec   : |
+    args.file = getEnv("HOME") + "/.tmux.conf";
+
+    if (isDef(args.uninstall)) 
+      args.replace = "";
+    else
+      args.replace = args.find;
+
+
+# -------------------
+- name: Activate Bash
+  exec: |
+    $sh(["/bin/bash", "-c", "source " + args.file])
+    .prefix("source")
+    .get(0);

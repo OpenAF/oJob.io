@@ -1,0 +1,59 @@
+# Author: Nuno Aguiar
+
+todo:
+- Verifications
+- Clone from GIT
+- Build
+- Clean up
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Does stuff. 
+    expects: 
+    - name: something
+      desc: To do stuff
+
+# -------------------
+- name: Verifications
+  exec: |
+    if ( $sh("javac").get(0).exitcode >= 127) throw "javac not found. Need a java compiler";
+
+# --------------------
+- name: Clone from GIT
+  deps: 
+  - Verifications
+  exec: | 
+    plugin("GIT");
+    global.dir = io.createTempFile("oafbuild-") + ".dir";
+    io.mkdir(global.dir);
+    log("Cloning from https://github.com/openaf/openaf...");
+    var git = new GIT();
+    git.clone("https://github.com/openaf/openaf", global.dir, void 0, args.branch);
+
+# -----------
+- name: Build
+  deps: 
+  - Verifications
+  exec: |
+    $sh(getOpenAFPath() + "/ojob build.yaml")
+    .pwd(global.dir)
+    .prefix("build")
+    .get(0);
+    io.cp(global.dir + "/openaf.jar", "build_openaf.jar");
+    io.cp(global.dir + "/openaf.jar.orig", "build_openaf.jar.orig");
+
+# --------------
+- name: Clean up
+  deps: 
+  - Verifications
+  exec: |
+    io.rm(global.dir);

@@ -1,0 +1,39 @@
+# Author: Nuno Aguiar
+
+todo:
+- Clean entry on known_hosts
+
+ojob:
+  logToConsole: false
+  sequential  : true
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to remove a host from the .ssh/known_hosts file.
+    expects: 
+    - name: host
+      desc: the full host name to remove
+
+
+# --------------------------------
+- name: Clean entry on known_hosts
+  exec: |
+    if (isUnDef(args.host)) logErr("Please provide a host to remove from known_hosts");
+    ow.loadFormat();
+
+    var host = _$(args.host).isString().$_("Please provide a host to remove from known_hosts");
+    var file = getEnv(ow.format.isWindows() ? "USERPROFILE" : "HOME") + "/.ssh/known_hosts";
+    var lines = io.readFileAsArray(file);
+
+    __pm.originalSize = lines.length;
+    for(var iline in lines) {
+      if (lines[iline].match(new RegExp("^" + host + "[, ].+"))) {
+        lines = deleteFromArray(lines, iline);
+      }
+    }
+    io.writeFileAsArray(file, lines);
+    __pm.finalSize = lines.length;
+
+    ow.oJob.output(__pm, args);

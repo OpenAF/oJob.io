@@ -1,0 +1,66 @@
+# Author: Nuno Aguiar
+
+init:
+  compose: | 
+    version: '3' 
+
+    services:
+      lb-proxy:
+        image: traefik
+        command: '--api.insecure=true --providers.docker'
+        ports:
+        - '17878:80'
+        - '17879:8080'
+        volumes:
+        - '/var/run/docker.sock:/var/run/docker.sock'
+
+      echo:
+        image: 'openaf/openaf-ojobc:nightly'
+        environment:
+          OJOB: ojob.io/httpServers/EchoHTTPd.yaml
+        ports:
+        - 12345
+        labels:
+        - traefik.enable=true
+        - traefik.port=12345
+        - traefik.http.routers.echo.rule=PathPrefix(`/echo`)
+        - traefik.http.routers.echo.middlewares=echo
+        - traefik.http.middlewares.echo.stripprefix.prefixes=/echo 
+
+      files:
+        image: 'openaf/openaf-ojobc:nightly'
+        environment:
+          OJOB: ojob.io/httpServers/EasyHTTPd.yaml
+        ports:
+        - 8888
+        labels:
+        - traefik.enable=true
+        - traefik.port=8888
+        - traefik.http.routers.files.rule=PathPrefix(`/`)
+
+todo:
+- Generate docker-compose
+
+ojob:
+  sequential: true
+  opacks:
+  - openaf: 20200523
+  catch: logErr(exception);
+  logToConsole: false
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text: Generates a traefik services load-balancer sample
+    expects:
+    - name: file
+      desc: Generates to the provided file 
+
+# -----------------------------
+- name: Generate docker-compose
+  exec: |
+    if (isDef(args.file)) 
+       io.writeFileString(args.file, args.init.compose);
+    else
+       print(args.init.compose);

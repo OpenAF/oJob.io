@@ -1,0 +1,96 @@
+# Author: Nuno Aguiar
+
+todo:
+- Pastebin
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  - PasteBin
+  loadLibs    :
+  - pastebin.js
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Uses PasteBin to copy+paste content between two places via internet. 
+    expects:
+    - name: op
+      desc: "(default: list) Select the option to perform (list, copy, delete, paste, reset (credentials))"
+    - name: file
+      desc: The file to copy from or paste into
+    - name: key
+      desc: The pastebin key to use
+    - name: expire
+      desc: The expire period on copy
+    - name: userKey
+      desc: The API user key
+    - name: user
+      desc: The PasteBin user
+    - name: pass
+      desc: The PasteBin password
+
+# -----------------
+- name: Load config
+  exec: |
+    var f = java.lang.System.getProperty("user.home") + "/.ojob.io";
+    io.mkdir(f);
+    if (io.fileExists(f + "/.pastebin")) {
+       global.auth = io.readFileYAML(f + "/.pastebin");
+    } else {
+      if (isUnDef(global.auth)) {
+         plugin("Console");
+         var con = new Console();
+         global.auth = {
+            userKey: isDef(args.userKey) ? args.userKey : con.readLinePrompt("PasteBin User Key: "),
+            user   : isDef(args.user) ? args.user : af.encrypt(con.readLinePrompt("PasteBin User: ")),
+            pass   : isDef(args.pass) ? args.pass : af.encrypt(con.readLinePrompt("PasteBin Password: "))
+         };
+         io.writeFileYAML(f + "/.pastebin", global.auth);
+      }
+    }
+
+# --------------
+- name: Pastebin 
+  from: Load config
+  exec: |
+    args.op = _$(args.op, "op").default("list");
+
+    var pb = new PasteBin(global.auth.userKey, global.auth.user, global.auth.pass);
+    var res;
+
+    switch(args.op) {
+    case "copy":
+       _$(args.file, "file").$_();
+
+       logWarn("Copy '" + args.file + "'...");
+       res = pb.send(io.readFileString(args.file), void 0, void 0, void 0, args.expire);
+       break;
+    case "list":
+       res = pb.list();
+       if (isUnDef(res)) res = [];
+       break;
+    case "delete":
+       _$(args.key, "key").$_();
+
+       logWarn("Delete '" + args.key + "'...");
+       res = pb.delete(args.key);
+       break;
+    case "paste":
+       _$(args.key, "key").$_();
+       _$(args.file, "file").$_();
+
+       logWarn("Paste '" + args.key + "' to '" + args.file + "'...");
+       res = io.writeFileString(args.file, pb.show(args.key));
+       break;
+    case "reset":
+       logWarn("Removing credentials...");
+       io.rm(java.lang.System.getProperty("user.home") + "/.ojob.io/.pastebin");
+    }
+
+    ow.oJob.output(res, args);
+

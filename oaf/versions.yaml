@@ -1,0 +1,77 @@
+todo:
+- Get versions
+
+ojob:
+  sequential  : true
+  logToConsole: false
+  catch       : |
+    logErr(exception);
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text: Retrieves a list of the current installed oPacks and their corresponding local and central versions. Optionally it can update the oPacks that need upgrading.
+    expects:
+    - name: update
+      desc: If "true" it will try to update each of the oPacks identified to update
+
+# ------------------
+- name: Get versions
+  from:
+  - Get OpenAF version
+  - Get OPack versions
+  to  :
+  - Update versions
+  exec: |
+    args.__format = _$(args.__format).default("table");
+    ow.oJob.output($from(args.versions).sort("name").select(), args);
+
+# ---------------------
+- name: Update versions
+  exec: |
+    if(isDef(args.update) && args.update.toLowerCase() == "true") {
+       $from(ow.obj.fromObj2Array(args.versions, "name"))
+       .equals("needsUpdate", true)
+       .notEquals("name", "OpenAF")
+       .select(r => {
+         log("Updating " + r.name + "...");
+         oPack("install " + r.name + " -force");
+       })
+    }
+
+# ------------------------
+- name: Get OpenAF version
+  exec: |
+    args.versions = _$(args.versions).default([]);
+    var n = $rest().get("https://openaf.io/nightly/build");
+    var s = $rest().get("https://openaf.io/build");
+
+    args.versions.push({
+      name        : "OpenAF",
+      current     : getVersion(),
+      remote      : (getDistribution() == 'stable' ? s : n),
+      needsUpdate : (getDistribution() == "stable" ? (getVersion() < s) : (getVersion() < n)),
+      distribution: getDistribution(),
+      nightly     : n,
+      stable      : s
+    });
+
+# ------------------------
+- name: Get OPack versions
+  exec: |
+    args.versions = _$(args.versions).default({});
+    var remote = getOPackRemoteDB();
+
+    ow.loadObj();
+    ow.obj.fromObj2Array(getOPackLocalDB(), "name").map(r => {
+      if (r.name != "OpenAF") args.versions.push({
+        name   : r.name,
+        current: r.version,
+        remote : isDef(remote[r.name]) ? remote[r.name].version : "n/a",
+        needsUpdate: isDef(remote[r.name]) ? remote[r.name].version > r.version : "n/a",
+        distribution: "",
+        nightly: "",
+        stable: "" 
+      })
+    });

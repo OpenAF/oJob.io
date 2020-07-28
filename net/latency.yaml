@@ -1,0 +1,58 @@
+# Author: Nuno Aguiar
+
+todo:
+- Test latency
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tests the latency between the current host and a target host and port for a number of times.
+    expects: 
+    - name: host 
+      desc: The hostname or IP address to test the latency to
+    - name: port
+      desc: The port to test the latency to
+    - name: times
+      desc: The number of times the test should be performed (defaults to 5)
+
+# ------------------
+- name: Test latency
+  exec: |
+    _$(args.host, "host").$_();
+    args.port = Number(_$(args.port, "port").isNumber().default(80));
+    args.times = Number(_$(args.times, "times").isNumber().default(5)); 
+
+    var tries = [], sum = 0, max = 0; 
+    ow.loadFormat();
+
+    for(var ii = 0; ii < args.times; ii++) {
+        tries.push({
+            sample: ii+1, 
+            latency: ow.format.testPortLatency(args.host, args.port)
+        });
+    }; 
+    tries.forEach((v) => {
+        sum += v.latency; 
+        max = (v.latency > max) ? v.latency : max; 
+    }); 
+    tries.forEach(v => {
+        v.chart = ow.format.string.progress(v.latency, max, 0, 50, "=", " ");
+    });
+    tries.push({ 
+        sample: "avg", 
+        latency: Math.floor(sum/args.times) + "ms"
+    });
+
+    if (isUnDef(args.__format)) args.__format = "table";
+    ow.oJob.output(tries, args);
+
+
+

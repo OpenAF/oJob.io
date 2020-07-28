@@ -1,0 +1,44 @@
+# Author: Nuno Aguiar
+
+todo:
+- Identify repositories
+- Pull repository 
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to git pull all the repositories under the current (or provided) path. 
+    expects: 
+    - name: path
+      desc: The path to look for repositories (defaults to ".")
+    - name: user
+      desc: The git user to use if necessary
+    - name: pass
+      desc: The git password/key to use if necessary
+
+# ---------------------------
+- name: Identify repositories
+  exec: |
+    args.path = _$(args.path, "path").default(".");
+    global.path = args.path;
+
+# ---------------------
+- name: Pull repository
+  args: |
+    $from( io.listFiles(global.path).files )
+    .equals("isFile", false)
+    .where(f => io.fileExists(f.canonicalPath + "/.git"))
+    .select()
+  exec: |
+    plugin("GIT");
+    log("Pulling " + args.canonicalPath + "...");
+    var git = new GIT(args.canonicalPath, args.user, args.pass);
+    git.pull();    

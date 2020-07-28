@@ -1,0 +1,78 @@
+# Template          : Simple REST services server
+# Author            : Nuno Aguiar
+# How to run        : ojob HelloWorld.yaml
+# oPack dependencies: latest ojob-common;
+
+init:
+  # The port where the rest services will be available
+  port  : &PORT   8090
+  # Where the pid file will be located
+  piddir: &PIDDIR /some/dir/HelloWorld.pid
+
+ojob:
+  opacks      :
+    - oJob-common
+  unique      : 
+    pidFile     : *PIDDIR
+    killPrevious: false
+  argsFromEnvs: true
+
+include:
+  - oJobRest.yaml
+
+todo:
+  - name: REST Start Server
+    args:
+      port: *PORT
+
+  - name: Prepare my service
+  - name: Prepare default
+  #- name: Prepare my other service
+
+###########################################################
+# The code
+
+jobs:
+  # What to answer to any uri not registered (default response)
+  # ---------------------
+  - name: Prepare default
+    to  : REST Service
+    args: 
+      uri       : /
+      port      : *PORT
+      execGET   : "return { result: 0 }"
+      execPOST  : "return { result: 0 }"
+      execPUT   : "return { result: 0 }"
+      execDELETE: "return { result: 0 }"
+
+  # What to answer to requests to /my/service
+  # ------------------------
+  - name: Prepare my service
+    to  : REST Service
+    args: 
+      uri       : /my/service
+      port      : *PORT
+      execGET   : |
+        var m = { };
+        m.hello = "world";
+
+        return m;
+      execPOST  : "return { result: 0 }"
+      execPUT   : "return { result: 0 }"
+      execDELETE: "return { result: 0 }"
+
+  ## What to answer to requests to /other/service
+  ## ------------------------------
+  #- name: Prepare my other service
+  #  to  : REST Service
+  #  args: 
+  #    uri       : /other/service
+  #    port      : *PORT
+  #    execGET   : |
+  #      // my code
+  #    execPOST  : |
+  #      // my code
+  #    execPUT   : |
+  #      // my code
+  #    execDELETE: |
+  #      // my code

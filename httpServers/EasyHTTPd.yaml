@@ -1,0 +1,48 @@
+# Template          : Easy HTTP server
+# Author            : Nuno Aguiar
+# How to run        : ojob easyHTTPd.yaml 
+# oPack dependencies: latest ojob-common;
+
+init:
+  port: &PORT 8888
+  path: &PATH "."
+  uri : &URI  "/"
+  pid : &PID  easyHTTPd.pid
+
+ojob:
+  daemon    : true
+  sequential: true
+  opacks    :
+    - oJob-common
+  unique    :
+    pidFile     : *PID
+    killPrevious: false
+
+include:
+  - oJobHTTPd.yaml
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text   : Starts a very simple HTTP server on the provided port with a simple file browser
+    expects:
+    - name: port 
+      desc: The port to use (default to 8888)
+    - name: path
+      desc: The path from which to browse files (default to '.')
+    - name: uri
+      desc: The default URI to use (default to '/')
+
+todo:
+
+  - name: HTTP Start Server
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port), 
+         "mapLibs": true })
+
+  - name: HTTP File Browse
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+         "path": (isDef(args.path) ? String(args.path) : global.args.init.path),
+         "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri) })

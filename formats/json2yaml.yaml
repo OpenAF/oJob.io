@@ -1,0 +1,44 @@
+# Author: Nuno Aguiar
+
+todo:
+- Json2Yaml 
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Converts a JSON file to a YAML file/content. 
+    expects: 
+    - name: json 
+      desc: A JSON file
+    - name: yaml
+      desc: A YAML file (defaults to stdout)
+
+# ---------------
+- name: Json2Yaml 
+  exec: |
+    _$(args.json, "json").$_();
+    args.yaml = _$(args.yaml, "yaml").default(void 0);
+
+    args.jresult = io.readFileJSON(args.json);
+    if (!isMap(args.jresult) && !isArray(args.jresult)) throw "Not a valid JSON file.";
+    args.result = af.toYAML(args.jresult);
+
+    if (isDef(args.yaml)) {
+       io.writeFileYAML(args.yaml, args.jresult);
+    } else {
+       yprint(args.jresult);
+    } 
+    
+    args.__format = "pm";
+    ow.oJob.output(args.result, args);
+
+
+

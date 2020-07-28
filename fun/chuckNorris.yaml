@@ -1,0 +1,22 @@
+# Author: Nuno Aguiar
+
+todo:
+- Tell a Chuck Norris joke
+
+ojob:
+  sequential  : true
+  opacks      :
+  - APIs
+  loadLibs    :
+  - apis.js
+  logToConsole: false
+
+jobs:
+- name: Help
+  help: |
+    Gets a random Chuck Norris joke.   
+
+# ------------------------------
+- name: Tell a Chuck Norris joke
+  exec: |
+    ow.oJob.output(apis.ChuckNorrisJokes.get(), args); 

@@ -1,0 +1,44 @@
+# Author: Nuno Aguiar
+
+init:
+  port: &PORT 8090
+  path: &PATH "."
+  uri : &URI  "/"
+  pid : &PID  easyHTTPd.pid
+
+ojob:
+  daemon    : true
+  sequential: true
+  opacks    :
+    - oJob-common
+    - Docsify
+  loadLibs  :
+    - docsify.js
+  unique    :
+    pidFile     : *PID
+    killPrevious: false
+
+include:
+  - oJobHTTPd.yaml
+
+todo:
+
+  - name: HTTP Start Server
+    args: 
+      port   : *PORT
+      mapLibs: true
+
+  - name: HTTP Service
+    args: 
+      port   : *PORT
+      uri    : *URI
+      execURI: |
+        args.langs = _$(args.langs, "langs").default("yaml,markdown,docker,json,sql,python,css,javascript,bash,java");
+
+        return ow.server.httpd.replyDocsify(server, global.args.init.path, global.args.init.uri, request, { 
+           langs: args.langs.split(","),
+           mermaid: true,
+           options: stringify({
+              hideSidebar: (isDef(args.noside) && args.noside.toLowerCase() != "false" ? true : false)
+           }, void 0, "")
+        });

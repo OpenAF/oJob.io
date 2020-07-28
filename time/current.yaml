@@ -1,0 +1,36 @@
+# Author: Nuno Aguiar
+
+todo:
+- Current time
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false  # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Retrieves the current atomic clock time through (https/http).
+    expects: 
+    - name: alternative
+      desc: Instead of using worldtimeapi.org (through https) it uses worldclockapi.com (through http)
+
+# ------------------
+- name: Current time
+  exec: |
+    ow.loadFormat();
+    args.alternative = _$(args.alternative, "alternative").default("false");
+
+    args.alternative = (args.alternative.toLowerCase() == 'true' ? true : false);
+    args.time = { 
+       currentTime: ow.format.getActualTime(args.alternative),
+       localTime  : new Date(),
+       utcTime    : ow.format.fromDate(new Date(), "yyyy-MM-dd'T'HH:mm:ss.SSS'Z' z", "UTC")
+    };
+
+    ow.oJob.output(args.time, args);
+

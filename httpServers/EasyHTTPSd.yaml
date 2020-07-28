@@ -1,0 +1,86 @@
+# Template          : Easy HTTPS server
+# Author            : Nuno Aguiar
+# How to run        : ojob easyHTTPSd.yaml 
+# oPack dependencies: latest ojob-common;
+
+init:
+  port: &PORT 8888
+  path: &PATH "."
+  uri : &URI  "/"
+  pid : &PID  easyHTTPSd.pid
+  keyf: &KEYF easyHTTPS.jks
+  keys: &KEYS 4096
+  keyv: &KEYV 1440    # minutes
+  keyp: &KEYP easyHTTPS
+
+ojob:
+  daemon    : true
+  opacks    :
+    - oJob-common:20200617
+  unique    :
+    pidFile     : *PID
+    killPrevious: false
+
+include:
+  - oJobHTTPd.yaml
+
+jobs:
+  # ----------
+  - name: Help
+    help:
+      text   : Starts a very simple HTTPS server on the provided port with a simple file browser
+      expects:
+      - name: port 
+        desc: The port to use (default to 8888).
+      - name: path
+        desc: The path from which to browse files (default to '.').
+      - name: uri
+        desc: The default URI to use (default to '/').
+      - name: keyf
+        desc: The java keystore file to use (defaults to easyHTTPS.jks)
+      - name: keyp
+        desc: The java keystore file password (defaults to easyHTTPS).
+      - name: cn
+        desc: If provided it will generate a self-signed certificate using the canonical name (hostname of ip.address).
+      - name: keyv
+        desc: The number of minutes the self-signed certificate will be valid for (1440 minutes)
+      - name: keys
+        desc: The self-signed certificate key length to use (defaults to 4096)
+
+  # -----------------
+  - name: Prepare SSL
+    exec: |
+      if (isDef(args.cn)) {
+        var valid = Number(_$(args.VALID, "VALID").default(args.init.keyv)) * 60 * 1000;
+        var keys = Number(_$(args.KEYS, "KEYS").default(args.init.keys));
+
+        ow.loadJava();
+        var c = new ow.java.cipher();
+        log("Generating temporary self-signed SSL certificate of " + args.cn + " valid for " + valid + " ms with " + keys + " key size...");
+        var kp = c.genKeyPair(keys);
+        var cert = c.genCert("cn=" + args.cn, kp.publicKey, kp.privateKey, new Date(now() + valid), void 0, args.init.keyf, args.init.keyp);
+      }
+
+  # -----------------------
+  - name: Clean Key on exit
+    type: shutdown
+    exec: |
+      log("Cleaning " + args.init.keyf + "...");
+      io.rm(args.init.keyf);
+
+todo:
+  - Clean Key on exit
+  - Prepare SSL
+
+  - name: HTTP Start Server
+    args: |
+      ({ "port"   : (isDef(args.port) ? Number(args.port) : global.args.init.port), 
+         "mapLibs": true,
+          keystore: (isDef(args.keyf) ? String(args.keyf) : global.args.init.keyf),
+          pass    : (isDef(args.keyp) ? String(args.keyp) : global.args.init.keyp) })
+
+  - name: HTTP File Browse
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+         "path": (isDef(args.path) ? String(args.path) : global.args.init.path),
+         "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri) })

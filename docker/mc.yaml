@@ -1,0 +1,46 @@
+# Author: Nuno Aguiar
+include:
+- ojob.io/docker/_common.yaml
+
+todo:
+- Check for docker
+- Deploy container
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Opens an openaf container running midnight commander over a specific volume 
+    expects: 
+    - name: volumes
+      desc: "A volume name or a list of volume names separated by a comma."
+
+# ----------------------
+- name: Deploy container 
+  deps:
+  - Check for docker
+  exec: |
+    args.volumes  = _$(args.volumes, "volumes").$_();
+    args.__format = _$(args.__format).default("pm");
+
+    var cmds = ["docker", "run", "--rm", "-ti"];
+    var names = [];
+
+    args.volumes.split(/\,/).map(v => {
+       var n = v.replace(/\//g, "_");
+       cmds.push("-v");
+       cmds.push(v + ":/volumes/" + n); 
+       names.push("/volumes/" + n);
+    });
+
+    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"apk update && apk add mc && mc /volumes " + names[0] + "\").exec()"]);
+    $sh(cmds).exec();
+
+    ow.oJob.output(args, args);

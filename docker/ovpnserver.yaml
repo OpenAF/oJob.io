@@ -1,0 +1,197 @@
+# Author: Nuno Aguiar
+
+todo:
+- Generate server
+- Generate start script
+- Generate stop script
+- Generate add script
+- Generate del script
+- Generate list script
+- Generate destroy script
+- Show instructions
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  catch       : |
+    logErr(exception);
+  logToConsole: true   # to change when finished
+  sequential  : true
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Creates an openvpn docker daemon and shell scripts to add/del/list users.
+    expects: 
+    - name: url
+      desc: The vpn external url (either "tcp://some.address" or "udp://some.address" 
+
+# ---------------------
+- name: Generate server
+  exec: |
+    args.path = _$(args.path, "path").default(".");
+    _$(args.url, "url").$_();
+
+    var exists = $sh("docker").get(0).exitcode;
+    if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
+
+    var res;
+    log("Creating volume openvpn..."); 
+    res = $sh("docker volume create openvpn").prefix("volume").get(0);
+    if (res.exitcode != 0) throw "Failed to create openvpn docker volume.";
+
+    log("Generating openvpn configuration for " + args.url + "...");
+    res = $sh("docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig -u " + args.url).prefix("config").get(0);
+    if (res.exitcode != 0) throw "Failed to create openvpn configuration.";
+
+    log("Initializing PKI...");
+    res = $sh("docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it kylemanna/openvpn ovpn_initpki").prefix("init pki").exec(0);
+    if (res.exitcode != 0) throw "Failed to initialize PKI.";
+
+    args.__format = _$(args.__format).default("pm");
+    ow.oJob.output(args, args);
+
+# ---------------------
+- name: Generate script
+  exec: |
+    _$(args.text, "text").$_();
+    args.path = _$(args.path, "path").default(".");
+    args.file = _$(args.file, "file").$_();
+
+    var isWin = false;
+    if (isDef(args.isWin) && args.isWin.toLowerCase() == "true") {
+       isWin = true;
+    } else {
+       ow.loadFormat();
+       if (ow.format.isWindows()) isWin = true;
+    }
+    
+    if (isWin) args.file = args.file.replace(/\.sh$/, ".bat");
+
+    io.writeFileString(args.path + "/" + args.file, (isWin ? args.winText : args.text));
+    if (!isWin) $sh("chmod u+x " + args.path + "/" + args.file).exec(); 
+
+# ---------------------------
+- name: Generate start script
+  deps:
+  - Generate server
+  to  :
+  - Generate script
+  args:
+    file: openvpn_start.sh
+    text: |
+      #!/bin/sh
+      docker run -v openvpn:/etc/openvpn -d -p 1194:1194/tcp --restart=always --cap-add=NET_ADMIN --name openvpn kylemanna/openvpn
+    winText: |
+      @echo off
+      docker run -v openvpn:/etc/openvpn -d -p 1194:1194/tcp --restart=always --cap-add=NET_ADMIN --name openvpn kylemanna/openvpn
+
+# --------------------------
+- name: Generate stop script
+  deps:
+  - Generate server
+  to  :
+  - Generate script
+  args:
+    file: openvpn_stop.sh
+    text: |
+      #!/bin/sh
+      docker stop openvpn
+      docker rm openvpn
+    winText: |
+      @echo off
+      docker stop openvpn
+      docker rm openvpn
+
+# -------------------------
+- name: Generate add script
+  deps:
+  - Generate server
+  to  :
+  - Generate script
+  args:
+    file: openvpn_add.sh
+    text: |
+      #!/bin/sh
+      if [ -z "$1" ]; then
+        echo "Please provide an username."
+      else
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it kylemanna/openvpn easyrsa build-client-full $1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_getclient $1 > $1.ovpn 
+        echo "Created file $1.ovpn"
+      fi
+    winText: |
+      IF "%1"=="" (
+        echo "Please provide an username."
+      ) ELSE (
+        @echo off
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it kylemanna/openvpn easyrsa build-client-full %1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_getclient %1 > %1.ovpn 
+        echo "Created file %1.ovpn"
+      )
+
+# ------------------------
+- name: Generate del script
+  deps:
+  - Generate server
+  to  :
+  - Generate script
+  args:
+    file: openvpn_del.sh
+    text: |
+      #!/bin/sh
+      if [ -z "$1" ]; then
+        echo "Please provide a name."
+      else
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -ti kylemanna/openvpn ovpn_revokeclient $1
+      fi
+    winText: |
+      IF "%1"=="" (
+        echo "Please provide an username."
+      ) ELSE (
+        @echo off
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -ti kylemanna/openvpn ovpn_revokeclient %1
+      )
+
+# --------------------------
+- name: Generate list script
+  deps:
+  - Generate server
+  to  :
+  - Generate script
+  args:
+    file: openvpn_list.sh
+    text: |
+      #!/bin/sh
+      docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
+    winText: |
+      @echo off
+      docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
+
+# -----------------------------
+- name: Generate destroy script
+  deps:
+  - Generate server
+  to  :
+  - Generate script
+  args:
+    file: openvpn_destroy.sh
+    text: |
+      #!/bin/sh
+      docker volume rm openvpn
+    winText: |
+      @echo off
+      docker volume rm openvpn
+
+# -----------------------
+- name: Show instructions
+  deps:
+  - Generate start script
+  - Generate stop script
+  - Generate add script
+  - Generate del script
+  - Generate list script
+  - Generate destroy script
+  exec: |
+    ow.oJob.output(args, args);

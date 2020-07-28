@@ -1,0 +1,29 @@
+# Author: Nuno Aguiar
+
+todo:
+- Whois
+
+ojob:
+  sequential  : true
+  opacks      :
+    openaf: 20200523
+  catch       : logErr(exception)
+  logToConsole: false
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Retrieves the available WhoIs information of a public domain. 
+    expects: 
+    - name: domain
+      desc: The domain to look for (e.g. ojob.io)
+
+# -----------
+- name: Whois
+  exec: |
+    _$(args.domain, "domain").$_();
+
+    ow.loadJava()
+    var r = ow.java.getWhoIs(args.domain);
+    ow.oJob.output(r, args);

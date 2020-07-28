@@ -1,0 +1,55 @@
+# Template          : Easy Redirect HTTP server
+# Author            : Nuno Aguiar
+# How to run        : ojob redirectHTTPd.yaml 
+# oPack dependencies: latest ojob-common;
+
+init:
+  port   : &PORT 8888
+  uri    : &URI  "/"
+  pid    : &PID  redirectHTTPd.pid
+  default: https://openaf.io
+  auditT : "AUDIT HTTP | {{method}} {{uri}} ({{header.remote-addr}}; {{header.user-agent}})"
+  list   :
+    "/google"          : https://google.com
+    "/openaf"          : https://openaf.io
+
+ojob:
+  daemon    : true
+  sequential: true
+  opacks    :
+    - oJob-common
+  unique    :
+    pidFile     : *PID
+    killPrevious: false
+
+include:
+  - oJobHTTPd.yaml
+
+todo:
+  - name: HTTP Start Server
+    args: 
+      port   : *PORT
+      mapLibs: false
+
+  - name: HTTP Redirect
+    args: 
+      port   : *PORT
+      uri    : *URI
+
+jobs:
+  # ----------------------
+  - name   : HTTP Redirect
+    to     : HTTP Service
+    args   :
+      execURI: |
+        var tmpl = global.init.auditT;
+        tlog(tmpl, request);
+
+        if (isDef(global.init.list[request.uri])) {
+          return ow.server.httpd.replyRedirect(server, global.init.list[request.uri], {});
+        } else {
+          return ow.server.httpd.replyRedirect(server, global.init.default, {});
+        }    
+    exec   : |
+      global.init = args.init;
+ 

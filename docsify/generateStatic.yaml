@@ -1,0 +1,62 @@
+## Author: Nuno Aguiar
+
+todo:
+- Find markdown files
+- Generate static docsify
+
+ojob:
+  opacks:
+  - Docsify
+  - OpenAF : 20200517
+  loadLibs:
+  - docsify.js
+  sequential: true
+
+jobs:
+# ----------
+- name: Help
+  help: |
+    text   : Generates a static docsify version from files and sub-folders on DIR. Options:
+    expects:
+    - name: dir
+      desc: The default folder where to look for .md files (default to '.')
+    - name: html
+      desc: The HTML file to generate on the current folder (defaults to 'README.html')
+    - name: main
+      desc: The .md file that will be used as the root for docsify (defaults to '/README.md')
+    - name: mermaid
+      desc: A boolean to use or not Mermaid
+
+# -------------------------
+- name: Find markdown files
+  exec: |
+    args.dir = _$(args.dir).default(".");
+
+    global.files = $from( listFilesRecursive(args.dir) )
+                   .ends("filename", ".md")
+                   .select();
+
+    yprint(global.files.map(r => r.filepath)); 
+
+# -----------------------------
+- name: Generate static docsify
+  exec: |
+    args.dir = _$(args.dir).default(".");
+    args.html = _$(args.html).default("README.html");
+    args.main = _$(args.main).default("/README.md");
+
+    var docsify = new Docsify();
+
+    var m = {};
+    global.files.map(r => {
+       var f = r.filepath.replace(new RegExp("^" + args.dir.replace(/\./g, "\\.")), "");
+       if (args.main == f)
+          m["/README.md"] = r.canonicalPath;
+       else 
+          m[f] = r.canonicalPath;
+    });
+
+    log("Generate static version " + args.HTML + "...");
+    io.writeFileString(args.html, docsify.genStaticVersion(m, {
+      mermaid: Boolean(args.mermaid)
+    }));

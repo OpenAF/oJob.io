@@ -1,0 +1,154 @@
+# Author: Nuno Aguiar
+
+todo:
+- name: Prepare URLs
+- name: Measure latencies
+  args: "global.urls.map(r => ({ url: r.url, payload: 26214400 }))"
+- name: Measure downloads
+  args: "global.urls.map(r => ({ url: r.url, payload: 26214400 }))"
+- name: Measure uploads
+  args: "global.urls.map(r => ({ url: r.url, payload: 26214400 }))"
+
+- name: Summary
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to measure the network latency and download/upload bandwidth using fast.com from Netflix.
+
+# ------------------
+- name: Prepare URLs
+  exec: |
+    ow.loadFormat();
+    ow.loadObj();
+
+    var sf = $rest()
+             .get("https://fast.com")
+             .match(/\/app-[A-Za-z0-9]+\.js/)[0];
+
+    var tk = $rest()
+             .get("https://fast.com" + sf)
+             .match(/token:"([A-Za-z0-9]+)"/)[1];
+
+    var r1 = $rest({ uriQuery: true })
+            .get("https://api.fast.com/netflix/speedtest/v2", {
+              token   : tk,
+              https   : true,
+              urlCount: 5
+            });
+
+    global.results = {};
+    global.results.asn     = r1.client.asn;
+    global.results.isp     = r1.client.isp;
+    global.results.country = r1.client.location.country;
+    global.results.city    = r1.client.location.city;
+    global.results.ip      = r1.client.ip;
+    global.urls            = r1.targets.map(r => ({ url: r.url }));
+
+    global.fnRange = (url, s, e) => url.replace(/\/speedtest\?/, "/speedtest/range/" + s + "-" + e + "?");
+    global.aj2as = (aJ) => aJ.map(l => Number(l));
+    global.fastMaxPayloadBytes = 26214400;
+
+    global.latencies = new ow.obj.syncArray();
+    global.down = new ow.obj.syncArray();
+    global.up = new ow.obj.syncArray();
+    global.results = {
+      latency: {},
+      download: {},
+      upload: {}
+    };
+
+    global.whiteSpace = "";
+    if (isUnDef(args.__format)) {
+      plugin("Console");
+      var con = new Console();
+      global.whiteSpace = repeat(con.getConsoleReader().getTerminal().getWidth(), " ");
+    }
+
+    var fnRand  = (aS) => {
+      var b = newJavaArray(java.lang.Byte.TYPE, aS.s);
+      (new java.util.Random()).nextBytes(b);
+      return { b: af.fromBytes2String(b) };
+    };
+    $cache("bu").fn(fnRand).ttl(1000*60*60).create();
+    //global.bu = fnRand(global.fastMaxPayloadBytes);
+
+# -----------------------
+- name: Measure latencies
+  deps: 
+  - Prepare URLs
+  exec: |
+    var url = new java.net.URL(global.fnRange(args.url, 0, 0));
+    global.latencies.add(Number(ow.format.testPortLatency(url.getHost(), "443")));
+    if (isUnDef(args.__format)) tprintnl("\r" + global.whiteSpace + "\rLatency: {{min}}/{{avg}}/{{max}} ms...\r", {
+      min: ow.format.round( $path(global.aj2as( global.latencies.toArray() ), "min(@)"), 2),
+      avg: ow.format.round( $path(global.aj2as( global.latencies.toArray() ), "avg(@)"), 2),
+      max: ow.format.round( $path(global.aj2as( global.latencies.toArray() ), "max(@)"), 2)
+    });
+
+# -----------------------
+- name: Measure downloads
+  deps:
+  - Prepare URLs
+  exec: |
+    var init = now();
+    var b = af.fromInputStream2Bytes($rest().get2Stream(global.fnRange(args.url, 0, global.fastMaxPayloadBytes)));
+    if (b.length != global.fastMaxPayloadBytes) throw("Problem getting data from " + args.url);
+    global.down.add((now() - init) / 1000);
+    if (isUnDef(args.__format)) tprintnl("\r" + whiteSpace + "\rDownload: {{min}}/{{avg}}/{{max}} Mbps...\r", {
+      max: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.down.toArray() ), "min(@)")) * 8) /1024/1024, 2),
+      avg: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.down.toArray() ), "avg(@)")) * 8) /1024/1024, 2),
+      min: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.down.toArray() ), "max(@)")) * 8) /1024/1024, 2)
+    })
+
+# ---------------------
+- name: Measure uploads
+  deps:
+  - Prepare URLs
+  exec: |
+    var init = now();
+    var h = new ow.obj.http();
+    h.exec(global.fnRange(args.url, 0, 0), "POST", $cache("bu").get({ s: args.payload }).b, void 0, true, void 0);
+    global.up.add((now() - init) / 1000);
+    if (isUnDef(args.__format)) tprintnl("\r" + whiteSpace + "\rUpload: {{min}}/{{avg}}/{{max}} Mbps...\r", {
+      max: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.up.toArray() ), "min(@)")) * 8) /1024/1024, 2),
+      avg: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.up.toArray() ), "avg(@)")) * 8) /1024/1024, 2),
+      min: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.up.toArray() ), "max(@)")) * 8) /1024/1024, 2)
+    })
+
+# -------------
+- name: Summary
+  deps:
+  - Measure latencies
+  - Measure downloads
+  exec: |
+    global.results.latency = {
+      min: $path(global.aj2as( global.latencies.toArray() ), "min(@)"),
+      avg: $path(global.aj2as( global.latencies.toArray() ), "avg(@)"),
+      max: $path(global.aj2as( global.latencies.toArray() ), "max(@)"),
+      unit: "ms"
+    }
+
+    global.results.download = {
+      max: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.down.toArray() ), "min(@)")) * 8) /1024/1024, 2),
+      avg: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.down.toArray() ), "avg(@)")) * 8) /1024/1024, 2),
+      min: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.down.toArray() ), "max(@)")) * 8) /1024/1024, 2),
+      unit: "mbps"
+    }
+
+    global.results.upload = {
+      max: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.up.toArray() ), "min(@)")) * 8) /1024/1024, 2),
+      avg: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.up.toArray() ), "avg(@)")) * 8) /1024/1024, 2),
+      min: ow.format.round( ((global.fastMaxPayloadBytes / $path(global.aj2as( global.up.toArray() ), "max(@)")) * 8) /1024/1024, 2),
+      unit: "mbps"
+    }
+
+    ow.oJob.output(global.results, args);

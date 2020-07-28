@@ -1,0 +1,39 @@
+# Author: Nuno Aguiar
+
+todo:
+- Get phone info
+
+ojob:
+  opacks      :
+  - GooglePhoneNumber
+  - OpenAF: 20200517
+  loadLibs    :
+  - googlePhoneNumber.js
+  catch       : |
+    logErr(exception);
+  logToConsole: false
+ 
+jobs:
+# ----------
+- name: Help
+  help:
+    text   : Provides the current phone number information for the provided number using Google's Android Phone Number library. 
+    expects:
+    - name: number
+      desc: "The phone number to search (e.g. +1234567890)"
+    - name: country
+      desc: "The country from which the phone number is dialed (defaults to 'US')"
+    output:
+    - name: phoneInfo
+
+# --------------------
+- name: Get phone info
+  exec: |
+    args.number  = _$(args.number, "number").$_();
+    args.country = _$(args.country, "country").default("US");
+    args._format = _$(args._format).default("human");
+
+    var g = new GooglePhoneNumber(); 
+    var info = g.getInfo(args.number, args.country);
+ 
+    ow.oJob.output({ phoneInfo: info }, args);

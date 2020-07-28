@@ -1,0 +1,51 @@
+# Author: Nuno Aguiar
+
+init:
+  servers:
+  - helloacm.com
+  - uploadbeta.com
+  - happyukgo.com
+  - steakovercooked.com
+  - anothervps.com
+  - isvbscriptdead.com
+  - zhihua-lai.com
+  - weibomiaopai.com
+  - steemyy.com
+  - propagationtools.com
+
+todo:
+- Get fortune 
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Provides the online unix fortune result detecting the fatest server for it.
+
+- name: Find nearest server
+  exec: |
+    ow.loadFormat();
+    args.lat = args.init.servers.map(r => {
+      return { server: r, latency: ow.format.testPortLatency(r, 443, 150) };
+    });
+
+    var lst = $from(args.lat)
+    .notEquals(-1)
+    if (lst.any()) args.server = lst.sort("latency").at(0).server;
+    else args.server = void 0;     
+ 
+# ----------------
+- name: Get fortune
+  from:
+  - Find nearest server
+  exec: |
+    if (isDef(args.server)) args.fortune = $rest().get("https://" + args.server + "/api/fortune");
+
+    ow.oJob.output(args.fortune, args, f => print(f));

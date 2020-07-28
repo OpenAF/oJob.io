@@ -1,0 +1,30 @@
+# Author: Nuno Aguiar
+
+todo:
+- Slashdot
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: |
+    text   : Does stuff. 
+    expects: 
+    - name: something
+      desc: To do stuff
+
+# ----------------
+- name: Slashdot
+  exec: |
+    var fn = h => h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
+
+    var rss = af.fromXML2Obj($rest().get("http://rss.slashdot.org/Slashdot/slashdotMain")).RDF.item.map(r => ({ title: r.title, description: fn(r.description), department: r.department, date: r.date, link: r.link }));
+
+    ow.oJob.output(rss, args);
+

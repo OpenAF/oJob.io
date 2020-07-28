@@ -1,0 +1,56 @@
+# Author: Nuno Aguiar
+
+todo:
+- Timezone
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Translate a date time value into other timezones
+    expects: 
+    - name: time
+      desc: The time to convert in the format HHmm (e.g. 1653) defaults to current time.
+    - name: to
+      desc: A comma delimited list of timezones (e.g. EST,PST) defaults to UTC
+    - name: from
+      desc: Provide a different timezone for the provided time (defaults to current)
+
+# ----------------
+- name: Timezone 
+  exec: |
+    ow.loadFormat();
+
+    args.from = _$(args.from, "from").default(void 0);
+    args.to   = _$(args.to, "to").default("UTC");
+
+    if (isUnDef(args.from)) args.from = ow.format.fromDate(new Date(), "z");
+    args.time = _$(args.time, "time").default(ow.format.fromDate(new Date(), "HHmm"));
+
+    var sa = new java.text.SimpleDateFormat("hhmm");
+    sa.setTimeZone(java.util.TimeZone.getTimeZone(args.from)); 
+    var myEntry   = new Date(String(sa.parse(args.time).toInstant()));;
+
+    var res = {}, ores = {};
+
+    if (!isArray(args.to)) args.to = args.to.split(",");
+    args.to.push("UTC");
+    args.to.push(args.from);
+    args.to.map(r => {
+       res[r.toUpperCase()] = ow.format.fromDate( myEntry, "HH:mm z (XX)", r);
+       ores[r.toUpperCase()] = Number(ow.format.fromDate( myEntry, "HHmm", r));
+    }); 
+
+    res = $a2m(Object.keys(res).sort((a,b) => (ores[a] - ores[b])), $m2a(Object.keys(res).sort((a,b) => (ores[a] - ores[b])), res));
+
+    ow.oJob.output(res, args);
+
+
+

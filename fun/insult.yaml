@@ -1,0 +1,24 @@
+# Author: Nuno Aguiar
+
+todo:
+- Get insult
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Provides a random insult
+
+# ----------------
+- name: Get insult
+  exec: |
+    args.insult = $rest().get("https://evilinsult.com/generate_insult.php?lang=en&type=json");
+
+    ow.oJob.output(args.insult, args, f => print(f.insult));

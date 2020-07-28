@@ -1,0 +1,97 @@
+# Template          : Simple Time REST service server
+# Author            : Nuno Aguiar
+# How to run        : ojob TimeService.yaml
+# oPack dependencies: latest ojob-common;
+# Test              : curl http://127.0.0.1:8080/now
+
+init:
+  # The port where the rest services will be available
+  port  : &PORT   8080
+  # Where the pid file will be located
+  piddir: &PIDDIR timeService.pid
+
+ojob:
+  daemon      : true
+  opacks      :
+    - oJob-common
+  unique      : 
+    pidFile     : *PIDDIR
+    killPrevious: false
+  argsFromEnvs: true
+
+include:
+  - oJobRest.yaml
+
+todo:
+  - name: REST Start Server
+    args: | 
+      ({ port : _$(args.port, "port").default(global.args.init.port) })
+
+  - name: Prepare now service
+  - name: Prepare ping service
+  - name: Prepare healthz
+  - name: Prepare default
+
+###########################################################
+# The code
+
+jobs:
+  - name: Help
+    help:
+      text: |
+        Deploys a simple service with three endpoints: /now, /ping and /healthz. 
+        '/now' will return the current time from the service perspective. 
+        '/ping' will return whatever is provided as data on the request.
+        '/healthz' will return the current healthz of the service.
+      expects:
+      - name: port
+        desc: The port on which the service will run (defaults to 8080)
+
+  # ---------------------
+  - name: Prepare healthz
+    to  : REST Healthz
+    args: |
+      ({ port: _$(args.port, "port").default(global.args.init.port),
+         host: "127.0.0.1" })
+
+  # What to answer to any uri not registered (default response)
+  - name: Prepare default
+    to  : REST Service
+    args: 
+      uri       : /
+      execGET   : &DEFAULT_CODE "return { result: 0 }"
+      execPOST  : *DEFAULT_CODE
+      execPUT   : *DEFAULT_CODE
+      execDELETE: *DEFAULT_CODE
+    exec: |
+      args.port = _$(args.port, "port").default(global.args.init.port);
+
+  # What to answer to requests to /now
+  - name: Prepare now service
+    to  : REST Service
+    args: 
+      uri       : /now
+      execGET   : |
+        var m = { };
+        m.datetime = new Date();
+        m.time = m.datetime.getTime(); 
+
+        return m;
+      execPOST  : *DEFAULT_CODE
+      execPUT   : *DEFAULT_CODE
+      execDELETE: *DEFAULT_CODE
+    exec: |
+      args.port = _$(args.port, "port").default(global.args.init.port);
+
+  # Answer to ping requests to /ping
+  - name: Prepare ping service
+    to  : REST Service
+    args:
+      uri       : /ping
+      execGET   : &DEFAULT_PING_CODE "var data; return (isDef(data) ? data : {});"
+      execPOST  : *DEFAULT_PING_CODE 
+      execPUT   : *DEFAULT_PING_CODE
+      execDELETE: *DEFAULT_PING_CODE
+    exec: |
+      args.port = _$(args.port, "port").default(global.args.init.port);
+      

@@ -1,0 +1,77 @@
+# Author: Nuno Aguiar
+init:
+  j:
+    init:
+      interval: 1000
+      elems   :
+      - - title: Cell 1x1 
+          obj  : |
+            ({ "title": "a title",
+               "type" : "map, table, string",
+               "xspan": "1, 2, 3, n columns",
+               "yspan": "1, 2, 3, n lines",
+               "obj"  : "array, map, eval string" })
+
+    todo:
+    - Init
+    - Show grid
+
+    ojob:
+      logToConsole: false
+
+    jobs:
+    - name: Init
+      exec: |
+        ;
+    - name: Show grid
+      exec: |
+        ow.loadFormat();
+        global.fn = () => global.args.init.elems.map(l => l.map(c => {
+            var rr = clone(c);
+            rr.obj = af.eval(rr.obj);
+            return rr;
+        }));
+        cls();
+        watch(args.init.interval, 'ow.format.string.grid(global.fn(), void 0, void 0, " ", false)', false, false);
+        cls();
+
+todo:
+- Generate grid ojob
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates a basic ojob, for customization, to display a grid given an interval to be interrupted by hitting 'q'.
+    expects: 
+    - name: grid
+      desc: A string with [X]x[Y] (e.g. 4x2) to generate the appropriate place holders for each grid cell (defaults to 2x2) 
+
+# ------------------------
+- name: Generate grid ojob
+  exec: |
+    args.grid = _$(args.grid, "grid").default("2x2");
+    
+    var ar = args.grid.split("x");
+    var x = Number(ar[0]);
+    var y = Number(ar[1]);
+  
+    for(var ix = 0; ix < x; ix++) {
+      for(var iy = 0; iy < y; iy++) {
+        if (!(ix == 0 && iy == 0)) {
+          if (isUnDef(args.init.j.init.elems[ix])) args.init.j.init.elems[ix] = [];
+          args.init.j.init.elems[ix][iy] = clone(args.init.j.init.elems[0][0]);
+          args.init.j.init.elems[ix][iy].title = "Cell " + String(ix + 1) + "x" + String(iy + 1);
+        }
+      }
+    }
+
+    if (isUnDef(args.__format)) args.__format = "yaml"; 
+    ow.oJob.output(args.init.j, args);

@@ -1,0 +1,36 @@
+# Author: Nuno Aguiar
+
+todo:
+- List files
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Get a recursive list of files 
+    expects: 
+    - name: path  
+      desc: The path from where to get the list (defaults to '.')
+    - name: filter
+      desc: Optional filter based on $path 
+
+# ----------------
+- name: List files 
+  exec: |
+    args.path   = _$(args.path, "path").default(".");
+    args.filter = _$(args.filter, "filter").default(void 0);
+
+    var lst = listFilesRecursive(args.path);
+    if (isDef(args.filter)) lst = $path(lst, args.filter);
+
+    ow.oJob.output(lst, args);
+
+
+

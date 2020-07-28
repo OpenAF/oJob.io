@@ -1,0 +1,29 @@
+todo:
+- Get DoH
+
+ojob:
+  sequential  : true
+  logToConsole: false
+  catch       : logErr(exception)
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text   : Tries to retrieve DNS over HTTPs information.
+    expects: 
+    - name    : query
+      required: true
+      desc    : The query to make (e.g. google.com)
+    - name    : type
+      desc    : The dns query type (e.g. "a")
+    - name    : provider
+      desc    : The DNS over HTTPs provide to ask between "cloudfare" and "google"
+
+# -------------
+- name: Get DoH
+  exec: |
+    _$(args.query, "query").$_();
+
+    ow.loadFormat();
+    ow.oJob.output(ow.format.getDoH(args.query, args.type, args.provider), args);

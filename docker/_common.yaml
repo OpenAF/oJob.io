@@ -1,0 +1,9 @@
+# Author: Nuno Aguiar
+
+jobs:
+# ----------------------
+- name: Check for docker
+  exec: |
+    var exists = $sh("docker").get(0).exitcode;
+    if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
+
