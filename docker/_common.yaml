@@ -7,3 +7,28 @@ jobs:
     var exists = $sh("docker").get(0).exitcode;
     if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
 
+# ------------------------
+- name: Docker parse table
+  exec: |
+    _$(args.input).isString().$_();
+
+    var ar = [], keys = [];
+    
+    var pLine = (l, t) => (t ? l.toLowerCase().split(/\s+/) : l.split(/\t+| {2,}/) );
+    args.input.split(/\n/).map(line => {
+      if (line.length > 0) {
+        var els = pLine(line, keys.length <= 0);
+        if (keys.length <= 0) {
+          keys = keys.concat(els);
+        } else {
+          var m = {};
+          for(var ii in els) {
+            m[keys[ii]] = els[ii];
+          }
+        }
+
+        ar.push(m);
+      }
+    });
+
+    args.output = ar;

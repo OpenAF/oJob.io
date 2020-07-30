@@ -1,0 +1,59 @@
+init:
+  prefix: "openaf/"
+
+include:
+- ojob.io/docker/_common.yaml
+
+todo:
+- Get images list
+- Update each image
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text   : Updates existing docker images given a prefix.
+    expects: 
+    - name: prefix
+      desc: Docker image prefix (e.g. 'openaf/')
+
+# ---------------------
+- name: Get images list
+  to  :
+  - Docker parse table
+  - Set global image list
+  exec: |
+    args.input = $sh("docker images").get(0).stdout;
+
+# ---------------------------
+- name: Set global image list
+  exec: |
+    _$(args.output, "output").$_();
+
+    global.lst = args.output;
+
+# -----------------------
+- name: Update each image
+  exec: |
+    args.processed = [];
+    args.prefix = _$(args.prefix, "prefix").default(args.init.prefix);
+
+    global.lst.map(l => {
+      if (isDef(l) && isDef(l.repository) && l.repository.startsWith(args.prefix)) {
+        var name = l.repository + (l.tag != "<none>" ? ":" + l.tag : "");
+        $sh("docker pull " + name)
+        .prefix(name)
+        .get();
+        args.processed.push(name);
+      }
+    });
+
+    ow.oJob.output(args.processed, args);
+
