@@ -1,0 +1,59 @@
+# Author: Nuno Aguiar
+init:
+  container   : reachfive/fake-smtp-server
+  instructions:
+  - Stopping: "ojob ojob.io/docker/fake/smtp uninstall=true"
+  - URL     : "http://127.0.0.1:1080"
+  - REST    : 
+    - "$rest().get(\"http://127.0.0.1:1080/api/emails\")"
+    - "$rest({ uriQuery: true }).get(\"http://127.0.0.1:1080/api/emails\", { from: \"joe@example.com\", to: \"bob@example.com\", since: \"2017-09-18T12:00:00Z\", until: \"2017-09-19T00:00:00Z\" })"
+    - "$rest().delete(\"http://127.0.0.1:1080/api/emails\")"
+
+include:
+- ojob.io/docker/_common.yaml
+
+todo:
+- Check for docker
+- Pull latest
+- Handle commands
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Pulls, deploys and undeploys a fake SMTP server for testing.
+    expects: 
+    - name: uninstall
+      desc: If "true" it will try to stop and remove a previously deployed container (default "false")
+
+# -----------------
+- name: Pull latest
+  exec: |
+    $sh("docker pull " + args.init.container)
+    .exec();
+
+# ---------------------
+- name: Handle commands
+  exec: |
+    args.uninstall = _$(args.uninstall, "uninstall").default("false");
+
+    if (args.uninstall.toLowerCase() == "true") {
+      $sh("docker stop fake-smtp-server")
+      .sh("docker rm fake-smtp-server")
+      .prefix("docker")
+      .get(0);
+
+      ow.oJob.output(args, args);
+    } else {
+      $sh("docker run -p 1025:1025 -p 1080:1080 --name fake-smtp-server -d reachfive/fake-smtp-server")
+      .exec();
+  
+      ow.oJob.output(args.init.instructions, args);
+    }
