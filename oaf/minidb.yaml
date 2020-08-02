@@ -1,0 +1,143 @@
+# Author: Nuno Aguiar
+init:
+    port: 8080
+    path: .
+    mode: clone
+  
+todo:
+- Initialization
+- Stop database on exit
+- Start database
+- Check for other databases
+
+ojob:
+  daemon      : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+  argsFromEnvs: true
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : |
+      Creates a small OpenAF channel file based persisted. You can access it by using $ch("example").createRemote("http://hostname:port/db").
+      If sub-maps are defined you can access them each by using $ch("example-s2").createRemote("http://hostname:port/db/s2").
+    expects: 
+    - name: port
+      desc: "The port where the channel will be exposed (default: 8080)"
+    - name: folder
+      desc: "The folder where the file based channel persistence will be kept (default: .)"
+    - name: maps
+      desc: "Optional comma separated list of sub maps."
+    - name: name
+      desc: "The name of the file based channel persistence (default to current hostname)"
+
+# --------------------
+- name: Initialization
+  exec: |
+    args.maps = _$(args.maps, "maps").default(void 0);
+
+    global.fnName = (folder, name, port) => {
+      return folder + "/" + name + "__" + port + ".db"
+    }
+
+    global.fn = void 0;
+    global.dbs = [ "" ];
+    if (isDef(args.maps)) global.dbs = global.dbs.concat(args.maps.trim().split(",").map(r => r.trim()));
+    global.brothers = [];
+    global.dbs.map(m => {
+      global.brothers[m] = [];
+    })
+    ow.loadObj();
+
+# --------------------
+- name: Start database
+  deps: Initialization
+  exec: |
+    ow.loadFormat();
+    ow.loadServer();
+
+    args.name   = _$(args.name, "name").default(ow.format.getHostName());
+    args.folder = _$(args.folder, "folder").default(args.init.path);
+    args.port   = _$(args.port, "port").default(args.init.port);
+
+    global.dbs.map(m => {
+      $ch("dbLocal" + (m == "" ? "" : "-" + m)).create(1, "mvs", { 
+        file: global.fnName(args.folder, args.name, args.port), 
+        shouldCompress: true, 
+        compact: true, 
+        map: (m == "" ? void 0 : m) 
+      });
+      log((m == "" ? "default" : m) + " | Started local database with #" + $ch("dbLocal" + (m == "" ? "" : "-" + m)).size() + " records.");
+      global.brothers[m].push("dbLocal" + (m == "" ? "" : "-" + m));
+    })
+
+    var hc = ow.server.httpd.start(args.port);
+    global.dbs.map(m => {
+      $ch("db" + (m == "" ? "" : "-" + m)).create(1, "all", {
+        chs     : global.brothers[m],
+        fn      : global.fn,
+        errFn   : (name, exception, target, op, args) => {
+          logErr(target + ": [" + op + "] " + exception);
+        },
+        treatAll: isDef(global.fn)
+      });
+      $ch("db" + (m == "" ? "" : "-" + m)).expose(hc, "/db" + (m == "" ? "" : "/" + m));
+      log((m == "" ? "default" : m) + " | Exposing " + "/db" + (m == "" ? "" : "/" + m));
+    });
+
+# -------------------------------
+- name: Check for other databases
+  deps: 
+  - Initialization
+  - Start database
+  exec: |
+    ow.loadFormat();
+
+    args.name   = _$(args.name, "name").default(ow.format.getHostName());
+    args.folder = _$(args.folder, "folder").default(args.init.path);
+    args.port   = _$(args.port, "port").default(args.init.port);
+
+    var me = global.fnName(args.folder, args.name, args.port);
+    io.listFiles(args.folder).files.map(f => {
+      if (f.isFile && f.filename.endsWith(".db") && f.canonicalPath != io.fileInfo(me).canonicalPath) {
+        log("Found database " + f.filename + "...");
+        var [ h, p ] = f.filename.replace(/.db$/, "").split("__");
+
+        if (ow.format.testPort(h, p)) {
+          global.dbs.map(m => {
+            $ch("db_" + h + "_" + p + (m == "" ? "" : "-" + m)).createRemote("http://" + h + ":" + p + "/db" + (m == "" ? "" : "/" + m));
+            global.brothers[m].push("db_" + h + "_" + p + (m == "" ? "" : "-" + ));
+          });
+
+        } else {
+          logWarn("Can't find service on " + h + ":" + p + "... ingesting data...");
+          
+          global.dbs.map(m => {
+            $ch("tmp").create(1, "mvs", { file: f.canonicalPath, shouldCompress: true, compact: true, map: (m == "" ? void 0 : m) });
+            if ($ch("tmp").size() > 0) {
+              var o = $ch("tmp").getAll();
+              $ch("db" + (m == "" ? "" : "-" + m)).setAll(Object.keys(o[0]), o);
+              log("Ingested #" + $ch("tmp").size() + " records. " + (m == "" ? "" : "(" + m + ")"));
+              $ch("tmp").destroy();
+            }
+          })
+
+          io.rm(f.canonicalPath);
+        }
+      }
+    });
+
+# ---------------------------
+- name: Stop database on exit
+  type: shutdown
+  exec: |
+    global.dbs.map(m => {
+      try {
+        $ch("dbLocal" + (m == "" ? "" : "-" + m)).destroy();
+        $ch("db" + (m == "" ? "" : "-" + m)).destroy();
+      } catch(e) { }
+    });
