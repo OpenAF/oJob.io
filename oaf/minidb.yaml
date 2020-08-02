@@ -55,10 +55,18 @@ jobs:
 
 # --------------------
 - name: Start database
-  deps: Initialization
+  deps: 
+  - Initialization
   exec: |
     ow.loadFormat();
     ow.loadServer();
+    ow.loadMetrics();
+
+    ow.metrics.add("channels", () => {
+      var res = {};
+      $ch().list().map(c => { res[c] = { size: $ch(c).size() } });
+      return res;
+    });
 
     args.name   = _$(args.name, "name").default(ow.format.getHostName());
     args.folder = _$(args.folder, "folder").default(args.init.path);
@@ -75,7 +83,9 @@ jobs:
       global.brothers[m].push("dbLocal" + (m == "" ? "" : "-" + m));
     })
 
-    var hc = ow.server.httpd.start(args.port);
+    var hc = ow.server.httpd.start(Number(args.port));
+    ow.server.httpd.route(hc, { "/healthz": (r, h) => { return ow.server.httpd.reply(ow.metrics.getAll()); } });
+
     global.dbs.map(m => {
       $ch("db" + (m == "" ? "" : "-" + m)).create(1, "all", {
         chs     : global.brothers[m],
@@ -92,7 +102,6 @@ jobs:
 # -------------------------------
 - name: Check for other databases
   deps: 
-  - Initialization
   - Start database
   exec: |
     ow.loadFormat();
@@ -102,17 +111,17 @@ jobs:
     args.port   = _$(args.port, "port").default(args.init.port);
 
     var me = global.fnName(args.folder, args.name, args.port);
+
     io.listFiles(args.folder).files.map(f => {
       if (f.isFile && f.filename.endsWith(".db") && f.canonicalPath != io.fileInfo(me).canonicalPath) {
         log("Found database " + f.filename + "...");
-        var [ h, p ] = f.filename.replace(/.db$/, "").split("__");
+        var [h, p] = f.filename.replace(/\.db$/, "").split("__");
 
-        if (ow.format.testPort(h, p)) {
-          global.dbs.map(m => {
-            $ch("db_" + h + "_" + p + (m == "" ? "" : "-" + m)).createRemote("http://" + h + ":" + p + "/db" + (m == "" ? "" : "/" + m));
-            global.brothers[m].push("db_" + h + "_" + p + (m == "" ? "" : "-" + ));
+        if (ow.format.testPort(h, p)) { 
+          global.dbs.map(m => { 
+            $ch("db_" + h + "_" + p + ((m == "") ? "" : "-" + m)).createRemote("http://" + h + ":" + p + "/db" + ((m == "") ? "" : "/" + m));
+            global.brothers[m].push("db_" + h + "_" + p + ((m == "") ? "" : "-" + m));
           });
-
         } else {
           logWarn("Can't find service on " + h + ":" + p + "... ingesting data...");
           
@@ -121,11 +130,10 @@ jobs:
             if ($ch("tmp").size() > 0) {
               var o = $ch("tmp").getAll();
               $ch("db" + (m == "" ? "" : "-" + m)).setAll(Object.keys(o[0]), o);
-              log("Ingested #" + $ch("tmp").size() + " records. " + (m == "" ? "" : "(" + m + ")"));
+              log("Ingested " + $ch('tmp').size() + " records. " + (m == "" ? "" : "(" + m + ")"));
               $ch("tmp").destroy();
             }
           })
-
           io.rm(f.canonicalPath);
         }
       }
