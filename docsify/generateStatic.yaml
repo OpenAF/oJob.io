@@ -15,7 +15,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: |
+  help: 
     text   : Generates a static docsify version from files and sub-folders on DIR. Options:
     expects:
     - name: dir
