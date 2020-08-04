@@ -13,7 +13,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: |
+  help: 
     text   : Does stuff. 
     expects: 
     - name: something
