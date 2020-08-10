@@ -1,0 +1,78 @@
+# Author: Nuno Aguiar
+init:
+  classic: |
+    /**
+     * <odoc>
+     * <key>{{name}}.{{name}}(arg1, arg2) : {{name}}</key>
+     * Some description of the {{name}} constructor.
+     * </odoc>
+     */
+    var {{name}} = function(arg1, arg2) {
+       // TODO: constructor code
+    };
+    {{#each functions}}
+    
+    /**
+     * <odoc>
+     * <key>{{../name}}.{{this}}(arg1, arg2) : Map</key>
+     * Some description of the {{this}} function.
+     * </odoc>
+     */
+    {{../name}}.prototype.{{this}} = function(arg1, arg2) {
+       // TODO: code for {{this}}
+    };
+    {{/each}}
+
+  require: |
+    (function() {
+    {{#each functions}}
+
+       /**
+        * <odoc>
+        * <key>{{../name}}.{{this}}(arg1, arg2) : Map</key>
+        * Some description of the {{this}} function.
+        * </odoc>
+        */
+       exports.{{this}} = function(arg1, arg2) {
+          // TODO: code for {{this}}
+       };
+    {{/each}} 
+    })();
+
+todo:
+- Generate JS
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates a javascript library file.
+    expects: 
+    - name: name
+      desc: The name of the javascript library.
+    - name: classic
+      desc: If classic=false (default) generates an encapsulated javascript library file or a classic javascript library otherwise.
+    - name: functions
+      desc: A comma delimited list of functions (defaults to "example")
+
+# -----------------
+- name: Generate JS
+  exec: |
+    args.name = _$(args.name, "name").default("Example");
+    args.classic = _$(args.classic, "classic").default("false");
+    args.functions = _$(args.functions, "functions").default("example");
+
+    var m = { name: args.name };
+    m.functions = args.functions.split(",");
+    if (args.classic.toLowerCase() == "true") 
+       tprint(args.init.classic, m);
+    else
+       tprint(args.init.require, m);
+

@@ -1,0 +1,70 @@
+# Author: Nuno Aguiar
+
+todo:
+- GenODoc
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates the odoc.db for all the .js files under a folder or a list of files.
+    expects: 
+    - name: key
+      desc: The oDoc key under which the documentation will be generated or a comma delimited list corresponding to each file.
+    - name: folder
+      desc: The folder under which the .js files are (defaults to '.').
+    - name: files
+      desc: A comma delimited list of .js filepaths. If not defined all .js files will be considered.
+
+# -------------
+- name: GenODoc
+  exec: |
+    _$(args.key, "key").$_();
+    args.folder = _$(args.folder, "folder").default(".");
+    args.files = _$(args.files, "files").default(void 0);
+
+    if (isUnDef(args.files)) 
+       args.files = $from( listFilesRecursive(args.folder) )
+                    .equals("isFile", true)
+                    .ends("filename", ".js")
+                    .select(r => r.filepath);
+    else
+       args.files = args.files.split(",");
+
+    if (args.key.indexOf(",") > 0) {
+       var c = 0, m = {};
+       args.key.split(",").map(k => {
+          var f = args.files[c++];
+          if (isDef(f)) {
+             log("Associating '" + k + "' with '" + f + "'...");
+             if (isUnDef(m[k])) m[k] = [ f ]; else m[k].push(f);
+          }
+       });
+       log("Generating .odoc.db...");
+       saveHelp(args.folder, m);
+       log("Done.");
+    } else {
+       var tfile = io.createTempFile("odoc", ".js");
+       args.files.map(r => {
+          log("Reading " + r + "...");
+          io.writeFileString(tfile, io.readFileString(r), void 0, true);
+       });
+
+       log("Generating .odoc.db...");
+       var m = {};
+       m[args.key] = tfile;
+       saveHelp(args.folder, m);
+       log("Done.");
+    }
+
+    ow.oJob.output(args, args);
+
+
+
