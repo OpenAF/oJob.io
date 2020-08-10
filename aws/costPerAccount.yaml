@@ -1,0 +1,69 @@
+# Author: Nuno Aguiar
+todo:
+- Get organizations
+- Get cost per organization
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  - AWS   : 20200809
+  loadLibs    :
+  - aws_organizations.js
+  - aws_cost.js
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Retrieves the daily or monthly cost per AWS organization account. 
+    expects: 
+    - name: accesskey
+      desc: The AWS API access key
+    - name: secretkey
+      desc: The AWS API secret key
+    - name: period
+      desc: The period of analysis (e.g. daily or monthly) (defaults to monthly)
+      
+# -----------------------
+- name: Get organizations
+  exec: |
+    args.accesskey = _$(args.accesskey, "accesskey").default(void 0);
+    args.secretkey = _$(args.secretkey, "secretkey").default(void 0);
+    if (isUnDef(global.aws)) global.aws = new AWS(args.accesskey, args.secretkey);
+    global.orgs = global.aws.ORGS_ListAccounts();
+
+# -------------------------------
+- name: Get cost per organization
+  exec: |
+    args.accesskey = _$(args.accesskey, "accesskey").default(void 0);
+    args.secretkey = _$(args.secretkey, "secretkey").default(void 0);
+    if (isUnDef(global.aws)) global.aws = new AWS(args.accesskey, args.secretkey);
+    args.period = _$(args.period, "period").default("MONTHLY");
+    ow.loadFormat();
+
+    var period = args.period.toUpperCase();
+    var startD, endD;
+
+    if (period == "MONTHLY") {
+      startD = ow.format.fromDate(new Date(), "yyyy-MM") + "-01";
+      endD   = ow.format.fromDate(new Date(now() + (1000 * 60 * 60 * 24 * 31)), "yyyy-MM") + "-01";
+    } else {
+      startD = ow.format.fromDate(new Date(now() - (1000 * 60 * 60 * 24 * 2)), "yyyy-MM-dd");
+      endD   = ow.format.fromDate(new Date(now() - (1000 * 60 * 60 * 24 * 1)), "yyyy-MM-dd");
+    }
+
+    // Arn, Email, Id, JoinedMethod, JoinedTimestamp, Name, Status
+    var res = global.aws.PRICE_GetCostAndUsage(void 0, startD, endD, period, [{Type: "DIMENSION", Key: "LINKED_ACCOUNT"}]);
+    res = res.ResultsByTime[0].Groups.map(r => {
+      return {
+        Id           : r.Keys[0],
+        Email        : $from(global.orgs).equals("Id", r.Keys[0]).at(0).Email,
+        BlendedCost  : ow.format.round(Number(r.Metrics.BlendedCost.Amount), 4),
+        UnblendedCost: ow.format.round(Number(r.Metrics.UnblendedCost.Amount), 4)
+      }
+    });
+
+    ow.oJob.output($from(res).sort("email").select(), args);
