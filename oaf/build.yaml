@@ -17,10 +17,10 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Does stuff. 
+    text   : Builds an openaf branch.
     expects: 
-    - name: something
-      desc: To do stuff
+    - name: branch
+      desc: The branch that will be pulled to be built (default 'master').
 
 # -------------------
 - name: Verifications
