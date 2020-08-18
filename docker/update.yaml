@@ -49,8 +49,7 @@ jobs:
       if (isDef(l) && isDef(l.repository) && l.repository.startsWith(args.prefix)) {
         var name = l.repository + (l.tag != "<none>" ? ":" + l.tag : "");
         $sh("docker pull " + name)
-        .prefix(name)
-        .get();
+        .exec();
         args.processed.push(name);
       }
     });

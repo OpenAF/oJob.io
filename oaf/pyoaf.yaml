@@ -1,0 +1,63 @@
+# Author: Nuno Aguiar
+init:
+  scriptSh: |
+    #!/bin/sh
+
+    cmd="\$pyStart();\$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
+    {{javaHome}}/bin/java -jar {{openafJAR}} -c "$cmd"
+
+  example : |
+    #!/usr/bin/env {{script}}
+    import json
+
+    oafVersion = _('getVersion()')
+    oafPath    = _('getOpenAFPath()')
+    
+    print('Running from python... and using...\n')
+    print('OpenAF version: ' + oafVersion )
+    print('OpenAF path   : ' + oafPath )
+    print('Command line  : ' + json.dumps(params, indent=3, separators=(',',':') ) )
+
+todo:
+- Generate pyOAF
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates a pyoaf script to execute python scripts with OpenAF.
+    expects: 
+    - name: example
+      desc: If defined it will write an python example script on the filename provided (e.g. example.py)
+
+# --------------------
+- name: Generate pyOAF
+  exec: |
+    ow.loadFormat();
+
+    if (ow.format.isWindows()) {
+      logWarn("Windows generation not implemented yet.");
+    } else {
+      var script = getOpenAFPath() + "pyoaf";
+      io.writeFileString(script, templify(args.init.scriptSh, {
+        javaHome : ow.format.getJavaHome(),
+        openafJAR: getOpenAFJar()
+      }));
+      $sh("chmod u+x " + script).exec();
+      log("Generated script " + script);
+
+      if (isDef(args.example)) {
+        io.writeFileString(args.example, templify(args.init.example, {
+          script: script
+        }));
+        log("Generated example " + args.example);
+      }
+    }
+
