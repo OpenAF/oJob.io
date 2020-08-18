@@ -3,7 +3,7 @@ init:
   scriptSh: |
     #!/bin/sh
 
-    cmd="\$pyStart();\$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
+    cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}\$pyStart();\$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
     {{javaHome}}/bin/java -jar {{openafJAR}} -c "$cmd"
 
   example : |
@@ -12,10 +12,12 @@ init:
 
     oafVersion = _('getVersion()')
     oafPath    = _('getOpenAFPath()')
+    pythonVer  = _('String(ow.python.version)')
     
     print('Running from python... and using...\n')
     print('OpenAF version: ' + oafVersion )
     print('OpenAF path   : ' + oafPath )
+    print('Python version: ' + pythonVer )
     print('Command line  : ' + json.dumps(params, indent=3, separators=(',',':') ) )
 
 todo:
@@ -36,6 +38,8 @@ jobs:
     expects: 
     - name: example
       desc: If defined it will write an python example script on the filename provided (e.g. example.py)
+    - name: python
+      desc: If defined it will set the python interpreter to the provided string (e.g. python3)
 
 # --------------------
 - name: Generate pyOAF
@@ -48,7 +52,8 @@ jobs:
       var script = getOpenAFPath() + "pyoaf";
       io.writeFileString(script, templify(args.init.scriptSh, {
         javaHome : ow.format.getJavaHome(),
-        openafJAR: getOpenAFJar()
+        openafJAR: getOpenAFJar(),
+        python   : args.python
       }));
       $sh("chmod u+x " + script).exec();
       log("Generated script " + script);
