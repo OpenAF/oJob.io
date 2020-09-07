@@ -3,7 +3,7 @@ init:
   scriptSh: |
     #!/bin/sh
 
-    cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}\$pyStart();\$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
+    cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}\$pyStart();if (io.fileExists(\"$1\")) \$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
     {{javaHome}}/bin/java -jar {{openafJAR}} -c "$cmd"
 
   example : |

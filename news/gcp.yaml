@@ -14,10 +14,7 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Does stuff. 
-    expects: 
-    - name: something
-      desc: To do stuff
+    text   : Retrieves Google Cloud RSS
 
 # ---------
 - name: Azure

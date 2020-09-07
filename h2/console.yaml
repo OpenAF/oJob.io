@@ -1,0 +1,30 @@
+# Author: Anonymous 
+todo:
+- Show console
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Invokes the H2 web browser console. 
+    expects:
+    - name: jars
+      desc: "Path to JDBC jars (e.g. '.')"
+
+# ------------------
+- name: Show console
+  exec: |
+    if (isDef(args.jars) && io.fileExists(args.jars)) {
+       log("Loading jars from '" + args.jars + "'...");
+       loadExternalJars(args.jars);
+    }
+
+    log("Opening H2... (hit ctrl-c to shutdown)");
+    Packages.org.h2.tools.Console.main();
