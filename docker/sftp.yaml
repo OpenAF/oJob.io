@@ -1,0 +1,82 @@
+# Author: Nuno Aguiar
+init:
+  compose: |
+    version: '3'
+ 
+    services:
+      sftp:
+        image: 'emberstack/sftp'
+        ports:
+        - "{{port}}:22"
+        volumes:
+        - "{{configFile}}:/app/config/sftp.json:ro"             
+
+    {{#each config.users}}
+    # user '{{Username}}' with password '{{Password}}'
+    {{/each}}
+
+todo:
+- Setup sftp config
+- Launch/Stop sftp
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Outputs a docker-compose sftp docker container service configuration.
+    expects: 
+    - name: port
+      desc: "The port number where the sftp will be available (defaults: 2222)"
+    - name: volume
+      desc: "The volume where files will be stored (defaults: sftp)."
+    - name: users
+      desc: Comma delimited list of users. Passwords will be auto-generated if not provided. Optionally you can provide the password as 'aUser:aPassword'
+
+# -----------------------
+- name: Setup sftp config
+  exec: |
+    args.volume    = _$(args.volume, "volume").default("sftp");
+    args.users     = _$(args.users, "users").default("user");
+
+    global.config = {
+       Global: {
+          Chroot: {
+             Directory: "%h",
+             StartPath: "sftp"
+          },
+          Directories: ["sftp"]
+       },
+       Users: [
+       ]
+    };
+
+    args.users.split(",").map(ul => {
+       if (ul.indexOf(":") > 0) {
+          var ar = ul.split(":");
+          global.config.Users.push({ Username: ar[0], Password: ar[1] });
+       } else {
+          ow.loadObj(); ow.loadFormat();
+          var p = ow.format.toBase36(ow.obj.randomRange(0, Number.MAX_SAFE_INTEGER)) + ow.format.toBase36(ow.obj.randomRange(0, Number.MAX_SAFE_INTEGER));
+          global.config.Users.push({ Username: ul, Password: p });      
+       }
+    });
+ 
+    log("Writing sftp configuration file..."); 
+    io.writeFileJSON("sftp.json", global.config);
+
+
+# ----------------------
+- name: Launch/Stop sftp
+  deps:
+  - Setup sftp config
+  exec: |
+    args.port = _$(args.port, "port").default(2222);
+
+    //ow.oJob.output(templify(args.init.compose, merge(args, { config: global.config }), "yaml"));
+    print(templify(args.init.compose, merge(args, { config: global.config })));
