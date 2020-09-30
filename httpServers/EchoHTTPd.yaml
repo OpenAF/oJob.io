@@ -22,7 +22,7 @@ todo:
 - name: HTTP Start Server
   args: |
     ({
-       port: _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(args.init.port)
+       port: Number( _$(args.port, "port").default(args.init.port) )
     })
 - name: Start Echo
 
@@ -53,5 +53,5 @@ jobs:
 
       return stringify(request);
   exec: |
-    args.port = _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(args.init.port);
+    args.port = Number( _$(args.port, "port").default(args.init.port) )
     args.uri  = _$(args.uri, "uri").default(args.init.uri);

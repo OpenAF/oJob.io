@@ -1,0 +1,79 @@
+# Author: Nuno Aguiar
+init:
+  md: |
+    # {{name}}
+
+    ## How to execute
+
+    ````bash
+    ojob {{name}} {{{options}}}
+    ````
+
+    ## Description
+
+    {{help.text}}
+
+    ## Expects
+
+    | name | default | description |
+    |------|---------|-------------|
+    {{#each help.expects}}
+    |{{name}}|{{#if default}}{{default}}{{else}}n/a{{/if}}|{{desc}}|
+    {{/each}}
+
+    {{help.extra}}
+    ----
+
+    <div align="right">List of <a href="">ojob.io jobs</a> | <a href="https://medium.com/@nmaguiar/installing-openaf-4d680805fecd">Install OpenAF with <b>ojob</b></a></div>
+
+todo:
+- Generate MD
+
+ojob:
+  
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates a markdown documentation for a given job.
+    expects: 
+    - name: job
+      desc: Given a job it generates the corresponding markdown documentation.
+    - name: output
+      desc: If defined it will output to a file provided.
+
+# ------------------
+- name: Generate MD
+  exec: |
+    _$(args.job, "job").$_();
+
+    var j;
+    if (io.fileExists(args.job)) {
+      if (args.job.match(/\.ya?ml$/)) j = io.readFileYAML(args.job);
+      if (args.job.match(/\.json$/))  j = io.readFileJSON(args.job);
+    } else {
+      if (!args.job.toLowerCase().startsWith("http://")) {
+        args.job = "https://" + args.job;
+      }
+      j = $rest({ throwExceptions: true }).get(args.job);
+    }
+
+    var h = $from(j.jobs).equals("name", "Help");
+    var res = templify(args.init.md, {
+      name   : args.job.replace("https://", ""),
+      options: (h.any() ? h.at(0).help.expects.map(r => r.name + "= ").join(" ") : ""),
+      help   : (h.any() ? h.at(0).help : void 0),
+      extra  : (h.any() && isDef(h.at(0).help) && isDef(h.at(0).help.extra) && io.fileExists(h.at(0).help.extra) ? io.readFileString(h.at(0).help.extra) : void 0)
+    })
+
+    if (isString(args.output)) {
+      io.writeFileString(args.output, res);
+    } else {
+      print(res);
+    }
+    //ow.oJob.output(j, args);

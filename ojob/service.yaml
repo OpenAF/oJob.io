@@ -7,13 +7,14 @@ init:
   piddir: &PIDDIR service.pid
 
 ojob:
-  daemon: true
-  opacks:
+  daemon      : true
+  argsFromEnvs: true
+  opacks      :
   - oJob-common
-  unique:
+  unique      :
     pidFile     : *PIDDIR
     killPrevious: false
-  catch : |
+  catch       : |
     sprintErr(exception);
 
 include:
@@ -22,7 +23,7 @@ include:
 todo:
 - name: REST Start Server
   args: |
-    ({ port: _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(global.args.init.port) })
+    ({ port: Number( _$(args.port, "port").default(global.args.init.port) ) })
 - name: Prepare Healthz
 - name: Prepare default
 
@@ -43,7 +44,7 @@ jobs:
   args:
     uri: /healthz
   exec: |
-    args.port = _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(global.args.init.port);
+    args.port = Number( _$(args.port, "port").default(global.args.init.port) );
 
 # ---------------------
 - name: Prepare default
@@ -55,12 +56,13 @@ jobs:
       if (isUnDef(data.__ojob)) return {};
       log("Running '" + stringify(data, void 0, "") + "'...");
       __pm = {};
-      oJobRunFile(data.__ojob, merge(data, { __format: "pm" }), now());
-      if (isDef(__pm._map)) return __pm._map;
-      if (isDef(__pm._list)) return __pm._list;
-      if (isDef(__pm.result)) return { result: __pm.result };
-      return __pm;
+      oJobRunFile(data.__ojob, merge(data, { __format: "pm" }), genUUID(), void 0, true);
+      var res = clone(__pm);
+      if (isDef(res._map)) return res._map;
+      if (isDef(res._list)) return res._list;
+      if (isDef(res.result)) return { result: res.result };
+      return res; 
     execPUT   : "return { }"
     execDELETE: "return { }"
   exec: |
-    args.port = _$((isDef(getEnv("PORT")) ? getEnv("PORT") : args.port), "port").default(global.args.init.port);
+    args.port = Number( _$(args.port, "port").default(global.args.init.port) );
