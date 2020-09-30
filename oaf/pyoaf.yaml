@@ -1,12 +1,18 @@
 # Author: Nuno Aguiar
 init:
-  scriptSh: |
+  scriptSh : |
     #!/bin/sh
 
     cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}\$pyStart();if (io.fileExists(\"$1\")) \$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
-    {{javaHome}}/bin/java -jar {{openafJAR}} -c "$cmd"
+    "{{javaHome}}/bin/java" {{{jvmArgs}}} -jar {{openafJAR}} -c $cmd
 
-  example : |
+  scriptBat: |
+    @echo off
+
+    set cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}$pyStart();if (io.fileExists(\"%1\")) $py(\"%1\", { params: processExpr(\" \", false, \"%*\") });$pyStop()"
+    "{{javaHome}}\bin\java" {{{jvmArgs}}} -jar {{openafJAR}} -c %cmd%
+
+  example  : |
     #!/usr/bin/env {{script}}
     import json
 
@@ -47,13 +53,28 @@ jobs:
     ow.loadFormat();
 
     if (ow.format.isWindows()) {
-      logWarn("Windows generation not implemented yet.");
+      var script = getOpenAFPath() + "pyoaf.bat";
+      io.writeFileString(script, templify(args.init.scriptBat, {
+        javaHome : ow.format.getJavaHome(),
+        openafJAR: getOpenAFJar(),
+        python   : args.python,
+        jvmArgs  : af.fromJavaArray(java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()).join(" ")
+      }));
+      log("Generated script " + script);
+
+      if (isDef(args.example)) {
+        io.writeFileString(args.example, templify(args.init.example, {
+          script: script
+        }));
+        log("Generated example " + args.example);
+      }
     } else {
       var script = getOpenAFPath() + "pyoaf";
       io.writeFileString(script, templify(args.init.scriptSh, {
         javaHome : ow.format.getJavaHome(),
         openafJAR: getOpenAFJar(),
-        python   : args.python
+        python   : args.python,
+        jvmArgs  : af.fromJavaArray(java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()).join(" ")
       }));
       $sh("chmod u+x " + script).exec();
       log("Generated script " + script);
