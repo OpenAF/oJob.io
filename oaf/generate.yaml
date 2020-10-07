@@ -47,7 +47,7 @@ ojob:
   opacks      :
   - openaf: 20200523
   catch       : logErr(exception);
-  logToConsole: true   # to change when finished
+  logToConsole: false   # to change when finished
 
 jobs:
 # ----------
