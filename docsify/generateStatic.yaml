@@ -16,7 +16,7 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Generates a static docsify version from files and sub-folders on DIR. Options:
+    text   : "Generates a static docsify version from files and sub-folders on DIR. Options:"
     expects:
     - name: dir
       desc: The default folder where to look for .md files (default to '.')
