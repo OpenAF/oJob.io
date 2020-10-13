@@ -10,12 +10,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20200523
+  - openaf: 20201012
   - S3
   loadLibs    :
   - s3.js
   catch       : logErr(exception);
-  logToConsole: true   # to change when finished
+  logToConsole: false   # to change when finished
 
 jobs:
 # ----------
@@ -27,9 +27,15 @@ jobs:
       desc: The S3 bucket to use
 
 # ----------------
-- name: S3 connect
-  exec: |
-    global.s3 = new S3(args.init.url, args.init.accessKey, args.init.secret, args.init.region);
+- name : S3 connect
+  catch: logErr(exception);
+  exec : |
+    if (isDef(args.seckey)) {
+      global.s3 = $sec(args.secrepo, args.secbucket, args.secpass).getObj(args.seckey);
+    } else {
+      global.s3 = new S3(args.init.url, args.init.accessKey, args.init.secret, args.init.region);
+    }
+
     global.out = {};
 
 # -------------------
@@ -53,6 +59,7 @@ jobs:
 - name : S3 list
   from : S3 connect
   to   : S3 disconnect
+  catch: logErr(exception);
   exec : |
     args.bucket = _$(args.bucket, "bucket").$_();
     args.remote = _$(args.remote, "remote").default("");
@@ -114,6 +121,53 @@ jobs:
       });
     } catch(e) {
       logErr("MGet error: " + e);
+    }
+
+# --------------
+- name : S3 copy
+  from : S3 connect
+  to   : S3 disconnect
+  exec : |
+    args.target  = _$(args.target, "target").$_();
+    args.source  = _$(args.source, "source").$_();
+
+    try {
+      if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
+      if (isDef(args.sbucket) && !global.s3.bucketExists(args.sbucket)) throw "Bucket '" + args.sbucket + "' not found.";
+      if (isDef(args.tbucket) && !global.s3.bucketExists(args.tbucket)) throw "Bucket '" + args.tbucket + "' not found.";
+
+      if (isUnDef(args.sbucket)) args.sbucket = args.bucket;
+      if (isUnDef(args.tbucket)) args.tbucket = args.bucket;
+
+      if (isUnDef(args.sbucket) && isUnDef(args.tbucket)) throw "No bucket, sbucket or tbucket defined.";
+
+      global.out = global.s3.copyObject(args.sbucket, args.source, args.tbucket, args.target);
+    } catch(e) {
+      logErr("Get error: " + e);
+    }
+
+# --------------
+- name : S3 move
+  from : S3 connect
+  to   : S3 disconnect
+  exec : |
+    args.target  = _$(args.target, "target").$_();
+    args.source  = _$(args.source, "source").$_();
+
+    try {
+      if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
+      if (isDef(args.sbucket) && !global.s3.bucketExists(args.sbucket)) throw "Bucket '" + args.sbucket + "' not found.";
+      if (isDef(args.tbucket) && !global.s3.bucketExists(args.tbucket)) throw "Bucket '" + args.tbucket + "' not found.";
+
+      if (isUnDef(args.sbucket)) args.sbucket = args.bucket;
+      if (isUnDef(args.tbucket)) args.tbucket = args.bucket;
+
+      if (isUnDef(args.sbucket) && isUnDef(args.tbucket)) throw "No bucket, sbucket or tbucket defined.";
+
+      global.s3.copyObject(args.sbucket, args.source, args.tbucket, args.target);
+      global.out = global.s3.removeObject(args.sbucket, args.source);
+    } catch(e) {
+      logErr("Get error: " + e);
     }
 
 # -------------
@@ -210,7 +264,7 @@ jobs:
     }
 
 # ------------------
-- name: S3 rm bucket
+- name : S3 rm bucket
   from : S3 connect
   to   : S3 disconnect
   exec : |
@@ -236,8 +290,8 @@ jobs:
     case "get"     : oJobRunJob("S3 get", args); break;
     case "mput"    : oJobRunJob("S3 mput", args); break;
     case "mget"    : oJobRunJob("S3 mget", args); break;
-    case "cp"      : break;
-    case "mv"      : break;
+    case "cp"      : oJobRunJob("S3 copy", args); break;
+    case "mv"      : oJobRunJob("S3 move", args); break;
     case "rm"      : oJobRunJob("S3 rm", args); break;
     case "stat"    : oJobRunJob("S3 stat", args); break;
     case "rmbucket": oJobRunJob("S3 rm bucket", args); break;
