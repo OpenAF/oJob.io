@@ -35,6 +35,7 @@ ojob ojob.io/s3 secrepo=aRepo secbucket=aBucket secpass=pass123
 | [cp](#cp) | _Copies an object from a source bucket to a target bucket (can be the same)._ |
 | [mv](#mv) | _Moves an object from a source bucket to a target bucket._ |
 | [rm](#rm) | _Removes an object from a bucket._ |
+| [rmdir](#rmdir) | _Removes objects based on prefix from a bucket._ |
 | [stat](#stat) | _Retrieves the object metadata._ | 
 
 ### buckets
@@ -118,7 +119,7 @@ ojob ojob.io/s3 ... op=mget bucket=mybucket remote=my/folder source=myLocalFile
 Copies an object from a source bucket to a target bucket, which can be the same as the source bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=cp sbucket=mySourceBucket source=my/file.txt tbucket=myTargetBucket target=my/file.new
+ojob ojob.io/s3 ... op=cp sourceBucket=mySourceBucket source=my/file.txt targetBucket=myTargetBucket target=my/file.new
 ````
 
 Example of copying on the same bucket:
@@ -132,7 +133,7 @@ ojob ojob.io/s3 ... op=cp bucket=myBucket source=my/file.txt target=my/old/file.
 Moves an object from a source bucket to a target bucket, which can be the same as the source bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=mv sbucket=mySourceBucket source=my/file.old tbucket=myTargetBucket target=my/file.new
+ojob ojob.io/s3 ... op=mv souceBucket=mySourceBucket source=my/file.old targetBucket=myTargetBucket target=my/file.new
 ````
 
 Example of moving on the same bucket:
@@ -147,6 +148,14 @@ Removing an existing object from a bucket:
 
 ````bash
 ojob ojob.io/s3 ... op=rm bucket=myBucket remote=my/file/toRemove.txt
+````
+
+### rmdir
+
+Removing existing objects from a bucket:
+
+````bash
+ojob ojob.io/s3 ... op=rmdir bucket=myBucket remote=my/file
 ````
 
 ### stat

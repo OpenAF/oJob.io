@@ -4,6 +4,50 @@ init:
   accessKey: 
   secret   : 
   region   : 
+  help:
+  - op     : listBuckets
+    text   : List the available buckets.
+    example: ojob ojob.io/s3 ... op=listBuckets
+  - op     : mkbucket
+    text   : Creates a new bucket.
+    example: ojob ojob.io/s3 ... op=mkbucket bucket=mynewbucket
+  - op     : rmbucket
+    text   : Remove an existing a bucket.
+    example: ojob ojob.io/s3 ... op=rmbucket bucket=myoldbucket
+  - op     : ls
+    text   : List objects in a bucket (optionally 'remote' prefix and full metadata (slower))
+    example: ojob ojob.io/s3 ... op=ls bucket=mybucket remote=my/folder/ full=yes
+  - op     : put
+    text   : Put a file in a bucket.
+    example: ojob ojob.io/s3 ... op=put bucket=mybucket local=my/folder/file.txt remote=my/list/file.txt
+  - op     : get
+    text   : Get an object from a bucket.
+    example: ojob ojob.io/s3 ... op=get bucket=mybucket remote=my/list/file.txt local=my/folder/file.txt 
+  - op     : mput
+    text   : Put several files in a bucket.
+    example: ojob ojob.io/s3 ... op=mput bucket=mybucket local=list remote=my/list 
+  - op     : mget
+    text   : Get several files from a bucket.
+    example: ojob ojob.io/s3 ... op=mget bucket=mybucket remote=my/list local=list
+  - op     : cp
+    text   : Copies an object from a source bucket to a target bucket (can be the same using the bucket argument).
+    example: ojob ojob.io/s3 ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
+  - op     : mv
+    text   : Moves an object from a source bucket to a target bucket (can be the same using the bucket argument).
+    example: ojob ojob.io/s3 ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
+  - op     : rm
+    text   : Removes an object from a bucket.
+    example: ojob ojob.io/s3 ... op=rm bucket=mybucket remote=my/list/file.txt
+  - op     : rmdir
+    text   : Removes objects based on prefix from a bucket.
+    example: ojob ojob.io/s3 ... op=rm bucket=mybucket remote=my/list
+  - op     : stat
+    text   : Retrieves the object metadata.
+    example: ojob ojob.io/s3 ... op=stat bucket=mybucket remote=my/lisT/file.txt
+  - authentication: |
+      $sec for an S3 object:
+        
+      ojob ojob.io/s3 secrepo=... secbucket=... secpass=... seckey=... 
 
 todo:
 - S3
@@ -45,8 +89,9 @@ jobs:
 
 # -------------
 - name: S3 help
-  from: S3 connect
-  to  : S3 disconnect
+  exec: |
+    global.out = args.init.help;
+    $await("s3").notify();
 
 # ---------------------
 - name: S3 list buckets
@@ -66,10 +111,14 @@ jobs:
 
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      global.out = global.s3.listObjects(args.bucket, args.remote, args.full);
+      global.out = global.s3.listObjects(args.bucket, args.remote, (isString(args.full) ? args.full.substr(0, 1) : void 0));
       global.out = global.out.map(r => {
         if (isDef(r.createdTime)) r.createdTime = (new Date(r.createdTime)).toISOString();
         if (isDef(r.lastModified)) r.lastModified = (new Date(r.lastModified)).toISOString();
+        delete r.isFile;
+        delete r.isDirectory;
+        delete r.filename;
+        delete r.filepath;
         return r;
       }); 
     } catch(e) {
@@ -112,8 +161,9 @@ jobs:
         try {
           if (file.isFile) {
             var f = file.filepath.replace(new RegExp("^" + args.remote + "/"), "");
+            if (f.indexOf("/") > 0) io.mkdir(args.local + "/" + f.replace(/^(.+)\/.+$/, "$1"));
             global.s3.getObject(args.bucket, file.canonicalPath, args.local + "/" + f);
-            global.out.transfer.push({ local: args.local + "/" + f, remote: file.canonicalPath });
+            global.out.transfer.push({ local: args.local + "/" + f, remote: file.catnonicalPath });
           }
         } catch(e2) {
           logErr("Get error: " + e2);
@@ -133,18 +183,18 @@ jobs:
 
     try {
       if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (isDef(args.sbucket) && !global.s3.bucketExists(args.sbucket)) throw "Bucket '" + args.sbucket + "' not found.";
-      if (isDef(args.tbucket) && !global.s3.bucketExists(args.tbucket)) throw "Bucket '" + args.tbucket + "' not found.";
+      if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found.";
+      if (isDef(args.targetBucket) && !global.s3.bucketExists(args.targetBucket)) throw "Bucket '" + args.targetBucket + "' not found.";
 
-      if (isUnDef(args.sbucket)) args.sbucket = args.bucket;
-      if (isUnDef(args.tbucket)) args.tbucket = args.bucket;
+      if (isUnDef(args.sourceBucket)) args.sourceBucket = args.bucket;
+      if (isUnDef(args.targetBucket)) args.targetBucket = args.bucket;
 
-      if (isUnDef(args.sbucket) && isUnDef(args.tbucket)) throw "No bucket, sbucket or tbucket defined.";
+      if (isUnDef(args.sourceBucket) && isUnDef(args.targetBucket)) throw "No bucket, sourceBucket or tbucket defined.";
 
-      global.out = global.s3.copyObject(args.sbucket, args.source, args.tbucket, args.target);
+      global.out = global.s3.copyObject(args.sourceBucket, args.source, args.targetBucket, args.target);
     } catch(e) {
       logErr("Get error: " + e);
-    }
+    }  
 
 # --------------
 - name : S3 move
@@ -156,16 +206,16 @@ jobs:
 
     try {
       if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (isDef(args.sbucket) && !global.s3.bucketExists(args.sbucket)) throw "Bucket '" + args.sbucket + "' not found.";
-      if (isDef(args.tbucket) && !global.s3.bucketExists(args.tbucket)) throw "Bucket '" + args.tbucket + "' not found.";
+      if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found.";
+      if (isDef(args.targetBucket) && !global.s3.bucketExists(args.targetBucket)) throw "Bucket '" + args.targetBucket + "' not found.";
 
-      if (isUnDef(args.sbucket)) args.sbucket = args.bucket;
-      if (isUnDef(args.tbucket)) args.tbucket = args.bucket;
+      if (isUnDef(args.sourceBucket)) args.sourceBucket = args.bucket;
+      if (isUnDef(args.targetBucket)) args.targetBucket = args.bucket;
 
-      if (isUnDef(args.sbucket) && isUnDef(args.tbucket)) throw "No bucket, sbucket or tbucket defined.";
+      if (isUnDef(args.sourceBucket) && isUnDef(args.targetBucket)) throw "No bucket, sourceBucket or tbucket defined.";
 
-      global.s3.copyObject(args.sbucket, args.source, args.tbucket, args.target);
-      global.out = global.s3.removeObject(args.sbucket, args.source);
+      global.s3.copyObject(args.sourceBucket, args.source, args.targetBucket, args.target);
+      global.out = global.s3.removeObject(args.sourceBucket, args.source);
     } catch(e) {
       logErr("Get error: " + e);
     }
@@ -205,8 +255,8 @@ jobs:
         try {
           if (file.isFile) {
             var f = file.filepath.replace(new RegExp("^" + args.local + "/"), "");
-            global.s3.putObject(args.bucket, args.remote + "/" + f, f);
-            global.out.transfer.push({ remote: args.remote + "/" + f, local: f });
+            global.s3.putObject(args.bucket, args.remote + "/" + f, file.canonicalPath);
+            global.out.transfer.push({ remote: args.remote + "/" + f, local: file.canonicalPath });
           }
         } catch(e2) {
           logErr("Put error: " + e2);
@@ -247,6 +297,25 @@ jobs:
       global.out = global.s3.removeObject(args.bucket, args.remote);
     } catch(e) {
       logErr("Get error: " + e);
+    }
+
+# ---------------
+- name : S3 rmdir
+  from : S3 connect
+  to   : S3 disconnect
+  exec : |
+    args.bucket = _$(args.bucket, "bucket").$_();
+    args.remote = _$(args.remote, "remote").$_();
+
+    try {
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
+      global.out = global.s3.listObjects(args.bucket, args.remote);
+      global.out = global.out.map(r => {
+        global.s3.removeObject(args.bucket, r.filepath);
+        return r.filepath;
+      }); 
+    } catch(e) {
+      logErr("rmdir error: " + e);
     }
 
 # --------------------
@@ -293,6 +362,7 @@ jobs:
     case "cp"      : oJobRunJob("S3 copy", args); break;
     case "mv"      : oJobRunJob("S3 move", args); break;
     case "rm"      : oJobRunJob("S3 rm", args); break;
+    case "rmdir"   : oJobRunJob("S3 rmdir", args); break;
     case "stat"    : oJobRunJob("S3 stat", args); break;
     case "rmbucket": oJobRunJob("S3 rm bucket", args); break;
     case "mkbucket": oJobRunJob("S3 make bucket", args); break;
