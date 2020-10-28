@@ -32,6 +32,7 @@ jobs:
     args.result = af.toYAML(args.jresult);
 
     if (isDef(args.yaml)) {
+       log("Writing to '" + args.yaml + "'...");
        io.writeFileYAML(args.yaml, args.jresult);
     } else {
        yprint(args.jresult);
@@ -39,6 +40,3 @@ jobs:
     
     args.__format = "pm";
     ow.oJob.output(args.result, args);
-
-
-

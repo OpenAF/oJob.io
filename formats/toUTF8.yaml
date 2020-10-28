@@ -1,0 +1,40 @@
+# Author: Nuno Aguiar
+
+todo:
+- To UTF8 LF
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to rewrite any text file encoding to a clean UTF-8 LF file.
+    expects: 
+    - name   : file
+      desc   : The file to rewrite.
+      example: file.txt
+
+# ----------------
+- name: To UTF8 LF
+  exec: |
+    _$(args.file, "file").$_();
+
+    var enc = io.getFileEncoding(args.file);
+
+    if (enc != null) {
+      log("Original encoding = " + enc);
+      enc = enc.replace("LE", "");
+    } else {
+      enc = void 0;
+    }
+
+    log("Rewriting converted file '" + args.file + "'");
+    io.writeFileString(args.file, io.readFileString(args.file, enc).replace(/\r\n/g, "\n"));
+
+    args.__format = "pm";
+    ow.oJob.output(args, args);

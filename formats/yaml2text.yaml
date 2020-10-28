@@ -1,0 +1,46 @@
+# Author: Nuno Aguiar
+
+todo:
+- YAML to Text
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Converts a YAML file entry to a text file/content. 
+    expects: 
+    - name: yaml 
+      desc: A YAML file
+    - name: path
+      desc: The map path to the entry to extract
+    - name: file
+      desc: A file to output to (defaults to stdout)
+
+# ------------------
+- name: YAML to Text
+  exec: |
+    _$(args.yaml, "yaml").$_();
+    _$(args.path, "path").$_();
+    args.file = _$(args.file, "file").default(void 0);
+
+    var obj = io.readFileYAML(args.yaml);
+    ow.loadObj();
+    args.out = ow.obj.getPath(obj, args.path);
+
+    if (!isString(args.out)) args.out = stringify(args.out);
+
+    if (isDef(args.file)) {
+       log("Writing to '" + args.file + "'...");
+       io.writeFileString(args.file, args.out);
+    } else {
+       print(args.out);
+    } 
+
+    args.__format = "pm";
+    ow.oJob.output(args, args);
