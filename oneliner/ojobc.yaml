@@ -1,0 +1,61 @@
+# Author: Nuno Aguiar
+init:
+  job: 
+    init:
+      path: oJob-common
+
+    todo:
+    - generate
+
+    ojob:
+      opacks:
+      - openaf: 20200523
+      catch       : logErr(exception);
+      logToConsole: true   # to change when finished
+
+    jobs:
+    - name: generate
+      exec: |
+        io.mkdir(args.init.path);
+        args.init.files.map(r => {
+          io.writeFileString(args.init.path + "/" + r.file, r.data);
+        });
+        oPack("genpack " + args.init.path);
+
+todo:
+- One liner to generate a ojob-common opack
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  - oJob-common
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : |
+      Generates, and copies to your clipboard, one-liner openaf code to create a directory oJob-common with a copy
+      of just of the oJob-common yaml files ready to be installed as an opack (e.g. "opack install oJob-common").
+
+# -----------------------------------------------
+- name: One liner to generate a ojob-common opack
+  exec: |
+    args.init.job.init.files = [];
+    io.listFiles(getOPackPath("oJob-common")).files.map(r => {
+      if (r.filename.endsWith(".yaml")) 
+        args.init.job.init.files.push({
+          file: r.filename,
+          data: io.readFileString(r.canonicalPath)
+        })
+    });
+
+    args.out = "oJobRun( /* one-liner begin */ " + stringify(args.init.job, void 0, "") + " /* one-liner end */ );";
+    var clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+    clipboard.setContents(new java.awt.datatransfer.StringSelection(args.out), null);
+    log("One-line copied to the clipboard.");
+
+    args.__format = "pm";
+    ow.oJob.output(args.out, args);

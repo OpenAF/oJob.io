@@ -1,0 +1,64 @@
+# Author: Nuno Aguiar
+
+init:
+  job:
+    init:
+      port  : 8080
+      path  : "."
+      uri   : "/"
+      upload: "/upload"
+
+    ojob:
+      daemon    : true
+      opacks    :
+      - oJob-common
+
+    include:
+    - oJobHTTPd.yaml
+
+    todo:
+    - name: Init
+    - name: HTTP Start Server
+      args: "({ port: global.init.port, mapLibs: true })"
+    - name: HTTP File Browse
+      args: "({ port: global.init.port, path: global.init.path, uri: global.init.uri })"
+    - name: HTTP Upload
+      args: "({ port: global.init.port, path: global.init.path, uri: global.init.upload })"
+
+    jobs:
+    # ----------
+    - name: Init
+      exec: "global.init = args.init;"
+
+todo:
+- Generate one-liner httpd
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help:
+    text   : | 
+      Generates, and copies to your clipboard, one-liner openaf code to run a HTTPd server with file browsing and upload capabilities. 
+      You can change the port, default uri and the upload uri by changing the corresponding values on the ojob
+      json init map entry.
+    #expects:
+    #- name   : something
+    #  desc   : To do stuff
+    #  example: aValueExample
+
+# ------------------------------
+- name: Generate one-liner httpd
+  exec: |
+    args.out = "oJobRun( /* one-liner begin */ " + stringify(args.init.job, void 0, "") + " /* one-liner end */ );";
+    var clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+    clipboard.setContents(new java.awt.datatransfer.StringSelection(args.out), null);
+    log("One-line copied to the clipboard.");
+
+    args.__format = "pm";
+    ow.oJob.output(args, args);
