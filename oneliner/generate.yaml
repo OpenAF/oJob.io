@@ -1,0 +1,70 @@
+# Author: Nuno Aguiar
+init:
+  job: 
+    init:
+      path: out
+
+    todo:
+    - generate
+
+    ojob:
+      opacks:
+      - openaf: 20200523
+      catch       : logErr(exception);
+      logToConsole: true   # to change when finished
+
+    jobs:
+    - name: generate
+      exec: |
+        io.mkdir(args.init.path);
+        args.init.files.map(r => {
+          io.writeFileString(args.init.path + "/" + r.file, r.data);
+        });
+
+todo:
+- Generate oneliner
+
+ojob:
+  
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates a oneliner from yaml and js files on a path provided.
+    expects: 
+    - name   : path
+      desc   : The path from where the .yaml, js, .yml should be read and converted into an oneliner
+      example: .
+    - name   : outpath
+      desc   : The output folder that should be created when the generated oneliner runs (defaults to 'out')
+      example: out
+
+# -----------------------
+- name: Generate oneliner
+  exec: |
+    args.path    = _$(args.path, "path").$_();
+    args.outpath = _$(args.outpath, "outpath").default("out");
+
+    args.init.job.init.files = [];
+    io.listFiles(args.path).files.map(r => {
+      if (r.filename.endsWith(".yaml") || r.filename.endsWith(".js") || r.filename.endsWith(".yml")) 
+        args.init.job.init.files.push({
+          file: r.filename,
+          data: io.readFileString(r.canonicalPath)
+        })
+    });
+
+    args.init.job.init.path = args.outpath;
+
+    args.out = "oJobRun( /* one-liner begin */ " + stringify(args.init.job, void 0, "") + " /* one-liner end */ );";
+    var clipboard = java.awt.Toolkit.getDefaultToolkit().getSystemClipboard();
+    clipboard.setContents(new java.awt.datatransfer.StringSelection(args.out), null);
+    log("One-line copied to the clipboard.");
+
+    args.__format = "pm";
+    ow.oJob.output(args.out, args);
