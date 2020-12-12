@@ -43,6 +43,7 @@ jobs:
      
     ow.loadFormat();
     if (ow.format.isWindows()) throw "Not supported in Windows";
+    if (args.OPENAF_PATH.endsWith("/")) args.OPENAF_PATH = args.OPENAF_PATH.substr(0, args.OPENAF_PATH.length - 1); 
 
 # -------------------------------
 - name: Setup symlinks for openaf
@@ -54,4 +55,5 @@ jobs:
     if [ "$UNINSTALL" = "false" ]; then
        echo Setup /usr/bin/$BIN...
        ln -s $OPENAF_PATH/$BIN /usr/bin/$BIN
+       chmod a+x $OPENAF_PATH/$BIN
     fi
