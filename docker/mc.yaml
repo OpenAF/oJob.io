@@ -7,7 +7,6 @@ todo:
 - Deploy container
 
 ojob:
-  sequential  : true
   opacks      :
   - openaf: 20200523
   catch       : logErr(exception);
@@ -40,7 +39,7 @@ jobs:
        names.push("/volumes/" + n);
     });
 
-    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"apk update && apk add mc && mc /volumes " + names[0] + "\").exec()"]);
+    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"apk update && apk add perl zip unzip mc && mc /volumes " + names[0] + "\").exec()"]);
     $sh(cmds).exec();
 
     ow.oJob.output(args, args);
