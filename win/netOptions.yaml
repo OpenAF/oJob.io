@@ -1,0 +1,25 @@
+# Author: Nuno Aguiar
+
+todo:
+- Open Internet Options
+
+ojob:
+  opacks      :
+  - openaf: 20200523
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Opens Windows Internet Options 
+    # expects: 
+    # - name   : something
+    #   desc   : To do stuff
+    #   example: aValueExample
+
+# ---------------------------
+- name: Open Internet Options
+  exec: |
+    $sh("%SYSTEMROOT%/System32/control.exe inetcpl.cpl,,4").exec(0);
