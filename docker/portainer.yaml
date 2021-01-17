@@ -1,4 +1,6 @@
 # Author: Nuno Aguiar
+include:
+- ojob.io/docker/_common.yaml
 
 todo:
 - Check for docker
@@ -23,12 +25,6 @@ jobs:
       desc: "If defined the agent port should be exposed (e.g. agentPort=8000). Don't set it if you don't want the agent port exposed."
     - name: uninstall
       desc: "To uninstall an existing portainer container just use (uninstall=true)."
-
-# ----------------------
-- name: Check for docker
-  exec: |
-    var exists = $sh("docker").get(0).exitcode;
-    if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
 
 # -----------------------
 - name: Install portainer

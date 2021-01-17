@@ -7,7 +7,6 @@ todo:
 - Clean up
 
 ojob:
-  sequential  : true
   opacks      :
   - openaf: 20200523
   catch       : logErr(exception);
@@ -17,10 +16,10 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Does stuff. 
+    text   : Tries to build a openaf branch.
     expects: 
-    - name: something
-      desc: To do stuff
+    - name: branch
+      desc: The branch to build (e.g. master)
 
 # -------------------
 - name: Verifications
@@ -37,7 +36,7 @@ jobs:
     io.mkdir(global.dir);
     log("Cloning from https://github.com/openaf/openaf...");
     var git = new GIT();
-    git.clone("https://github.com/openaf/openaf", global.dir, void 0, args.branch);
+    git.clone("https://github.com/openaf/openaf", global.dir, true, args.branch);
 
 # -----------
 - name: Build

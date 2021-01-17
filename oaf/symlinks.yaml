@@ -1,0 +1,59 @@
+# Author: Nuno Aguiar
+
+todo:
+- name: Setup symlinks for openaf
+  args:
+  - BIN: oaf
+  - BIN: oaf-sb
+  - BIN: oafc
+  - BIN: ojob
+  - BIN: opack
+  - BIN: openaf
+  - BIN: openaf-console
+  - BIN: openaf-sb
+
+ojob:
+  opacks      :
+  - openaf: 20201111
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Setups unix symlinks for OpenAF unix commands (e.g. oaf, oafc, ojob, opack, etc...)
+    expects: 
+    - name   : UNINSTALL
+      desc   : If equals 'true' it will just remove the symlinks (defaults to 'false')
+      example: "false"
+    - name   : TARGET
+      desc   : Where the symlinks should be placed (defaults to '/usr/bin')
+      example: "/usr/bin"
+    - name   : OPENAF_PATH
+      desc   : An alternative path to an openaf installation folder (defaults to the current openaf folder)
+      example: /oaf
+
+# -------------------
+- name: Get variables
+  exec: |
+    args.OPENAF_PATH = _$(args.OPENAF_PATH, "OPENAF_PATH").default(getOpenAFPath());
+    args.TARGET      = _$(args.TARGET, "TARGET").default("/usr/bin");
+    args.UNINSTALL   = _$(args.UNINSTALL, "UNINSTALL").default("false");
+     
+    ow.loadFormat();
+    if (ow.format.isWindows()) throw "Not supported in Windows";
+    if (args.OPENAF_PATH.endsWith("/")) args.OPENAF_PATH = args.OPENAF_PATH.substr(0, args.OPENAF_PATH.length - 1); 
+
+# -------------------------------
+- name: Setup symlinks for openaf
+  from: Get variables
+  lang: shell
+  exec: |
+    echo Removing /usr/bin/$BIN...
+    rm /usr/bin/$BIN 2> /dev/null
+    if [ "$UNINSTALL" = "false" ]; then
+       echo Setup /usr/bin/$BIN...
+       ln -s $OPENAF_PATH/$BIN /usr/bin/$BIN
+       chmod a+x $OPENAF_PATH/$BIN
+    fi
