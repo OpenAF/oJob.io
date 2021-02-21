@@ -1,0 +1,70 @@
+# Template          : Simple Upload HTTP server
+# Author            : Nuno Aguiar
+# How to run        : ojob httpd.yaml (change /data for the folder you need)
+# oPack dependencies: latest ojob-common;
+
+init:
+  # The port where the http server will be available
+  port  : &PORT   8080
+  # Where the pid file will be located
+  piddir: &PIDDIR httpd.pid
+  # What folder to expose
+  folder: &FOLDER .
+
+ojob:
+  daemon: true
+  unique: 
+    pidFile     : *PIDDIR
+    killPrevious: false
+
+include:
+  - oJobHTTPd.yaml
+
+todo:
+  - name: HTTP Start Server
+    args:
+      port   : *PORT
+      mapLibs: true
+
+  - name: Prepare my file browser
+  - name: Prepare default
+  - name: Prepare my upload
+  #- name: Prepare my docs
+
+###########################################################
+# The code
+
+jobs:
+  # Serves any file available in /data (canonical path)
+  - name: Prepare default
+    to  : HTTP Service
+    args: 
+      uri       : /
+      port      : *PORT
+      execURI   : "return ow.server.httpd.replyFile(server, (isDef(global.init) ? global.init.folder : '/data'), '/', request.uri);"
+    exec: |
+      global.init = args.init;
+
+  # Provides a file browser
+  - name: Prepare my file browser
+    to  : HTTP File Browse
+    args: 
+      uri       : /browse
+      port      : *PORT
+      path      : *FOLDER
+
+  # Provides a upload uri
+  - name: Prepare my upload
+    to  : HTTP Upload
+    args: 
+      uri       : /upload
+      port      : *PORT
+      path      : *FOLDER
+
+  ## What to answer to requests to /docs
+  #- name: Prepare my docs
+  #  to  : HTTP Service
+  #  args: 
+  #    uri       : /docs
+  #    port      : *PORT
+  #    execURI   : "return ow.server.httpd.replyFileMD(server, '/data/docs', '/docs', request.uri);"
