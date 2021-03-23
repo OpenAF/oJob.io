@@ -1,0 +1,103 @@
+# Author: Nuno Aguiar
+
+todo:
+- Test JDBC latency
+
+ojob:
+  opacks      :
+  - openaf: 20201111
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to reach a database through a JDBC driver and measure the round-trip.
+    expects: 
+    - name   : jdbc
+      desc   : The JDBC url to use (e.g. jdbc:postgresql://127.0.0.1:5432/postgres)
+    - name   : user
+      desc   : The database user to use
+    - name   : pass
+      desc   : The database password to use
+    - name   : num
+      desc   : The number of executions to try (default 4)
+      example: 4
+    - name   : size
+      desc   : The size of a random value to test (default 32 bytes)
+
+# -----------------------
+- name: Test JDBC latency
+  exec: |
+    args.jdbc = _$(args.jdbc, "jdbc").$_();
+    args.user = _$(args.user, "user").$_();
+    args.pass = _$(args.pass, "pass").$_();
+    args.num  = Number(_$(args.num, "num").default(4));
+    args["size"]  = _$(args["size"], "size").default(32);
+
+    var executing = false;
+
+    if (isUnDef(args.check)) {
+      var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      args.check = "";
+      for(var i = 0; i < args["size"]; i++) {
+        args.check += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+    }
+
+    if (args.jdbc.startsWith("jdbc:postgresql:")) {
+       executing = true;
+       args.sql = _$(args.sql, "sql").default("select '" + args.check + "' \"check\" ");
+    }
+
+    var times = { accTime: 0, numExec: 0, success: 0, fail: 0, total: 0, minTime: -1, maxTime: -1 };
+    if (executing) {
+      print("Connecting to the database '" + args.jdbc + "' with user '" + args.user + "'... ");
+      try {
+        var ini = now();
+        var db = new DB(args.jdbc, args.user, args.pass);
+        times.conn = now() - ini;
+        print("Connected in " + times.conn + "ms");
+
+        print("\nPerforming query...");
+        try {
+          for(var ii = 0; ii < args.num; ii++) {
+            times.total++;
+            ini = now();
+            var r = db.q(args.sql);
+            var t = (now() - ini);
+            times.numExec++;
+
+            if (isArray(r.results) && r.results.length > 0 && r.results[0].check == args.check) {
+              times.success++;
+              if (times.minTime == -1) times.minTime = t;
+              if (times.minTime > t) times.minTime = t;
+              if (times.maxTime < t) times.maxTime = t;
+              times.accTime += t;
+              print("Reply from database: payload=" + args.check.length + " time=" + t + "ms");
+            } else {
+              times.fail++;
+              printErr("Unexpected return from server: " + r.results[0].check + " time=" + t + "ms");
+            }
+          }
+        } catch(e) {
+          printErr("Problem querying: " + String(e));
+        }
+        times.avgTime = times.accTime / times.numExec;
+
+        print("\nStatistics:");
+        print("    Queries: Sent = " + times.total + ", Received = " + times.success + ", Lost = " + times.fail + " (" + Math.floor((times.fail/times.total) * 100) + "% loss),");
+        print("Approximate round trip time in milli-seconds:");
+        print("    Minimum = " + times.minTime + "ms, Maximum = " + times.maxTime + "ms, Average = " + Math.floor(times.accTime / times.success) + "ms");
+        print("");
+      } catch(e) {
+        printErr("Problem connecting!");
+        throw e;
+      } finally {
+        db.close();
+      }
+
+    } else {
+      throw "only postgresql is supported currently";
+    }

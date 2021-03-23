@@ -16,7 +16,7 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Tries to reach a RAID portal or instance
+    text   : Tries to reach a RAID portal or instance and measure the round-trip.
     expects: 
     - name   : af
       desc   : URL to access the RAID Portal or instance
