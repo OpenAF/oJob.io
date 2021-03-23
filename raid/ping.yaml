@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
-
 todo:
+- Check for OpenCli 
 - Execute ping
 
 ojob:
@@ -8,6 +8,9 @@ ojob:
   - openaf: 20201111
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
+
+include:
+- ojob.io/docker/_common.yaml
 
 jobs:
 # ----------

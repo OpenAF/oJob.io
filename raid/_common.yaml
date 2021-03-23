@@ -1,0 +1,8 @@
+# Author: Nuno Aguiar
+
+jobs:
+# -----------------------
+- name: Check for OpenCli
+  exec: |
+    var exists = getOPackPath("OpenCli");
+    if (!isString(exists)) throw "Couldn't find the OpenCli opack. Please install OpenCli.";
