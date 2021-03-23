@@ -1,0 +1,275 @@
+# Author: Nuno Aguiar
+
+todo:
+- Execute ping
+
+ojob:
+  opacks      :
+  - openaf: 20201111
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to reach a RAID portal or instance
+    expects: 
+    - name   : af
+      desc   : URL to access the RAID Portal or instance
+      example: http://user:password@a.server:1234/#/a/path/for/a/mashup
+    - name   : num
+      desc   : Number of times to try to reach (defaults to 4)
+      example: 4
+    - name   : wait
+      desc   : Time to wait between executions in ms (defaults to 1000)
+      example: 1000
+    - name   : size
+      desc   : Payload size for each execution (defaults to 32 bytes)
+      example: 32
+    - name   : timeout
+      desc   : Connection timeout for each execution (defaults to 10000ms)
+      example: 10000
+    - name   : threads 
+      desc   : Number of threads per each execution (defaults to 1)
+      example: 4
+
+# ------------------
+- name: Execute ping
+  from: Init
+  exec: |
+    var showHelp = false;
+    if (isDef(args.help) && args.help.toLowerCase() == "y") showHelp = true;
+
+    if (isUnDef(args.af)) {
+      Object.keys(args).forEach(k => { if (k.startsWith("http")) args.af = k });
+      if (isUnDef(args.af)) showHelp = true;
+    }
+
+    args.num = _$(args.num).default(4);
+    args.wait = _$(args.wait).default(1000);
+    args["size"] = _$(args["size"]).default(32);
+    args.timeout = _$(args.timeout).default(10000);
+    args.ops = _$(args.ops).default("Ping");
+    args.threads = _$(args.threads).default(1);
+
+    if (showHelp) {
+      print("Usage: opack exec OpenPing http://user:password@1.2.3.4:8080/#/web/guest/home [option1=value1] ... [optionN = valueN]\n");
+      print("   Set number of times (default 4)         : num=4");
+      print("   Set time to wait (default 1000ms)       : wait=1000");
+      print("   Set payload size (default 32 chars)     : size=32");
+      print("   Set connection timeout (default 10000ms): timeout=10000");
+      print("   Set number of connections (default 1)   : threads=4");
+    } else {
+      var p = new OpenPing(args.af, args.timeout);
+      p.setPayloadSize(args["size"]);
+      p.setThreads(args["threads"]);
+      p.pingoperation = args.ops;
+
+      print("OpenPing AF pinging with a " + p.getPayloadSize() + " bytes payload of data:");
+      printnl("Connecting... "); 
+      var res = p.connect();
+      if (isDef(res.error)) {
+        print("couldn't connect: " + res.error);
+        exit(-1);
+      } else {
+        var info = p.getServerInfo();
+        if (isDef(info.version) && isDef(info.instances) && isDef(info.liferay))
+          print(args.threads + " connected in " + p.connectTime + "ms" + (info.liferay ? ", through Liferay," : "") + " to " + info.instances.join() + " (version " + info.version +")");
+        else
+          print(args.threads + " connected in " + p.connectTime + "ms");
+
+        print("");
+      }
+
+      p.pings(function(r, s, o) {
+        if (isDef(r.error)) {
+          printErr("Error reply: " + r.error);
+        } else {
+          if (r.returnSame) {
+            print("Reply from server: payload=" + o.getPayloadSize() + " time=" + r.time + "ms");
+          } else {
+            printErr("Unexpected return from server: " + r.returnObj + " time=" + r.time + "ms");
+          }
+        }
+      }, args.num, args.wait);
+
+      var res = p.close();
+      print("\nOpenPing statistics:");
+      print("    Operations: Sent = " + res.sent + ", Received = " + res.received + ", Lost = " + res.lost + " (" + Math.floor((res.lost/res.sent) * 100) + "% loss),");
+      print("Approximate round trip time in milli-seconds:");
+      print("    Minimum = " + res.minResponseTime + "ms, Maximum = " + res.maxResponseTime + "ms, Average = " + res.averageResponseTime + "ms");
+      print("");
+
+    }
+
+# ----------
+- name: Init
+  exec: |
+    ow.loadObj();
+
+    var OpenPing = function(aURL, aTimeout) {
+      this.timeout = (isUnDef(aTimeout)) ? 10000 : params.timeout;
+      this.server = ow.obj.pool.AF(aURL, this.timeout);
+      this.payloadSize = 32;
+      this.statsSent = $atomic();
+      this.statsReceived = $atomic();
+      this.statsLost = 0;
+      this.connectTime = -1;
+      this.connected = false;
+      this.pingoperation = "Ping";
+      this.accumulatedTime = $atomic();
+      this.minTime = -1;
+      this.maxTime = -1;
+      this.threads = 1;
+    }
+
+    OpenPing.prototype.setThreads = function(numThreads) { 
+      this.threads = numThreads;
+      this.server.setMax(numThreads);
+    }
+    OpenPing.prototype.getThreads = function() { return this.threads; }
+    OpenPing.prototype.setPayloadSize = function(newPayload) { this.payloadSize = newPayload; }
+    OpenPing.prototype.getPayloadSize = function() { return this.payloadSize; }
+    OpenPing.prototype.getAF = function() { return this.server; }
+    OpenPing.prototype.connect = function() {
+      try {
+        this.server.setMin(this.threads);
+        var init = now();
+        this.server.start();
+        this.connectTime = now() - init;
+        this.connected = true;
+      } catch(e) {
+        return { "error": e.message }
+      }
+
+      return {};
+    }
+
+    OpenPing.prototype.getServerInfo = function() {
+      var res = {};
+      var instancesNames = [];
+      var server = this.server.checkOut();
+
+      try {
+        var instances = server.exec("AF.GetInstances", {});
+        for(var j in instances.Instances) {
+          instancesNames.push(instances.Instances[j].InstanceId);
+        }
+
+        var liferay = (server.isLifeRay()) ? res.liferay = true : res.liferay = false;
+        if (instancesNames != "" || url != "") {
+          res.instances = instancesNames;
+        }
+        res.version = getRAIDVersion(server);
+        try { 
+          if (res.version == "") res.version = server.exec("GetServerVersion").Version.replace(/^.+- /, "");
+        } catch(e1) { }
+        this.server.checkIn(server, true);
+      } catch(e) {
+        logErr(e.message);
+        this.server.checkIn(server, false);
+      }
+
+      return res;
+    }
+
+    OpenPing.prototype.getConnectTime = function() { return this.connectTime; }
+
+    OpenPing.prototype.genPayload = function() {
+      var possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+      var data = "";
+      for(var i = 0; i < this.payloadSize; i++) {
+        data += possible.charAt(Math.floor(Math.random() * possible.length));
+      }
+
+      return { "payload" : data };
+    }
+
+    OpenPing.prototype.ping = function() {
+      var parent = this;
+      var payload = this.genPayload();
+
+      var res = parallel(function() {
+        return parent.subPing(payload);
+      }, this.threads, function(arr) {
+        var s = 0, b = true, ro = {};
+        arr.forEach(ar => {
+          s += ar.time;
+          b = ar.returnSame && b;
+          if (!ar.returnSame) ro = ar.returnObj;
+        })
+        var ress = {
+          "time": Math.floor((s / arr.length)),
+          "returnSame": b	
+        }
+        if (!b) ress.returnObj = ro.payload;
+        return ress;
+      });
+
+      return res;
+    }
+
+    OpenPing.prototype.subPing = function(aPayload) {
+      var res = {};
+
+      var parent = this;
+
+      if (!this.connected) this.connect();
+
+      try {
+        var init = now(), resPing;
+        this.statsSent.inc();
+        this.server.use(aAF => {
+          resPing = aAF.exec(parent.pingoperation, aPayload);
+        });
+        
+        res.time = now() - init;
+        this.statsReceived.inc();
+        this.accumulatedTime.getAdd(res.time);
+        if (this.minTime == -1 || this.minTime > res.time) this.minTime = res.time;
+        if (this.maxTime == -1 || this.maxTime < res.time) this.maxTime = res.time;
+
+        if (compare(resPing, aPayload)) {
+          res.returnSame = true;
+        } else {
+          res.returnSame = false;
+          res.returnObj = resPing;
+        }
+      } catch(e) {
+        this.statsLost++;
+        res.error = e.message;
+      }
+
+      return res;
+    }
+
+    OpenPing.prototype.getStats = function() {
+      return {
+        "sent": this.statsSent.get(),
+        "received": this.statsReceived.get(),
+        "lost": this.statsLost,
+        "averageResponseTime": Math.floor(this.accumulatedTime.get() / this.statsReceived.get()),
+        "minResponseTime": this.minTime,
+        "maxResponseTime": this.maxTime,
+        "connectTime": this.connectTime
+      }
+    }
+
+    OpenPing.prototype.close = function() {
+      this.server.stop();
+      return this.getStats();
+    }
+
+    OpenPing.prototype.pings = function(printFunction, aNumberOfTimes, waitBetween) {
+      var numberTimes = _$(aNumberOfTimes).default(4);
+      var waitMs = _$(waitBetween).default(1000);
+
+      for(var i = 0; i < numberTimes; i++) {
+        var res = this.ping();
+        if (isDef(printFunction)) {
+          printFunction(res, this.getStats(), this);
+        }
+        sleep(waitMs, true);
+      }
+    }
