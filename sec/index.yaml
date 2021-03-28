@@ -1,0 +1,103 @@
+# Author: Nuno Aguiar
+
+todo:
+- Choose operation
+
+ojob:
+  opacks      :
+  - openaf: 20210327
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Gets/Sets OpenAF's sBuckets.
+    expects: 
+    - name   : op
+      desc   : "Provides the operation to perform: list; getbucket; setbucket; unsetbucket"
+      example: list
+    - name   : secrepo
+      desc   : The sBucket security repository (or don't define for default)
+    - name   : secbucket
+      desc   : The sBucket security bucket.
+    - name   : seckey
+      desc   : The sBucket security bucket key.
+    - name   : bucket
+      desc   : The bucket string when op=setbucket
+
+# ----------------------
+- name: Choose operation
+  exec: |
+    args.op = _$(args.op, "op").default("list");
+    if (isDef(args.secrepo) && String(args.secrepo).length > 0) {
+      args.secpass = askDef(args.secpass, "Sec repo '" + args.secrepo + "' pass: ", true);
+    }
+
+    switch(args.op.toLowerCase()) {
+    case "list"       : args = $job("SBucket List", args); break;
+    case "getbucket"  : args = $job("SBucket Get Bucket", args); break; 
+    case "setbucket"  : args = $job("SBucket Set Bucket", args); break;
+    case "unsetbucket": args = $job("SBucket UnSet Bucket", args); break;
+    }
+
+    ow.oJob.output(args.output, args);
+
+# ------------------
+- name: SBucket List
+  exec: |
+    args.secbucket = _$(args.secbucket, "secbucket").default(__);
+    if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
+      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+    }
+    args.output = Object.keys($sec(args.secrepo, __, __, args.secpass).list(args.secbucket, args.setbucketpass)).sort();
+
+# -----------------
+- name: SBucket Get
+  exec: |
+    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    args.seckey    = _$(args.seckey, "seckey").$_();
+    if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
+      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+    }
+    args.output = $sec(args.secrepo, __, __, args.secpass).get(args.seckey, args.secbucket, args.setbucketpass);
+
+# -------------------
+- name: SBucket GetFn
+  exec: |
+    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    args.seckey    = _$(args.seckey, "seckey").$_();
+    if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
+      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+    }
+    args.output = $sec(args.secrepo, __, __, args.secpass).getFn(args.seckey, args.secargs, args.secbucket, args.setbucketpass);
+
+# ------------------------
+- name: SBucket Get Bucket
+  exec: |
+    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
+      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+    }
+    args.output = $sec(args.secrepo, __, __, args.secpass).getBucket(args.secbucket, args.setbucketpass);
+
+# ------------------------
+- name: SBucket Set Bucket
+  exec: |
+    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    args.bucket    = _$(args.bucket, "bucket").$_();
+    if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
+      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+    }
+    args.output = $sec(args.secrepo, __, __, args.secpass).setBucket(args.bucket, args.secbucket, args.setbucketpass);
+
+# --------------------------
+- name: SBucket UnSet Bucket
+  exec: |
+    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
+      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+    }
+
+    args.output = $sec(args.secrepo, __, __, args.secpass).unsetBucket(args.secbucket, args.setbucketpass);
