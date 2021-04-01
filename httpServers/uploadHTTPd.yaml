@@ -5,14 +5,18 @@
 
 init:
   # The port where the http server will be available
-  port  : &PORT   8080
+  port      : &PORT        8080
   # Where the pid file will be located
-  piddir: &PIDDIR httpd.pid
-  # What folder to expose
-  folder: &FOLDER .
+  piddir    : &PIDDIR      uploadHTTPd.pid
+  # What uri will be used for upload and browse
+  path      : &PATH        "."
+  uploadUri : &UPLOAD_URI  "/_upload"
+  uri       : &URI         "/"
 
 ojob:
   daemon: true
+  opacks:
+  - oJob-common
   unique: 
     pidFile     : *PIDDIR
     killPrevious: false
@@ -22,12 +26,11 @@ include:
 
 todo:
   - name: HTTP Start Server
-    args:
-      port   : *PORT
-      mapLibs: true
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port), 
+         "mapLibs": true })
 
   - name: Prepare my file browser
-  - name: Prepare default
   - name: Prepare my upload
   #- name: Prepare my docs
 
@@ -35,31 +38,39 @@ todo:
 # The code
 
 jobs:
-  # Serves any file available in /data (canonical path)
-  - name: Prepare default
-    to  : HTTP Service
-    args: 
-      uri       : /
-      port      : *PORT
-      execURI   : "return ow.server.httpd.replyFile(server, (isDef(global.init) ? global.init.folder : '/data'), '/', request.uri);"
-    exec: |
-      global.init = args.init;
+  # ----------
+  - name: Help
+    help:
+      text   : Starts a very simple HTTP server on the provided port for file upload
+      expects:
+      - name: port 
+        desc: The port to use (default to 8888)
+      - name: path
+        desc: The path from which to browse files (defaults to '.')
+      - name: uploadUri
+        desc: The default URI to use for upload (defaults to '/_upload')
+      - name: uri
+        desc: The default URI to use (defaults to '/')
 
   # Provides a file browser
   - name: Prepare my file browser
     to  : HTTP File Browse
-    args: 
-      uri       : /browse
-      port      : *PORT
-      path      : *FOLDER
+    exec: |
+      args = merge(args,
+         ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+            "path": (isDef(args.path) ? String(args.path) : global.args.init.path),
+            "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri) })
+      );
 
   # Provides a upload uri
   - name: Prepare my upload
     to  : HTTP Upload
-    args: 
-      uri       : /upload
-      port      : *PORT
-      path      : *FOLDER
+    exec: |
+      args = merge(args, 
+        ({ "port": (isDef(args.port)      ? Number(args.port)      : global.args.init.port),
+           "path": (isDef(args.path)      ? String(args.path)      : global.args.init.path),
+           "uri" : (isDef(args.uploadUri) ? String(args.uploadUri) : global.args.init.uploadUri) })
+      );
 
   ## What to answer to requests to /docs
   #- name: Prepare my docs
