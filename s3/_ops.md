@@ -5,19 +5,19 @@
 If you set S3 credentials using "$sec", for example:
 
 ````javascript
-> $sec(void 0, "myEnv").setObj("s3", "S3", { aURL: "https://s3.somewhere.cloud", aAccessKey: "ABC", aSecret: "123", aRegion: "ab-xyz" }))
+> $sec(__, "myEnv").setObj("s3", "S3", { aURL: "https://s3.somewhere.cloud", aAccessKey: "ABC", aSecret: "123", aRegion: "ab-xyz" }))
 ````
 
 you can reference it like this:
 
 ````bash
-ojob ojob.io/s3 secbucket=myEnv seckey=s3 ...
+ojob ojob.io/s3/ops secbucket=myEnv seckey=s3 ...
 ````
 
 To use all possible "$sec" variables:
 
 ````bash
-ojob ojob.io/s3 secrepo=aRepo secbucket=aBucket secpass=pass123
+ojob ojob.io/s3/ops secrepo=aRepo secbucket=aBucket secpass=pass123
 ````
 
 ## Available operations
@@ -43,7 +43,7 @@ ojob ojob.io/s3 secrepo=aRepo secbucket=aBucket secpass=pass123
 List the available buckets:
 
 ````bash
-ojob ojob.io/s3 ... op=buckets
+ojob ojob.io/s3/ops ... op=buckets
 ````
 
 ### mkbucket
@@ -51,7 +51,7 @@ ojob ojob.io/s3 ... op=buckets
 Creates a new bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=mkbucket bucket=mynewbucket
+ojob ojob.io/s3/ops ... op=mkbucket bucket=mynewbucket
 ````
 
 ### rmbucket
@@ -59,7 +59,7 @@ ojob ojob.io/s3 ... op=mkbucket bucket=mynewbucket
 Removes an existing bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=rmbucket bucket=bucket2remove
+ojob ojob.io/s3/ops ... op=rmbucket bucket=bucket2remove
 ````
 
 ### ls
@@ -67,19 +67,19 @@ ojob ojob.io/s3 ... op=rmbucket bucket=bucket2remove
 Lists all the objects under a bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=ls bucket=bucket2list
+ojob ojob.io/s3/ops ... op=ls bucket=bucket2list
 ````
 
 You can filter the listing by providing a prefix:
 
 ````bash
-ojob ojob.io/s3 ... op=ls bucket=bucket2list remote=my/folder/in/bucket
+ojob ojob.io/s3/ops ... op=ls bucket=bucket2list remote=my/folder/in/bucket
 ````
 
 And include all metadata for each object with the "full" option:
 
 ````bash
-ojob ojob.io/s3 ... op=ls bucket=bucket2list remote=my/folder/in/bucket full=y
+ojob ojob.io/s3/ops ... op=ls bucket=bucket2list remote=my/folder/in/bucket full=y
 ````
 
 ### put
@@ -87,7 +87,7 @@ ojob ojob.io/s3 ... op=ls bucket=bucket2list remote=my/folder/in/bucket full=y
 Transfer a local file to an object in a remote bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=put bucket=mybucket local=myFile.txt remote=my/folder/myFile.txt
+ojob ojob.io/s3/ops ... op=put bucket=mybucket local=myFile.txt remote=my/folder/myFile.txt
 ````
 
 ### get
@@ -95,7 +95,7 @@ ojob ojob.io/s3 ... op=put bucket=mybucket local=myFile.txt remote=my/folder/myF
 Transfer a remote object on a bucket to a local file:
 
 ````bash
-ojob ojob.io/s3 ... op=get bucket=mybucket remote=my/folder/myFile.txt local=myFile.txt
+ojob ojob.io/s3/ops ... op=get bucket=mybucket remote=my/folder/myFile.txt local=myFile.txt
 ````
 
 ### mput
@@ -103,7 +103,7 @@ ojob ojob.io/s3 ... op=get bucket=mybucket remote=my/folder/myFile.txt local=myF
 Transfer a local folder to several objects in a remote bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=mput bucket=mybucket local=myFolder remote=my/folder
+ojob ojob.io/s3/ops ... op=mput bucket=mybucket local=myFolder remote=my/folder
 ````
 
 ### mget
@@ -111,7 +111,7 @@ ojob ojob.io/s3 ... op=mput bucket=mybucket local=myFolder remote=my/folder
 Transfer several objects in a remote bucket to a local folder:
 
 ````bash
-ojob ojob.io/s3 ... op=mget bucket=mybucket remote=my/folder source=myLocalFile
+ojob ojob.io/s3/ops ... op=mget bucket=mybucket remote=my/folder source=myLocalFile
 ````
 
 ### cp
@@ -119,13 +119,13 @@ ojob ojob.io/s3 ... op=mget bucket=mybucket remote=my/folder source=myLocalFile
 Copies an object from a source bucket to a target bucket, which can be the same as the source bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=cp sourceBucket=mySourceBucket source=my/file.txt targetBucket=myTargetBucket target=my/file.new
+ojob ojob.io/s3/ops ... op=cp sourceBucket=mySourceBucket source=my/file.txt targetBucket=myTargetBucket target=my/file.new
 ````
 
 Example of copying on the same bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=cp bucket=myBucket source=my/file.txt target=my/old/file.txt
+ojob ojob.io/s3/ops ... op=cp bucket=myBucket source=my/file.txt target=my/old/file.txt
 ````
 
 ### mv
@@ -133,13 +133,13 @@ ojob ojob.io/s3 ... op=cp bucket=myBucket source=my/file.txt target=my/old/file.
 Moves an object from a source bucket to a target bucket, which can be the same as the source bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=mv souceBucket=mySourceBucket source=my/file.old targetBucket=myTargetBucket target=my/file.new
+ojob ojob.io/s3/ops ... op=mv souceBucket=mySourceBucket source=my/file.old targetBucket=myTargetBucket target=my/file.new
 ````
 
 Example of moving on the same bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=mv bucket=myBucket source=my/file.old target=my/old/file.new
+ojob ojob.io/s3/ops ... op=mv bucket=myBucket source=my/file.old target=my/old/file.new
 ````
 
 ### rm
@@ -147,7 +147,7 @@ ojob ojob.io/s3 ... op=mv bucket=myBucket source=my/file.old target=my/old/file.
 Removing an existing object from a bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=rm bucket=myBucket remote=my/file/toRemove.txt
+ojob ojob.io/s3/ops ... op=rm bucket=myBucket remote=my/file/toRemove.txt
 ````
 
 ### rmdir
@@ -155,7 +155,7 @@ ojob ojob.io/s3 ... op=rm bucket=myBucket remote=my/file/toRemove.txt
 Removing existing objects from a bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=rmdir bucket=myBucket remote=my/file
+ojob ojob.io/s3/ops ... op=rmdir bucket=myBucket remote=my/file
 ````
 
 ### stat
@@ -163,5 +163,5 @@ ojob ojob.io/s3 ... op=rmdir bucket=myBucket remote=my/file
 To get the full metadata for an existing object on a bucket:
 
 ````bash
-ojob ojob.io/s3 ... op=stat remote=my/file.txt
+ojob ojob.io/s3/ops ... op=stat remote=my/file.txt
 ````
