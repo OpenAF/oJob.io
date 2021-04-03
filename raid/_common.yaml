@@ -6,3 +6,23 @@ jobs:
   exec: |
     var exists = getOPackPath("OpenCli");
     if (!isString(exists)) throw "Couldn't find the OpenCli opack. Please install OpenCli.";
+
+# ---------------------
+- name: Connect to RAID
+  exec: |
+    args.url            = _$(args.url, "url").isString().$_();
+    args.timeout        = _$(args.timeout, "timeout").isString().default(__); 
+    args.ctimeout       = _$(args.ctimeout, "ctimeout").isString().default(__);
+    args.useTransaction = _$(args.useTransaction, "useTransaction").isString().default(__);
+
+    if (!toBoolean(args.nolog)) lognl("Connecting to RAID... ");
+    global.af = new AF(args.url, Number(args.timeout), Number(args.ctimeout), toBoolean(args.useTransaction));
+    if (!toBoolean(args.nolog)) log("Connected to RAID " + getRAIDVersion())
+    ow.oJob.add2Todo("Disconnect from RAID");
+
+# --------------------------
+- name: Disconnect from RAID
+  type: shutdown
+  exec: |
+    if (!toBoolean(args.nolog)) log("Disconnecting from RAID...");
+    global.af.close();

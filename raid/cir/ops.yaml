@@ -1,0 +1,278 @@
+# Author: Nuno Aguiar
+todo:
+- Check for OpenCli
+- Connect to RAID
+- Check operations
+
+ojob:
+  opacks      :
+  - openaf: 20201111
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/raid/_common.yaml
+
+jobs:
+- name: Help
+  help:
+    text   : Provides quick commands to operate RAID CIR (requires the OpenCli opack)
+    expects:
+    - name: op
+      desc: "The operation to perform between: list, get, test, apply/save, delete/remove. Defaults to 'op=list'"
+      example: list
+    - name: file
+      desc: The filename to save or read from.
+    - name: uuid
+      desc: The specific CIR's object UUID
+    - name: name
+      desc: The specific CIR's object name
+    - name: type
+      desc: The specific CIR's object type
+
+# ---------------
+- name: Read file
+  exec: |
+    if (isDef(args.file) && io.fileExists(args.file)) {
+      if (args.file.endsWith(".yaml") || args.file.endsWith(".yml")) {
+        args.conf = io.readFileYAML(args.file);
+      } else {
+        if (args.file.endsWith(".xml")) {
+          args.conf = io.readFilePMap(args.file);
+        } else {
+          args.conf = io.readFileJSON(args.file);
+        }
+      }
+
+      if (!isArray(args.conf)) args.conf = [ args.conf ];
+    }
+
+# ---------------
+- name: Save file
+  exec: |
+    if (isDef(file)) {
+      if (isArray(args.conf) && args.conf.length == 1) args.conf = args.conf[0];
+
+      log("Writing to " + file + "...");
+      if (file.endsWith(".yaml") || file.endsWith(".yml")) {
+        io.writeFileYAML(file, args.conf, isArray(args.conf));
+      } else {
+        if (file.endsWith(".xml")) {
+          io.writeFilePMap(file, args.conf);
+        } else {
+          io.writeFileJSON(file, args.conf);
+        }
+      }
+
+      args = { file: file };
+    }
+
+# -------------
+- name: Op List
+  from: Read file
+  exec: |
+    ow.loadObj();
+    var r = $from( ow.obj.fromObj2Array(global.af.exec("CIR.ConnectorConfiguration.List"), "Uuid") )
+            .sort("Name")
+            .select(r2 => ({ 
+              uuid       : r2.UUID, 
+              name       : r2.Name, 
+              type       : r2.ServerType, 
+              description: r2.Description
+            }));
+
+    if (isDef(args.conf)) {
+      r = $from(r)
+      .where(r2 => $from(args.conf).equals("Name", r2.name).equals("ServerType", r2.type).any())
+      .select();
+    }
+
+    args = r;
+
+# ------------
+- name: Op Get
+  from: Read file
+  to  : Save file
+  exec: |
+    var file = _$(args.file, "file").default(__);
+    var wheres = []; 
+
+    if (isDef(args.conf)) { 
+      wheres = args.conf.map(r => ({ name: r.Name, type: r.ServerType })); 
+    } else {
+      if (isUnDef(args.uuid)) {
+        _$(args.name, "name").isString().$_();
+        _$(args.type, "type").isString().$_();
+        wheres = [ { name: args.name, type: args.type } ];
+      } else {
+        _$(args.uuid, "uuid").isString().$_();
+        wheres = [ { uuid: args.uuid } ];
+      }
+    }
+
+    // GET
+    var out = [];
+    wheres.forEach(r => {
+      try {      
+        var r2;
+        if (isUnDef(r.uuid)) {
+          r2 = global.af.exec("CIR.ConnectorConfiguration.Get", { Name: r.name, ServerType: r.type });
+        } else {
+          r2 = global.af.exec("CIR.ConnectorConfiguration.Get", { UUID: r.uuid });
+        }
+        // PREPARE
+        Object.keys(r2.NewConfiguration).forEach(rr => {
+          r2.Configuration[rr] = r2.NewConfiguration[rr];
+        });
+        delete r2.NewConfiguration;
+        delete r2.Metadata;
+        delete r2.Privileges;
+
+        out.push(r2);
+      } catch(e) {
+        out.push({
+          Name: r.name,
+          Type: r.type,
+          UUID: r.uuid,
+          Error: String(e)
+        });
+      }
+    });
+
+    args.conf = out;
+
+# ---------------
+- name: Op Remove
+  from: Read file
+  exec: |
+    var file = _$(args.file, "file").default(__);
+    var wheres = []; 
+
+    if (isDef(args.conf)) { 
+      wheres = args.conf.map(r => ({ name: r.Name, type: r.ServerType })); 
+    } else {
+      if (isUnDef(args.uuid)) {
+        _$(args.name, "name").isString().$_();
+        _$(args.type, "type").isString().$_();
+        wheres = [ { name: args.name, type: args.type } ];
+      } else {
+        _$(args.uuid, "uuid").isString().$_();
+        wheres = [ { uuid: args.uuid } ];
+      }
+    }
+
+    // REMOVE
+    var out = [];
+    ow.loadWAF();
+    wheres.forEach(r => {
+      try {
+        // Verify
+        var existing = ow.waf.objects.getObjectByName(global.af, r.name, false, false, "CIR.ConnectorConfiguration");
+        if (isDef(existing.uuid)) {
+          log("Removing configuration (" + r.name + ", " + r.type + ", " + existing.uuid + ")...");
+          out.push( global.af.exec("CIR.ConnectorConfiguration.Remove", { UUIDList: [ existing.uuid ] }) );
+        } else {
+          logWarn("Configuration not found (" + r.name + ", " + r.type + ")!");
+          out.push( existing );
+        }
+      } catch(e) {
+        out.push({
+          Name: r.name,
+          Type: r.type,
+          error: String(e)
+        });
+      }
+    });
+
+    args = out;
+
+# -------------
+- name: Op Save
+  from: Read file
+  exec: |
+    var file = _$(args.file, "file").$_();
+
+    var out = [];
+    ow.loadWAF();
+    args.conf.forEach(r => {
+      try {
+        // Verify
+        var existing = ow.waf.objects.getObjectByName(global.af, r.Name, false, false, "CIR.ConnectorConfiguration");
+        if (isDef(existing.uuid)) {
+          log("Updating configuration (" + r.Name + ", " + r.ServerType + ", " + existing.uuid + ")...");
+        } else {
+          log("Saving new configuration (" + r.Name + ", " + r.ServerType + ")...");
+        }
+        
+        var rout = global.af.exec("CIR.ConnectorConfiguration.Save", r);
+        if (isDef(rout.Configuration) && isDef(rout.NewConfiguration)) rout = { UUID: rout.UUID };
+        out.push(rout);
+      } catch(e) {
+        out.push({
+          Name: r.Name,
+          Type: r.ServerType,
+          UUID: r.UUID,
+          error: String(e)
+        });
+      }
+    });
+
+    args = out;
+
+# -------------
+- name: Op Test
+  from: Read file
+  exec: |
+    _$(args.file, "file").$_();
+
+    var out = [];
+    args.conf.forEach(r => {
+      try {
+        out.push( { 
+          Name: r.Name, 
+          Type: r.ServerType, 
+          result: global.af.exec("CIR.ConnectorConfiguration.Test", r) 
+        } );
+      } catch(e) {
+        out.push({
+          Name: r.Name,
+          Type: r.ServerType,
+          UUID: r.UUID,
+          result: { error: String(e) }
+        });
+      }
+    });
+
+    args = out;
+  
+# ----------------------
+- name: Check operations
+  exec: |
+    args.op = _$(args.op, "op").isString().default("list");
+
+    if (isDef(args.file)) args = merge(args, $job("Read file", args));
+
+    var res = {};
+    switch(args.op.toLowerCase()) {
+    case "list": 
+      res = $job("Op List", args); 
+      args.__format = _$(args.__format).default("table");
+      break;
+    case "get":
+      res = $job("Op Get", args);
+      args.__format = _$(args.__format).default("yaml");
+      break;
+    case "test":
+      res = $job("Op Test", args);
+      break;
+    case "apply":
+    case "save":
+      res = $job("Op Save", args);
+      break;
+    case "delete":
+    case "remove":
+      res = $job("Op Remove", args);
+      break;
+    }
+
+    if (isMap(res) || isArray(res)) ow.oJob.output(res, args);
