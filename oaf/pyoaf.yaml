@@ -4,13 +4,13 @@ init:
     #!/bin/sh
 
     cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}\$pyStart();if (io.fileExists(\"$1\")) \$py(\"$1\", { params: processExpr(\" \", false, \"$@\") });\$pyStop()"
-    "{{javaHome}}/bin/java" {{{jvmArgs}}} -jar {{openafJAR}} -c "$cmd"
+    "{{javaHome}}/bin/java" {{{jvmArgs}}} -jar "{{openafJAR}}" -c "$cmd"
 
   scriptBat: |
     @echo off
 
-    set cmd="{{#if python}}ow.loadPython();ow.python.setPython(\"{{python}}\");{{/if}}$pyStart();if (io.fileExists(\"%1\")) $py(\"%1\", { params: processExpr(\" \", false, \"%*\") });$pyStop()"
-    "{{javaHome}}\bin\java" {{{jvmArgs}}} -jar {{openafJAR}} -c "%cmd%"
+    set cmd="{{#if python}}ow.loadPython();ow.python.setPython('{{python}}');{{/if}}$pyStart();if(io.fileExists('%1'))$py('%1',{params:processExpr('\ ',false,'%*')});$pyStop()"
+    "{{javaHome}}\bin\java.exe" {{{jvmArgs}}} -jar "{{openafJAR}}" -c %cmd%
     
   example  : |
     #!/usr/bin/env {{script}}
@@ -30,7 +30,6 @@ todo:
 - Generate pyOAF
 
 ojob:
-  sequential  : true
   opacks      :
   - openaf: 20200523
   catch       : logErr(exception);
