@@ -1,0 +1,180 @@
+# Author: Nuno Aguiar
+todo:
+- Check for OpenCli
+- Connect to RAID
+- Check operations
+
+ojob:
+  opacks      :
+  - openaf: 20201111
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/raid/_common.yaml
+
+jobs:
+- name: Help
+  help:
+    text   : Provides quick commands to operate RAID Mashups (requires the OpenCli opack)
+    expects:
+    - name   : op
+      desc   : "The operation to perform between: list, get, apply/save and delete/remove. Defaults to 'op=list'"
+      example: list
+    - name: file
+      desc: The filename to save or read from.
+    - name: uuid
+      desc: The specific mashup object UUID.
+    - name: name
+      desc: The specific mashup object name.
+    - name: asNew
+      desc: For apply/save will always create a new mashup instead of creating a new version (defaults to false)
+      example: "false"
+    - name: ignoreSession
+      desc: For apply/save will ignore other mashup editing sessions (defaults to false)
+      example: "false"
+
+# -------------
+- name: Op List
+  exec: |
+    args = $from( ow.waf.objects.getObjectsByType(af, "Mashup").map(r => ({
+      spec: r.specUUID, 
+      owner: r.owner, 
+      name: r.shortname, 
+      version: r.specLastVersion, 
+      modifiedDate: new Date(r.modifiedDate.content[0]) 
+    })) )
+    .sort("owner", "name")
+    .select();
+
+# ------------
+- name: Op Get
+  from: Read file
+  to  : Save file
+  exec: |
+    var file = _$(args.file, "file").default(__);
+
+    if (isDef(args.conf)) { 
+      wheres = args.conf.map(r => ({ name: r.shortname, uuid: r.specUUID })); 
+    } else {
+      if (isUnDef(args.uuid)) {
+        _$(args.name, "name").isString().$_();
+        wheres = [ { name: args.name } ];
+      } else {
+        _$(args.uuid, "uuid").isString().$_();
+        wheres = [ { uuid: args.uuid } ];
+      }
+    }
+
+    // GET
+    var out = [];
+    wheres.forEach(r => {
+      try {      
+        var r2;
+        if (isUnDef(r.uuid)) {
+          r2 = ow.waf.mashups.getMashupByName(global.af, r.name);
+        } else {
+          r2 = ow.waf.mashups.getMashupByUUID(global.af, r.uuid);
+        }
+
+        out.push(r2);
+      } catch(e) {
+        out.push({
+          Name: r.name,
+          UUID: r.uuid,
+          Error: String(e)
+        });
+      }
+    });
+
+    args.conf = out;
+
+# -------------
+- name: Op Save
+  from: Read file
+  exec: |
+    var file = _$(args.file, "file").$_();
+
+    var out = [];
+    ow.loadWAF();
+    args.conf.forEach(r => {
+      try {
+        log("Setting new mashup configuration (" + r.shortname + ", " + r.specUUID + ")...");
+        
+        var rout = ow.waf.mashups.saveMashup(global.af, r, toBoolean(args.ignoreSession), toBoolean(args.asNew));
+        out.push(rout);
+      } catch(e) {
+        out.push({
+          Name: r.shortname,
+          UUID: r.specUUID,
+          error: String(e)
+        });
+      }
+    });
+
+    args = out;
+
+# ---------------
+- name: Op Remove
+  from: Read file
+  exec: |
+    var file = _$(args.file, "file").default(__);
+    var wheres = []; 
+
+    if (isDef(args.conf)) { 
+      wheres = args.conf.map(r => ({ name: r.shortname, uuid: r.specUUID })); 
+    } else {
+      if (isUnDef(args.uuid)) {
+        _$(args.name, "name").isString().$_();
+        wheres = [ { name: args.name } ];
+      } else {
+        _$(args.uuid, "uuid").isString().$_();
+        wheres = [ { uuid: args.uuid } ];
+      }
+    }
+
+    // REMOVE
+    var out = [];
+    ow.loadWAF();
+    wheres.forEach(r => {
+      try {
+        log("Removing configuration (" + r.name + ", " + r.uuid + ")...");
+        out.push( ow.waf.objects.deleteObjects(global.af, [ r.uuid ], true) );
+      } catch(e) {
+        out.push({
+          Name: r.name,
+          UUID: r.uuid,
+          error: String(e)
+        });
+      }
+    });
+
+    args = out;
+
+# ----------------------
+- name: Check operations
+  exec: |
+    ow.loadWAF();
+    args.op = _$(args.op, "op").isString().default("list");
+
+    var res = {};
+    switch(args.op.toLowerCase()) {
+    case "list":
+      res = $job("Op List", args);
+      args.__format = _$(args.__format).default("table");
+      break;
+    case "get":
+      res = $job("Op Get", args);
+      args.__format = _$(args.__format).default("yaml");
+      break;
+    case "apply":
+    case "save":
+      res = $job("Op Save", args);
+      break;
+    case "delete":
+    case "remove":
+      res = $job("Op Remove", args);
+      break;
+    }
+
+    if (isMap(res) || isArray(res)) ow.oJob.output(res, args);

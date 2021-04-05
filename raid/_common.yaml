@@ -26,3 +26,40 @@ jobs:
   exec: |
     if (!toBoolean(args.nolog)) log("Disconnecting from RAID...");
     global.af.close();
+
+# ---------------
+- name: Read file
+  exec: |
+    if (isDef(args.file) && io.fileExists(args.file)) {
+      if (args.file.endsWith(".yaml") || args.file.endsWith(".yml")) {
+        args.conf = io.readFileYAML(args.file);
+      } else {
+        if (args.file.endsWith(".xml")) {
+          args.conf = io.readFilePMap(args.file);
+        } else {
+          args.conf = io.readFileJSON(args.file);
+        }
+      }
+
+      if (!isArray(args.conf)) args.conf = [ args.conf ];
+    }
+
+# ---------------
+- name: Save file
+  exec: |
+    if (isDef(file)) {
+      if (isArray(args.conf) && args.conf.length == 1) args.conf = args.conf[0];
+
+      log("Writing to " + file + "...");
+      if (file.endsWith(".yaml") || file.endsWith(".yml")) {
+        io.writeFileYAML(file, args.conf, isArray(args.conf));
+      } else {
+        if (file.endsWith(".xml")) {
+          io.writeFilePMap(file, args.conf);
+        } else {
+          io.writeFileJSON(file, args.conf);
+        }
+      }
+
+      args = { file: file };
+    }
