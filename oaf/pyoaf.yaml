@@ -69,6 +69,7 @@ jobs:
       }
     } else {
       var script = getOpenAFPath() + "pyoaf";
+      if (io.fileExists("/usr/bin/python3") && isUnDef(args.python)) args.python = "/usr/bin/python3";
       io.writeFileString(script, templify(args.init.scriptSh, {
         javaHome : ow.format.getJavaHome(),
         openafJAR: getOpenAFJar(),
