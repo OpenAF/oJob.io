@@ -1,18 +1,6 @@
 # Author: Nuno Aguiar
-
-todo:
-- Choose operation
-
-ojob:
-  opacks      :
-  - openaf: 20210327
-  catch       : logErr(exception);
-  logToConsole: false   # to change when finished
-
-jobs:
-# ----------
-- name: Help
-  help: 
+init:
+  help: &HELP
     text   : Gets/Sets OpenAF's sBuckets.
     expects: 
     - name   : op
@@ -27,6 +15,20 @@ jobs:
     - name   : bucket
       desc   : The bucket string when op=setbucket
 
+todo:
+- Choose operation
+
+ojob:
+  opacks      :
+  - openaf: 20210327
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+  
 # ----------------------
 - name: Choose operation
   exec: |
@@ -42,6 +44,7 @@ jobs:
     case "unsetbucket": args = $job("SBucket UnSet Bucket", args); break;
     case "setfn"      : args = $job("SBucket SetFn", args); break;
     case "set"        : args = $job("SBucket Set", args); break;
+    case "help"       : args.output = args.init.help; break;
     }
 
     ow.oJob.output(args.output, args);
@@ -53,7 +56,12 @@ jobs:
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
     }
-    args.output = Object.keys($sec(args.secrepo, __, __, args.secpass).list(args.secbucket, args.secbucketpass)).sort();
+    if (isDef(args.secbucket)) {
+      args.output = $sec(args.secrepo, __, __, args.secpass).list(args.secbucket, args.secbucketpass);
+      if (isDef(args.output[args.secbucket])) args.output = args.output[args.secbucket].sort();
+    } else {
+      args.output = Object.keys($sec(args.secrepo, __, __, args.secpass).list()).sort();
+    }
 
 # -----------------
 - name: SBucket Get
