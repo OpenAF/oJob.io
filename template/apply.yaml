@@ -1,0 +1,86 @@
+# Author: Nuno Aguiar
+todo:
+- Apply template
+
+ojob:
+  opacks      :
+  - openaf: 20210404
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Generates new content based on a template and a data file
+    expects: 
+    - name   : data
+      desc   : The data file to apply (use the key "_file" to specify an output file and/or "_template" for a template file to use for each data entry)
+    - name   : template
+      desc   : The default HandleBars template to use (ignored if "_template" is provided)
+      example: something.hbs
+    - name   : file
+      desc   : If specified will save the generated output to the corresponding file (ignored if the key "_file" is found on data in an array)
+
+# --------------------
+- name: Apply template
+  exec: |
+    args.data     = _$(args.data, "data").$_();
+
+    if (!io.fileExists(args.data))     throw "Data file '" + args.data + "' not found!";
+
+    var template;
+    var fnDefaultTemplate = () => {
+      if (isDef(template)) return template;
+      if (isUnDef(args.template)) {
+        logWarn("No template provided. Use 'template=mytemplate.hbs'.");
+        template = "";
+      } else {
+        template = io.readFileString(args.template);
+      }
+      return template;
+    }
+
+    var data;
+    if (args.data.match(/\.ya?ml/i)) {
+      data = io.readFileYAML(args.data);
+    } else {
+      data = io.readFileJSON(args.data);
+    }
+
+    if (isArray(data) && data.length > 0 && isDef(data[0]._file)) {
+      var templates = {};
+      data.forEach(r => {
+        if (isDef(r._file)) {
+          if (isDef(r._template)) {
+            if (isUnDef(templates[r._template]) && !io.fileExists(r._template)) {
+              logWarn("Template '" + r._template + "' not found.");
+              templates[r._template] = fnDefaultTemplate();
+            } else {
+              if (isUnDef(templates[r._template])) templates[r._template] = io.readFileString(r._template);
+            }
+            log("Writing result to '" + r._file + "'...");
+            io.writeFileString(r._file, templify(templates[r._template], r));
+          } else {
+            log("Writing result to '" + r._file + "'...");
+            io.writeFileString(r._file, templify(fnDefaultTemplate(), r));
+          }
+        } else {
+          logWarn("Entry _file not found for: " + stringify(r, void 0, ""));
+        }
+      });
+    } else {
+      if (isDef(data._template)) args.template = data._template;
+      var res = templify(fnDefaultTemplate(), data);
+      if (isDef(args.file) && isUnDef(data._file)) {
+        log("Writing result to '" + args.file + "'...");
+        io.writeFileString(args.file, res);
+      } else {
+        if (isDef(data._file)) {
+          log("Writing result to '" + data._file + "'...");
+          io.writeFileString(data._file, res);
+        } else {
+          print(res);
+        }
+      }
+    }
