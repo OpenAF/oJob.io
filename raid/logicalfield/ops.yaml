@@ -16,7 +16,7 @@ include:
 jobs:
 - name: Help
   help:
-    text   : Provides quick commands to operate RAID Mashups (requires the OpenCli opack)
+    text   : Provides quick commands to operate RAID Logical Fields (requires the OpenCli opack)
     expects:
     - name   : op
       desc   : "The operation to perform between: list, get, apply/save and delete/remove. Defaults to 'op=list'"
@@ -24,28 +24,21 @@ jobs:
     - name: file
       desc: The filename to save or read from.
     - name: uuid
-      desc: The specific mashup object UUID.
+      desc: The specific logical field object UUID.
     - name: name
-      desc: The specific mashup object name.
-    - name: asNew
-      desc: For apply/save will always create a new mashup instead of creating a new version (defaults to false)
-      example: "false"
-    - name: ignoreSession
-      desc: For apply/save will ignore other mashup editing sessions (defaults to false)
-      example: "false"
+      desc: The specific logical field object name.
 
 # -------------
 - name: Op List
   exec: |
-    args = $from( ow.waf.objects.getObjectsByType(af, "Mashup").map(r => ({
-      spec: r.specUUID, 
-      owner: r.owner, 
-      name: r.shortname, 
-      version: r.specLastVersion, 
-      modifiedDate: new Date(r.modifiedDate.content[0]) 
-    })) )
-    .sort("owner", "name")
-    .select();
+    args = $from( global.af.exec("DM.LogicalField.GetAll").LogicalFields )
+           .sort("Name")
+           .select(r => ({
+              spec : r.UUID, 
+              name : r.Name,
+              alias: r.Alias,
+              uuid : r.ObjUUID
+           }));
 
 # ------------
 - name: Op Get
@@ -55,7 +48,7 @@ jobs:
     var file = _$(args.file, "file").default(__);
 
     if (isDef(args.conf)) { 
-      wheres = args.conf.map(r => ({ name: r.shortname, uuid: r.specUUID })); 
+      wheres = args.conf.map(r => ({ name: r.Name, uuid: r.UUID })); 
     } else {
       if (isUnDef(args.uuid)) {
         _$(args.name, "name").isString().$_();
@@ -72,9 +65,42 @@ jobs:
       try {      
         var r2;
         if (isUnDef(r.uuid)) {
-          r2 = ow.waf.mashups.getMashupByName(global.af, r.name);
+          //r2 = ow.waf.objects.getObjectByName(global.af, r.name, __, __, "DATAMODEL.LogicalField");
+          throw "not implemented";
         } else {
-          r2 = ow.waf.mashups.getMashupByUUID(global.af, r.uuid);
+          //r2 = ow.waf.objects.getObjectByUUID(global.af, r.uuid);
+          r2 = global.af.exec("DM.LogicalField.Get", { 
+            UUID: r.uuid,
+            Lock: false,
+            IncludeInTheBasicInfo: {
+              IncludeMetadata: true,
+              IncludePrivileges: true,
+              IncludePrivilegeTypes: true,
+              IncludeStatusInMetadata: true,
+              IncludeTags: true,
+              IncludeProperties: true,
+              IncludeDefinition: true, 
+              IncludeAvailableFlag: true,
+              IncludeDomains: true,
+              IncludeFields: true, 
+              IncludeFolders: true,
+              IncludeLogicalFieldDefinition: true,
+              IncludeLogicalType: true,
+              IncludeInFields: {
+                IncludeMetadata: true,
+                IncludePrivileges: true,
+                IncludePrivilegeTypes: true,
+                IncludeStatusInMetadata: true,
+                IncludeTags: true,
+                IncludeProperties: true,
+                IncludeDefinition: true,
+                IncludeEntity: true,
+                IncludeFieldDefinition: true,
+                IncludeLogicalType: true, 
+                IncludeLogicalFields: true
+              }
+            }
+          })
         }
 
         out.push(r2);
@@ -99,9 +125,10 @@ jobs:
     ow.loadWAF();
     args.conf.forEach(r => {
       try {
-        log("Setting new mashup configuration (" + r.shortname + ", " + r.specUUID + ")...");
+        log("Setting new logical field configuration (" + r.shortname + ", " + r.specUUID + ")...");
         
-        var rout = ow.waf.mashups.saveMashup(global.af, r, toBoolean(args.ignoreSession), toBoolean(args.asNew));
+        //var rout = ow.waf.objects.saveMashup(global.af, r, toBoolean(args.ignoreSession), toBoolean(args.asNew));
+        throw "Not implemented yet."
         out.push(rout);
       } catch(e) {
         out.push({
@@ -139,7 +166,8 @@ jobs:
     wheres.forEach(r => {
       try {
         log("Removing configuration (" + r.name + ", " + r.uuid + ")...");
-        out.push( ow.waf.objects.deleteObjects(global.af, [ r.uuid ], true) );
+        //out.push( ow.waf.objects.deleteObjects(global.af, [ r.uuid ], true) );
+        throw "Not implemented yet."
       } catch(e) {
         out.push({
           Name: r.name,
