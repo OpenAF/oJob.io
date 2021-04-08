@@ -1,12 +1,15 @@
 # Author: Nuno Aguiar
 todo:
-- Apply template
+- name: Check input
+- name: Apply data
+  args: global.data
 
 ojob:
   opacks      :
   - openaf: 20210404
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
+  depsTimeout : 1000
 
 jobs:
 # ----------
@@ -22,66 +25,72 @@ jobs:
     - name   : file
       desc   : If specified will save the generated output to the corresponding file (ignored if the key "_file" is found on data in an array)
 
-# --------------------
-- name: Apply template
+# ----------------
+- name: Apply data
+  deps: Check input
   exec: |
+    if (isDef(args._file)) {
+      if (isDef(args._template)) {
+        if (isUnDef(global.templates[md5(args._template)])) {
+          global.templates[md5(args._template)] = global.fnDefaultTemplate(args._template);
+        }
+        log("Writing result to '" + args._file + "'...");
+        io.writeFileString(args._file, templify(global.templates[md5(args._template)], args));
+      } else {
+        log("Writing result to '" + args._file + "'...");
+        io.writeFileString(args._file, templify(global.fnDefaultTemplate(global.fileTemplate), args));
+      }
+    } else {
+      if (isArray(global.data)) {
+        logWarn("Entry _file not found for: " + stringify(args, void 0, ""));
+      } else {
+        var tmpl;
+        if (isDef(args._template)) tmpl = args._template; else tmpl = global.fileTemplate;
+        var res = templify(global.fnDefaultTemplate(tmpl), data);
+        if (isDef(global.file) && isUnDef(args._file)) {
+          log("Writing result to '" + global.file + "'...");
+          io.writeFileString(global.file, res);
+        } else {
+          if (isDef(args._file)) {
+            log("Writing result to '" + args._file + "'...");
+            io.writeFileString(args._file, res);
+          } else {
+            print(res);
+          }
+        }
+      }
+    }
+
+
+# --------------------
+- name: Check input
+  exec: |
+    ow.loadTemplate();
     args.data     = _$(args.data, "data").$_();
 
     if (!io.fileExists(args.data))     throw "Data file '" + args.data + "' not found!";
+    if (isDef(args.template)) global.fileTemplate = args.template;
+    if (isDef(args.file)) global.file = args.file;
 
-    var template;
-    var fnDefaultTemplate = () => {
-      if (isDef(template)) return template;
-      if (isUnDef(args.template)) {
-        logWarn("No template provided. Use 'template=mytemplate.hbs'.");
-        template = "";
+    global.templates = {};
+    global.fnDefaultTemplate = (tmpl) => {
+      if (isDef(tmpl) && isDef(global.templates[md5(tmpl)])) return global.templates[md5(tmpl)];
+      if (isUnDef(tmpl)) {
+        logWarn("No template provided. Use 'template=mytemplate.hbs' or the _template key.");
+        return "";
       } else {
-        template = io.readFileString(args.template);
+        if (tmpl.indexOf("\n") < 0 && io.fileExists(tmpl)) {
+          global.templates[md5(tmpl)] = io.readFileString(tmpl);
+        } else {
+          global.templates[md5(tmpl)] = tmpl;
+        }
+        return global.templates[md5(tmpl)];
       }
-      return template;
     }
 
-    var data;
     if (args.data.match(/\.ya?ml/i)) {
-      data = io.readFileYAML(args.data);
+      global.data = io.readFileYAML(args.data);
     } else {
-      data = io.readFileJSON(args.data);
+      global.data = io.readFileJSON(args.data);
     }
-    if (isDef(data.data)) data = data.data;
-
-    if (isArray(data) && data.length > 0 && isDef(data[0]._file)) {
-      var templates = {};
-      data.forEach(r => {
-        if (isDef(r._file)) {
-          if (isDef(r._template)) {
-            if (isUnDef(templates[r._template]) && !io.fileExists(r._template)) {
-              logWarn("Template '" + r._template + "' not found.");
-              templates[r._template] = fnDefaultTemplate();
-            } else {
-              if (isUnDef(templates[r._template])) templates[r._template] = io.readFileString(r._template);
-            }
-            log("Writing result to '" + r._file + "'...");
-            io.writeFileString(r._file, templify(templates[r._template], r));
-          } else {
-            log("Writing result to '" + r._file + "'...");
-            io.writeFileString(r._file, templify(fnDefaultTemplate(), r));
-          }
-        } else {
-          logWarn("Entry _file not found for: " + stringify(r, void 0, ""));
-        }
-      });
-    } else {
-      if (isDef(data._template)) args.template = data._template;
-      var res = templify(fnDefaultTemplate(), data);
-      if (isDef(args.file) && isUnDef(data._file)) {
-        log("Writing result to '" + args.file + "'...");
-        io.writeFileString(args.file, res);
-      } else {
-        if (isDef(data._file)) {
-          log("Writing result to '" + data._file + "'...");
-          io.writeFileString(data._file, res);
-        } else {
-          print(res);
-        }
-      }
-    }
+    if (isDef(global.data.data)) global.data = data.data;
