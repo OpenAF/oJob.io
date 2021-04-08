@@ -47,6 +47,7 @@ jobs:
     } else {
       data = io.readFileJSON(args.data);
     }
+    if (isDef(data.data)) data = data.data;
 
     if (isArray(data) && data.length > 0 && isDef(data[0]._file)) {
       var templates = {};
