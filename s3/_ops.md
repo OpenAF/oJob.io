@@ -8,6 +8,12 @@ If you set S3 credentials using "$sec", for example:
 > $sec(__, "myEnv").setObj("s3", "S3", { aURL: "https://s3.somewhere.cloud", aAccessKey: "ABC", aSecret: "123", aRegion: "ab-xyz" }))
 ````
 
+or 
+
+````bash
+$ ojob ojob.io/sec/ops op=setobj secobj=s3.s3 secbucket=myEnv seckey=s3
+````
+
 you can reference it like this:
 
 ````bash
