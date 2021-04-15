@@ -1,0 +1,59 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Starts dive (https://github.com/wagoodman/dive) over a specific container image for analysis.
+    expects: 
+    - name   : image
+      desc   : The container image to analyze
+      example: openaf/openaf:nightly
+    - name   : gui
+      desc   : If "false" it won't start the GUI (for batch processing). Defaults to "true"
+
+todo:
+- Check for docker
+- Deploy container
+
+ojob:
+  opacks      :
+  - openaf: 20210412
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/docker/_common.yaml        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ----------------
+- name: Deploy container
+  exec: |
+    _$(args.image, "image").$_();
+    args.gui = toBoolean(_$(args.gui, "gui").default("true"));
+    var f, path, sf;
+
+    var cmds = ["docker", "run", "--rm", "-ti", "-v", "/var/run/docker.sock:/var/run/docker.sock"];
+    if (!args.gui) { 
+      f = io.createTempFile("dive_", ".json");
+      var info = io.fileInfo(f);
+      sf = info.filename;
+      path = info.canonicalPath.replace(new RegExp(info.filename + "$"), "");
+      cmds.push("-v"); cmds.push(path + ":/out");
+    }
+    cmds.push("wagoodman/dive");
+    var id;
+
+    if (!args.gui) { 
+      id = genUUID();
+      cmds.push("--json");
+      cmds.push("/out/" + sf);
+    }
+    cmds.push(args.image);
+
+    $sh(cmds).exec(0);
+
+    if (!args.gui) {
+      ow.oJob.output(io.readFileJSON(f), args);
+    }
