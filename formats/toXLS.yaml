@@ -1,0 +1,40 @@
+# Author: Nuno Aguiar
+
+todo:
+- To XLS
+
+ojob:
+  opacks      :
+  - openaf: 20210412
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: 
+    text   : Tries to generate an excel file output
+    expects: 
+    - name   : file
+      desc   : The XLS file to write.
+      example: file.xlsx
+
+# ------------
+- name: To XLS
+  exec: |
+    args.file = _$(args.file, "file").default(__);
+    if (isUnDef(args.file)) args.file = io.createTempFile("ojobio_", "xlsx")
+
+    if (isDef(__pm._list)) {
+      plugin("XLS");
+      ow.loadFormat();
+
+      var xls = new XLS();
+      var sheet = xls.getSheet("result");
+      ow.format.xls.setTable(xls, sheet, "A", 1, __pm._list, __, { bold: true, borderBottom: "medium", borderBottomColor: "red" });
+      var f = log("Writing to " + args.file + "..."); 
+      xls.writeFile(args.file);
+      xls.close();
+    } else {
+      logErr("Can't use input");
+    }
