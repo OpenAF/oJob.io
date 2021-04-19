@@ -8,7 +8,7 @@ todo:
 ojob:
   daemon      : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20210412
   - Kube
   loadLibs    :
   - kube.js
@@ -23,33 +23,61 @@ jobs:
     expects: 
     - name: config
       desc: Complete path and filename for a kubeconfig file.
+    - name: uninstall
+      desc: If uninstall=true it will be uninstalled if existing and installed previously by this tool.
 
 # ------------------------------------
 - name: Check if kube dash is deployed
   exec: |
     args.config = _$(args.config, "config").default(void 0);
+    args.uninstall = toBoolean(_$(args.uninstall, "uninstall").default("false"));
  
     global.kube = new Kube();
     if (global.kube.getNamespaces(true).map(r => r.Metadata.Name).indexOf("kubernetes-dashboard") >= 0) {
        log("Kube dashboard is deployed.");
+       if (args.uninstall) {
+         var version = $rest().get("https://api.github.com/repos/kubernetes/dashboard/releases")[0].name;
+         var url = "https://raw.githubusercontent.com/kubernetes/dashboard/" + version + "/aio/deploy/recommended.yaml";
+         log("Deleting...");
+         $rest().get(url).split(/^---$/mg).forEach(p => global.kube.delete("default", af.fromYAML(p)));
+         logWarn("----> Please hit Ctrl-C to exit.");
+       }
     } else {
-       throw "Didn't found kube dashboard!";
+       log("Didn't found kube dashboard!");
        // https://raw.githubusercontent.com/kubernetes/dashboard/v2.0.3/aio/deploy/recommended.yaml (as version)
        // apply split ( --- ) -> array
-       // io.readFileString("kdash.yaml").split(/\n---/).map(af.fromYAML).map(o => k.apply("kubernetes-dashboard", o))
+       // io.readFileString("kdash.yaml").split(/\n---/).map(af.fromYAML).map(o => global.kube.apply("kubernetes-dashboard", o))
+       var version = $rest().get("https://api.github.com/repos/kubernetes/dashboard/releases")[0].name;
+       if (isString(version) && version.startsWith("v")) {
+        log("Found latest version: " + version);
+        var url = "https://raw.githubusercontent.com/kubernetes/dashboard/" + version + "/aio/deploy/recommended.yaml";
+        log("Applying " + url + "...");
+        $rest().get(url).split(/^---$/mg).forEach(p => global.kube.apply("default", af.fromYAML(p)))
+       }
     }
 
 # ------------------------
 - name: Setup a kube proxy
   exec: |
-    args.config = _$(args.config, "config").default(void 0);
+    args.config    = _$(args.config, "config").default(__);
+    args.uninstall = toBoolean(_$(args.uninstall, "uninstall").default("false"));
 
-    $do(() => { $sh((isDef(args.config) ? "export KUBECONFIG=" + args.config + " && " : "") + "kubectl proxy")
-                .prefix("kube proxy")
-                .get(0); });
+    if (args.uninstall) {
+      logWarn("Ignoring setting up a kube proxy since uninstalling...");
+    } else {
+      $do(() => { $sh((isDef(args.config) ? "export KUBECONFIG=" + args.config + " && " : "") + "kubectl proxy")
+                  .prefix("kube proxy")
+                  .get(0); });
+    }
 
 # ------------------
 - name: Open browser
   exec: |
-    var res = openInBrowser("http://127.0.0.1:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/deployment?namespace=default"); 
-    if (!res) print("Open a browser to: http://127.0.0.1:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/deployment?namespace=default");
+    args.uninstall = toBoolean(_$(args.uninstall, "uninstall").default("false"));
+
+    if (args.uninstall) {
+      logWarn("Ignoring the open browser setup since uninstalling...");
+    } else {
+      var res = openInBrowser("http://127.0.0.1:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/deployment?namespace=default"); 
+      if (!res) print("Open a browser to: http://127.0.0.1:8001/api/v1/namespaces/kubernetes-dashboard/services/https:kubernetes-dashboard:/proxy/#/deployment?namespace=default");
+    }
