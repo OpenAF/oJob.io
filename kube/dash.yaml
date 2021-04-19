@@ -40,7 +40,7 @@ jobs:
          var url = "https://raw.githubusercontent.com/kubernetes/dashboard/" + version + "/aio/deploy/recommended.yaml";
          log("Deleting...");
          $rest().get(url).split(/^---$/mg).forEach(p => global.kube.delete("default", af.fromYAML(p)));
-         logWarn("----> Please hit Ctrl-C to exit.");
+         logWarn("----> Please hit Ctrl-C to exit. <----");
        }
     } else {
        log("Didn't found kube dashboard!");
