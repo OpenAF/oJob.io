@@ -1,0 +1,59 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Install docker in Amazon Linux 2
+    #expects:
+    #- name   : something
+    #  desc   : To do stuff
+    #  example: aValueExample
+
+todo:
+- Check Amazon Linux 2
+- Install docker
+
+ojob:
+  opacks      :
+  - openaf: 20210412
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: true   # to change when finished
+  sequential  : true
+  #depsTimeout
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# --------------------------
+- name: Check Amazon Linux 2
+  exec: |
+    if ($sh("uname -a").get(0).stdout.indexOf("amzn2") < 0)
+       throw "Doesn't look like an Amazon Linux 2";
+
+# -------------------
+- name: Identify user
+  exec: |
+    var r = $sh("id").get(0).stdout;
+    args.user = r.match(/uid=\d+\((\w+)\)/)[1];
+
+# ----------------------
+- name: Show docker info
+  exec: |
+    ow.oJob.output($sh("docker version --format '{{json .}}'").getJson(0).stdout);
+    
+# --------------------
+- name: Install docker
+  from:
+  - Identify user
+  to  :
+  - Show docker info
+  lang: shell
+  typeArgs:
+    shellPrefix: ("sh")
+  exec: |
+    sudo yum update -y
+    sudo amazon-linux-extras install docker
+    sudo yum install docker
+    sudo service docker start
+    sudo usermod -a -G docker {{user}}

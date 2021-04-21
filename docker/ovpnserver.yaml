@@ -40,8 +40,19 @@ jobs:
     - name: keysize
       desc: Specify a RSA keysize different from the 2048 default.
 
+# ----------------------------
+- name: Build container if ARM
+  exec: |
+    var plat = String(java.lang.System.getProperty("os.arch"));
+    if (plat == "aarch64") {
+      logWarn("Need to build container for arm...");
+      $sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/kylemanna/docker-openvpn.git")
+    }
+   
 # ---------------------
 - name: Generate server
+  from:
+  - Build container if ARM
   exec: |
     args.path = _$(args.path, "path").default(".");
     _$(args.url, "url").$_();
