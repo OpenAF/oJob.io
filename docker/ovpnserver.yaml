@@ -54,8 +54,10 @@ jobs:
   from:
   - Build container if ARM
   exec: |
+    ow.loadFormat();
+    
     args.path = _$(args.path, "path").default(".");
-    _$(args.url, "url").$_();
+    args.url  = _$(args.url, "url").default("tcp://" + ow.format.getPublicIP().ip);
     args.keysize = _$(args.keysize, "keysize").default(2048);
 
     var exists = $sh("docker").get(0).exitcode;
