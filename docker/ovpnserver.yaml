@@ -16,6 +16,7 @@ ojob:
   catch       : |
     logErr(exception);
   logToConsole: true   # to change when finished
+  sequential  : true
 
 jobs:
 # ----------
