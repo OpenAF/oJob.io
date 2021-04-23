@@ -15,15 +15,17 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Generates new content based on a template and a data file
+    text   : Generates new content based on a template (HandleBars (https://handlebarsjs.com)) and a data file. Conditional helpers from https://assemble.io/helpers/helpers-comparison.html and "owFormat_" are also available.
     expects: 
     - name   : data
       desc   : The data file to apply (use the key "_file" to specify an output file and/or "_template" for a template file to use for each data entry)
+      example: data.yaml
     - name   : template
       desc   : The default HandleBars template to use (ignored if "_template" is provided)
       example: something.hbs
     - name   : file
       desc   : If specified will save the generated output to the corresponding file (ignored if the key "_file" is found on data in an array)
+      example: outputFile
 
 # ----------------
 - name: Apply data
@@ -42,10 +44,24 @@ jobs:
       }
     } else {
       if (isArray(global.data)) {
-        logWarn("Entry _file not found for: " + stringify(args, void 0, ""));
+        //logWarn("Entry _file not found for: " + stringify(args, void 0, ""));
+        var tmpl;
+        if (isDef(args._template)) tmpl = args._template; else tmpl = (isDef(global.fileTemplate) ? global.fileTemplate : global.template);
+        var res = templify(global.fnDefaultTemplate(tmpl), args)
+        if (isDef(global.file) && isUnDef(args._file)) {
+          log("Writing result to '" + global.file + "'...");
+          io.writeFileString(global.file, res);
+        } else {
+          if (isDef(args._file)) {
+            log("Writing result to '" + args._file + "'...");
+            io.writeFileString(args._file, res);
+          } else {
+            print(res);
+          }
+        }
       } else {
         var tmpl;
-        if (isDef(args._template)) tmpl = args._template; else tmpl = global.fileTemplate;
+        if (isDef(args._template)) tmpl = args._template; else tmpl = (isDef(global.fileTemplate) ? global.fileTemplate : global.template);
         var res = templify(global.fnDefaultTemplate(tmpl), data);
         if (isDef(global.file) && isUnDef(args._file)) {
           log("Writing result to '" + global.file + "'...");
@@ -93,4 +109,9 @@ jobs:
     } else {
       global.data = io.readFileJSON(args.data);
     }
+    if (isMap(global.data) && isDef(global.data._template)) { global.template = global.data._template; }
     if (isDef(global.data.data)) global.data = data.data;
+
+    ow.loadTemplate();
+    ow.template.addConditionalHelpers();
+    ow.template.addFormatHelpers();
