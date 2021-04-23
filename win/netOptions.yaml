@@ -1,6 +1,7 @@
 # Author: Nuno Aguiar
 
 todo:
+- Check Windows
 - Open Internet Options
 
 ojob:
@@ -8,6 +9,7 @@ ojob:
   - openaf: 20200523
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
+  sequential  : true
 
 jobs:
 # ----------
@@ -18,6 +20,12 @@ jobs:
     # - name   : something
     #   desc   : To do stuff
     #   example: aValueExample
+
+# -------------------
+- name: Check Windows
+  exec: |
+    ow.loadFormat();
+    if (!ow.format.isWindows()) throw "This job is intended only for Windows."
 
 # ---------------------------
 - name: Open Internet Options

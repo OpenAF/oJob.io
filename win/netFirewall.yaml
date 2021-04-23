@@ -1,0 +1,74 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Handle Windows WinHTTP proxy (should be executed in administrative privileges)
+    expects: 
+    - name   : op
+      desc   : "Choose the option to perform: 'show', 'reset', 'import' (from IE)"
+      example: show
+
+todo:
+- Check Windows
+- name: Choose options
+  args:
+    _ops:
+      show  : Show proxy
+      reset : Reset proxy
+      import: Import proxy from IE
+
+ojob:
+  opacks      :
+  - openaf: 20210412
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: true   # to change when finished
+  sequential  : true
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -------------------
+- name: Check Windows
+  exec: |
+    ow.loadFormat();
+    if (!ow.format.isWindows()) throw "This job is intended only for Windows."
+
+# --------------------------
+- name: Import proxy from IE
+  lang: shell
+  typeArgs:
+    shellPrefix: netsh
+  exec: |
+    @echo off
+    %SystemRoot%\system32\netsh winhttp import proxy source=ie
+
+# ----------------
+- name: Show proxy
+  lang: shell
+  typeArgs:
+    shellPrefix: netsh
+  exec: |
+    @echo off
+    %SystemRoot%\system32\netsh winhttp show proxy
+
+# -----------------
+- name: Reset proxy
+  lang: shell
+  typeArgs:
+    shellPrefix: netsh
+  exec: |
+    @echo off
+    %SystemRoot%\system32\netsh winhttp reset proxy
+
+# --------------------
+- name: Choose options
+  exec: |
+    args.op   = _$(args.op, "op").default("help").toLowerCase();
+    _$(args._ops, "_ops").$_();
+
+    if (args.op == "help" || isUnDef(args._ops[args.op])) {
+      ow.oJob.output({ Help: args.init.help }, args);
+    } else {
+      $job(args._ops[args.op], args); 
+    }
