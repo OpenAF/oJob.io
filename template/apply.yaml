@@ -15,7 +15,7 @@ jobs:
 # ----------
 - name: Help
   help: 
-    text   : Generates new content based on a template (HandleBars (https://handlebarsjs.com)) and a data file. Conditional helpers from https://assemble.io/helpers/helpers-comparison.html and "owFormat_" are also available.
+    text   : Generates new content based on a template (HandleBars (https://handlebarsjs.com)) and a data file. Conditional helpers from https://assemble.io/helpers/helpers-comparison.html, "debug", "stringify", "stringifyInLine", "toYAML", "env", "escape" and "owFormat_" are also available.
     expects: 
     - name   : data
       desc   : The data file to apply (use the key "_file" to specify an output file and/or "_template" for a template file to use for each data entry)
@@ -115,3 +115,4 @@ jobs:
     ow.loadTemplate();
     ow.template.addConditionalHelpers();
     ow.template.addFormatHelpers();
+    ow.template.addOpenAFHelpers();
