@@ -6,6 +6,20 @@ init:
   uri : &URI  "/"
   pid : &PID  easyHTTPd.pid
 
+  help: &HELP
+    text   : Create a quick tiny web server using Docsify
+    expects: 
+    - name   : port
+      desc   : The port where it should run (defaults to 8090)
+    - name   : uri
+      desc   : The uri where to put requests (defaults to /)
+    - name   : path
+      desc   : Where to read the files (defaults to .)
+    - name   : langs
+      desc   : Docsify supported languages divided with commas
+      example: yaml,markdown,docker,json,sql,python,css,javascript,bash,java
+
+
 ojob:
   daemon    : true
   sequential: true
@@ -21,24 +35,49 @@ ojob:
 include:
   - oJobHTTPd.yaml
 
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ----------
+- name: Init
+  exec: |
+    global.port = Number( _$(args.port, "port").default(args.init.port) );
+    global.path = _$(args.path, "path").default(args.init.path);
+    global.uri  = _$(args.uri, "uri").default(args.init.uri);
+
+# ---------------------
+- name: Docsify Service
+  to  : HTTP Service
+  args:
+    execURI: |
+      args.langs = _$(args.langs, "langs").default("yaml,markdown,docker,json,sql,python,css,javascript,bash,java");
+
+      return ow.server.httpd.replyDocsify(server, global.path, global.uri, request, { 
+          langs: args.langs.split(","),
+          mermaid: true,
+          options: stringify({
+            hideSidebar: (isDef(args.noside) && args.noside.toLowerCase() != "false" ? true : false)
+          }, void 0, "")
+      });
+  exec: |
+    args.port = global.port;
+    args.uri  = global.uri;
+
 todo:
+  - name: Init
 
   - name: HTTP Start Server
-    args: 
-      port   : *PORT
-      mapLibs: true
+    args: |
+      ({
+        port   : global.port,
+        mapLibs: true
+      })
 
-  - name: HTTP Service
-    args: 
-      port   : *PORT
-      uri    : *URI
-      execURI: |
-        args.langs = _$(args.langs, "langs").default("yaml,markdown,docker,json,sql,python,css,javascript,bash,java");
-
-        return ow.server.httpd.replyDocsify(server, global.args.init.path, global.args.init.uri, request, { 
-           langs: args.langs.split(","),
-           mermaid: true,
-           options: stringify({
-              hideSidebar: (isDef(args.noside) && args.noside.toLowerCase() != "false" ? true : false)
-           }, void 0, "")
-        });
+  - name: Docsify Service
+    args: |
+      ({
+        port   : global.port,
+        uri    : global.uri
+      })
