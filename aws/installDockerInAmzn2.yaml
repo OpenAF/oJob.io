@@ -35,7 +35,7 @@ jobs:
 - name: Identify user
   exec: |
     var r = $sh("id").get(0).stdout;
-    args.user = r.match(/uid=\d+\((\w+)\)/)[1];
+    args.user = r.match(/uid=\d+\(([^\)]+)\)/)[1]
 
 # ----------------------
 - name: Show docker info
