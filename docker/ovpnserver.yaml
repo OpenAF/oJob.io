@@ -28,6 +28,8 @@ jobs:
       desc: The vpn external url (either "tcp://some.address" or "udp://some.address"
     - name: path
       desc: Path where the scripts to use the vpn will be created (defaults to ".")
+    - name: volume
+      desc: Volume where the openvpn configuration will be stored (defaults to a docker volume openvpn)
     - name: dns
       desc: Use a specific dns server instead of the Google DNS servers (e.g. 1.2.3.4)
     - name: default
@@ -67,13 +69,19 @@ jobs:
     if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
 
     var res;
-    log("Creating volume openvpn...");
-    res = $sh("docker volume create openvpn").prefix("volume").get(0);
-    if (res.exitcode != 0) throw "Failed to create openvpn docker volume.";
+    global.volume = _$(args.volume, "volume").default("openvpn");
+
+    if (args.volume.indexOf("/") < 0 && args.volume.indexOf("\\") < 0) {
+      log("Creating volume " + global.volume + "...");
+      res = $sh("docker volume create " + global.volume).prefix("volume").get(0);
+      if (res.exitcode != 0) throw "Failed to create " + global.volume + " docker volume.";
+    } else {
+      log("Using volume " + global.volume)
+    }
 
     log("Generating openvpn configuration for " + global.url + "...");
-    //res = $sh("docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig -N -d -s 10.200.0.0/16 -C 'AES-256-CBC' -a 'SHA384' -u " + global.url).prefix("config").get(0);
-    var cmd = "docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig ";
+    //res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig -N -d -s 10.200.0.0/16 -C 'AES-256-CBC' -a 'SHA384' -u " + global.url).prefix("config").get(0);
+    var cmd = "docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig ";
     cmd += "-C 'AES-256-CBC' -a 'SHA384' -b ";
     if (!toBoolean(args.default)) cmd += "-d ";
     if (toBoolean(args.nat))      cmd += "-N ";
@@ -86,7 +94,7 @@ jobs:
     if (res.exitcode != 0) throw "Failed to create openvpn configuration.";
 
     log("Initializing PKI...");
-    res = $sh("docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + args.keysize + " kylemanna/openvpn ovpn_initpki").prefix("init pki").exec(0);
+    res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + args.keysize + " kylemanna/openvpn ovpn_initpki").prefix("init pki").exec(0);
     if (res.exitcode != 0) throw "Failed to initialize PKI.";
 
     args.__format = _$(args.__format).default("pm");
@@ -110,6 +118,8 @@ jobs:
     if (isWin) args.file = args.file.replace(/\.sh$/, ".bat");
     var text = (isWin ? args.winText : args.text);
     if (global.url.startsWith("udp")) text = text.replace("tcp", "udp");
+    text = text.replace(/-v openvpn:/g, "-v " + global.volume + ":");
+    text = text.replace(/rm openvpn/g, "rm "+ global.volume);
 
     io.writeFileString(args.path + "/" + args.file, text);
     if (!isWin) $sh("chmod u+x " + args.path + "/" + args.file).exec();
