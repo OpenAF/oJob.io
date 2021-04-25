@@ -119,7 +119,11 @@ jobs:
     var text = (isWin ? args.winText : args.text);
     if (global.url.startsWith("udp")) text = text.replace("tcp", "udp");
     text = text.replace(/-v openvpn:/g, "-v " + global.volume + ":");
-    text = text.replace(/rm openvpn/g, "rm "+ global.volume);
+    if (global.volume.indexOf("/") >= 0 || global.volume.indexOf("\\") >= 0) {
+      text = text.replace("docker volume rm openvpn", "echo Remove manually contents from " + global.volume);
+    } else {
+      text = text.replace("docker volume rm openvpn", "docker volume rm "+ global.volume);
+    }
     text = text.replace("-e EASYRSA_KEY_SIZE", "-e " + global.keysize);
 
     io.writeFileString(args.path + "/" + args.file, text);
