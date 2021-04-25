@@ -63,7 +63,7 @@ jobs:
     
     args.path = _$(args.path, "path").default(".");
     global.url = _$(args.url, "url").default("tcp://" + ow.format.getPublicIP().ip);
-    args.keysize = _$(args.keysize, "keysize").default(2048);
+    global.keysize = _$(args.keysize, "keysize").default(2048);
 
     var exists = $sh("docker").get(0).exitcode;
     if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
@@ -94,7 +94,7 @@ jobs:
     if (res.exitcode != 0) throw "Failed to create openvpn configuration.";
 
     log("Initializing PKI...");
-    res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + args.keysize + " kylemanna/openvpn ovpn_initpki").prefix("init pki").exec(0);
+    res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki").prefix("init pki").exec(0);
     if (res.exitcode != 0) throw "Failed to initialize PKI.";
 
     args.__format = _$(args.__format).default("pm");
@@ -120,6 +120,7 @@ jobs:
     if (global.url.startsWith("udp")) text = text.replace("tcp", "udp");
     text = text.replace(/-v openvpn:/g, "-v " + global.volume + ":");
     text = text.replace(/rm openvpn/g, "rm "+ global.volume);
+    text = text.replace("-e EASYRSA_KEY_SIZE", "-e " + global.keysize);
 
     io.writeFileString(args.path + "/" + args.file, text);
     if (!isWin) $sh("chmod u+x " + args.path + "/" + args.file).exec();
@@ -169,7 +170,7 @@ jobs:
       if [ -z "$1" ]; then
         echo "Please provide an username."
       else
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + args.keysize + " kylemanna/openvpn easyrsa build-client-full $1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE kylemanna/openvpn easyrsa build-client-full $1 nopass
         docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_getclient $1 > $1.ovpn
         echo "Created file $1.ovpn"
       fi
@@ -178,7 +179,7 @@ jobs:
         echo "Please provide an username."
       ) ELSE (
         @echo off
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + args.keysize + " kylemanna/openvpn easyrsa build-client-full %1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE kylemanna/openvpn easyrsa build-client-full %1 nopass
         docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_getclient %1 > %1.ovpn
         echo "Created file %1.ovpn"
       )
