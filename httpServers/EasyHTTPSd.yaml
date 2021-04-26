@@ -50,23 +50,27 @@ jobs:
   # -----------------
   - name: Prepare SSL
     exec: |
+      args.cn = _$(args.cn, "cn").$_();
       if (isDef(args.cn)) {
-        var valid = Number(_$(args.VALID, "VALID").default(args.init.keyv)) * 60 * 1000;
-        var keys = Number(_$(args.KEYS, "KEYS").default(args.init.keys));
+        var valid = Number(_$(args.keyv, "VALID").default(args.init.keyv)) * 60 * 1000;
+        var keys = Number(_$(args.keys, "KEYS").default(args.init.keys));
+        args.keyf = _$(args.keyf, "keyf").default(args.init.keyf);
+        args.keyp = _$(args.keyp, "keyp").default(args.init.keyp);
 
         ow.loadJava();
         var c = new ow.java.cipher();
         log("Generating temporary self-signed SSL certificate of " + args.cn + " valid for " + valid + " ms with " + keys + " key size...");
         var kp = c.genKeyPair(keys);
-        var cert = c.genCert("cn=" + args.cn, kp.publicKey, kp.privateKey, new Date(now() + valid), void 0, args.init.keyf, args.init.keyp);
+        var cert = c.genCert("cn=" + args.cn, kp.publicKey, kp.privateKey, new Date(now() + valid), void 0, args.keyf, args.keyp);
       }
 
   # -----------------------
   - name: Clean Key on exit
     type: shutdown
     exec: |
-      log("Cleaning " + args.init.keyf + "...");
-      io.rm(args.init.keyf);
+      args.keyf = _$(args.keyf, "keyf").isString().default(args.init.keyf);
+      log("Cleaning " + args.keyf + "...");
+      io.rm(args.keyf);
 
 todo:
   - Clean Key on exit

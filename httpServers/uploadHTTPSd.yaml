@@ -1,4 +1,4 @@
-# Template          : Simple Upload HTTP server
+# Template          : Simple Upload HTTPS server
 # Author            : Nuno Aguiar
 # How to run        : ojob httpd.yaml (change /data for the folder you need)
 # oPack dependencies: latest ojob-common;
@@ -7,11 +7,15 @@ init:
   # The port where the http server will be available
   port      : &PORT        8080
   # Where the pid file will be located
-  piddir    : &PIDDIR      uploadHTTPd.pid
+  piddir    : &PIDDIR      uploadHTTPSd.pid
   # What uri will be used for upload and browse
   path      : &PATH        "."
   uploadUri : &UPLOAD_URI  "/_upload"
   uri       : &URI         "/"
+  keyf      : &KEYF        uploadHTTPSd.jks
+  keys      : &KEYS        4096
+  keyv      : &KEYV        1440    # minutes
+  keyp      : &KEYP        uploadHTTPSd
 
 ojob:
   daemon: true
@@ -22,13 +26,18 @@ ojob:
     killPrevious: false
 
 include:
-  - oJobHTTPd.yaml
+- oJobHTTPd.yaml
 
 todo:
+  - Clean Key on exit
+  - Prepare SSL
+
   - name: HTTP Start Server
     args: |
-      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port), 
-         "mapLibs": true })
+      ({ "port"    : (isDef(args.port) ? Number(args.port) : global.args.init.port), 
+         "keystore": (isDef(args.keyf) ? String(args.keyf) : global.args.init.keyf),
+         "pass"    : (isDef(args.keyp) ? String(args.keyp) : global.args.init.keyp),
+         "mapLibs" : true })
 
   - name: Prepare default
   - name: Prepare my file browser
@@ -52,7 +61,43 @@ jobs:
         desc: The default URI to use for upload (defaults to '/_upload')
       - name: uri
         desc: The default URI to use (defaults to '/')
+      - name: keyf
+        desc: The java keystore file to use (defaults to easyHTTPS.jks)
+      - name: keyp
+        desc: The java keystore file password (defaults to easyHTTPS).
+      - name: cn
+        desc: If provided it will generate a self-signed certificate using the canonical name (hostname of ip.address).
+      - name: keyv
+        desc: The number of minutes the self-signed certificate will be valid for (1440 minutes)
+      - name: keys
+        desc: The self-signed certificate key length to use (defaults to 4096)        
 
+  # -----------------
+  - name: Prepare SSL
+    exec: |
+      args.cn = _$(args.cn, "cn").$_();
+      if (isDef(args.cn)) {
+        var valid = Number(_$(args.keyv, "VALID").default(args.init.keyv)) * 60 * 1000;
+        var keys  = Number(_$(args.keys, "KEYS").default(args.init.keys));
+        args.keyf = _$(args.keyf, "keyf").default(args.init.keyf);
+        args.keyp = _$(args.keyp, "keyp").default(args.init.keyp);
+
+        ow.loadJava();
+        var c = new ow.java.cipher();
+        log("Generating temporary self-signed SSL certificate of " + args.cn + " valid for " + valid + " ms with " + keys + " key size...");
+        var kp = c.genKeyPair(keys);
+        var cert = c.genCert("cn=" + args.cn, kp.publicKey, kp.privateKey, new Date(now() + valid), void 0, args.keyf, args.keyp);
+      }
+
+  # -----------------------
+  - name: Clean Key on exit
+    type: shutdown
+    exec: |
+      args.keyf = _$(args.keyf, "keyf").isString().default(args.init.keyf);
+      log("Cleaning " + args.keyf + "...");
+      io.rm(args.keyf);
+
+  # ---------------------
   - name: Prepare default
     to  : HTTP Default
     exec: |
