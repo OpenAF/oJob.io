@@ -16,7 +16,7 @@ init:
 ojob:
   daemon: true
   opacks:
-  - oJob-common
+  - oJob-common: 20210425
   unique: 
     pidFile     : *PIDDIR
     killPrevious: false
@@ -61,6 +61,12 @@ jobs:
             "path": (isDef(args.path) ? String(args.path) : global.args.init.path),
             "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri) })
       );
+
+  - name: HTTP Default
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+         "uri" : "/" })
+
 
   # Provides a upload uri
   - name: Prepare my upload

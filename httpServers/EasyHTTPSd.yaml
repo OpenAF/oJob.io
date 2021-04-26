@@ -16,13 +16,13 @@ init:
 ojob:
   daemon    : true
   opacks    :
-    - oJob-common:20200617
+  - oJob-common: 20210425
   unique    :
     pidFile     : *PID
     killPrevious: false
 
 include:
-  - oJobHTTPd.yaml
+- oJobHTTPd.yaml
 
 jobs:
   # ----------
@@ -78,6 +78,11 @@ todo:
          "mapLibs": true,
           keystore: (isDef(args.keyf) ? String(args.keyf) : global.args.init.keyf),
           pass    : (isDef(args.keyp) ? String(args.keyp) : global.args.init.keyp) })
+
+  - name: HTTP Default
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+         "uri" : "/" })
 
   - name: HTTP File Browse
     args: |

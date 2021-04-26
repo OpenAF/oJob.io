@@ -13,7 +13,7 @@ ojob:
   daemon    : true
   sequential: true
   opacks    :
-    - oJob-common
+  - oJob-common: 20210425
   unique    :
     pidFile     : *PID
     killPrevious: false
@@ -40,6 +40,11 @@ todo:
     args: |
       ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port), 
          "mapLibs": true })
+
+  - name: HTTP Default
+    args: |
+      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+         "uri" : "/" })
 
   - name: HTTP File Browse
     args: |
