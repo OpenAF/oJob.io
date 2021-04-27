@@ -18,12 +18,20 @@ jobs:
     - name   : file
       desc   : The XLS file to write.
       example: file.xlsx
+    - name   : wait
+      desc   : The wait time for excel to open if in Windows and file not defined (defaults to 5000ms)
+      example: "5000"
 
 # ------------
 - name: To XLS
   exec: |
     args.file = _$(args.file, "file").default(__);
-    if (isUnDef(args.file)) args.file = io.createTempFile("ojobio_", "xlsx")
+    args["wait"] = Number( _$(args["wait"], "wait").default(5000) );
+    var temp = false;
+    if (isUnDef(args.file)) {
+      args.file = io.createTempFile("ojobio_", ".xlsx");
+      temp = true;
+    }
 
     if (isDef(__pm._list)) {
       plugin("XLS");
@@ -35,6 +43,12 @@ jobs:
       var f = log("Writing to " + args.file + "..."); 
       xls.writeFile(args.file);
       xls.close();
+
+      if (ow.format.isWindows() && temp) {
+        $sh("start " + args.file).exec();
+        log("Opening in excel...");
+        sleep(args["wait"]);
+      }
     } else {
       logErr("Can't use input");
     }
