@@ -1,0 +1,108 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : |
+      Tries to add a lambda to start or stop a list of provided ec2 instances. Do reuse or create a role with AWSLambdaBasicExecutionRole and the following policy:
+
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                { "Effect": "Allow", "Action": [ "ec2:DescribeInstances", "ec2:Start*", "ec2:Stop*" ], "Resource": "*" },
+                { "Effect": "Allow", "Action": [ "logs:CreateLogStream", "logs:CreateLogGroup", "logs:PutLogEvents" ], "Resource": "arn:aws:logs:*:*:*" }
+            ]
+        }
+    expects: 
+    - name   : secKey
+      desc   : The sBucket security bucket key with the AWS credentials (if not provided it will try the default access)
+    - name   : region
+      desc   : The AWS region where the lambda will be added
+      example: eu-west-1
+    - name   : role
+      desc   : The AWS ARN role to use to execute this lambda (you need to provide an ARN role that has AWS Lambda and EC2 List/Start/Stop permissions)
+    - name   : name
+      desc   : The lambda function name (defaults to 'StartStopEC2Instances')
+      example: StartStopEC2Instances
+
+  pyCode: |
+    import json
+    import re
+    import os
+    import boto3
+      
+    def lambda_handler(event, context):
+        # { "action": "start", "instances": ['my-machine'], "region": "eu-west-1", "vpc": "vpc-12345678900" }
+        # { "action": "stop", "instances": ['my-machine'], "region": "eu-west-1", "vpc": "vpc-12345678900" }
+        ec2r = boto3.resource('ec2', region_name=event['region'])
+        vpc  = ec2r.Vpc(event['vpc'])
+        ins  = []
+        preActionStr = "Stopping"
+        posActionStr = "Stopped"
+
+        if event['action'] == 'start':
+          preActionStr = "Starting"
+          posActionStr = "Started"
+        
+        for instance in vpc.instances.all():
+          for tag in instance.tags:
+            if (tag['Key'] == 'Name'):
+              if tag['Value'] in event['instances']:
+                  print(preActionStr + ' ' + str(tag['Value']) + " in region " + event['region'])
+                  ins.append(instance.id)
+        
+        ec2 = boto3.client('ec2', region_name=event['region'])
+        if len(ins) > 0:
+          if event['action'] == 'start':
+            ec2.start_instances(InstanceIds=ins)
+          if event['action'] == 'stop':
+            ec2.stop_instances(InstanceIds=ins)
+        
+        return {
+          'statusCode': 200,
+          'body'      : json.dumps(posActionStr + ' instances: ' + str(event['instances']))
+        }
+
+todo:
+- Connecting to AWS
+- Adding Lambda
+
+ojob:
+  opacks      :
+  - openaf     : 20210412
+  - oJob-common: 20210425
+  - AWS        : 20210427
+  loadLibs    :
+  - aws.js
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: true   # to change when finished
+  sequential  : true
+
+include:
+- oJobBasics.yaml
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# -----------------------
+- name: Connecting to AWS
+  from: oJob Sec Get
+  args:
+    secOut   : aws
+    secIgnore: true
+  exec: |
+    args.aws = _$(args.aws).isMap().default({});
+    log("Connecting to AWS...");
+    global.aws = new AWS(args.aws.aAccessKey, args.aws.aSecretKey, args.aws.aSessionToken);
+
+# -------------------
+- name: Adding Lambda
+  deps: 
+  - Connecting to AWS
+  exec: |
+    args.name = _$(args.name, "name").default("StartStopEC2Instances");
+    _$(args.role, "role").$_();
+
+    var res = global.aws.LAMBDA_CreatePython(args.region, args.name, args.role, args.init.pyCode);
+    ow.oJob.output(res, args);
