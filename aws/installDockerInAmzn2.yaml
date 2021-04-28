@@ -47,6 +47,7 @@ jobs:
   from:
   - Identify user
   to  :
+  - Set docker as a service
   - Show docker info
   lang: shell
   typeArgs:
@@ -57,3 +58,12 @@ jobs:
     sudo yum install docker
     sudo service docker start
     sudo usermod -a -G docker {{user}}
+
+# -----------------------------
+- name: Set docker as a service
+  lang: shell
+  typeArgs:
+    shellPrefix: ("sh")
+  exec: |
+    systemctl enable docker
+    systemctl start docker

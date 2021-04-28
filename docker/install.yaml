@@ -2,6 +2,7 @@
 
 todo:
 - Install docker
+- Set docker as a service
 
 ojob:
   sequential  : true
@@ -24,3 +25,12 @@ jobs:
     $sh("sh " + f)
     .prefix("sh")
     .get(0);
+
+# -----------------------------
+- name: Set docker as a service
+  lang: shell
+  typeArgs:
+    shellPrefix: ('sh') 
+  exec: |
+    systemctl enable docker
+    systemctl start docker
