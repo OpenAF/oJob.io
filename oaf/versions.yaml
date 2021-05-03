@@ -31,7 +31,7 @@ jobs:
 - name: Update versions
   exec: |
     if(isDef(args.update) && args.update.toLowerCase() == "true") {
-       $from(ow.obj.fromObj2Array(args.versions, "name"))
+       $from(args.versions)
        .equals("needsUpdate", true)
        .notEquals("name", "OpenAF")
        .select(r => {
