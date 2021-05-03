@@ -32,14 +32,14 @@ jobs:
 # ----------------------
 - name: Choose operation
   exec: |
-    args.op = _$(args.op, "op").default("list");
+    args.op = _$(args.op, "op").default("help");
     if (isDef(args.secrepo) && String(args.secrepo).length > 0) {
       args.secpass = askDef(args.secpass, "Sec repo '" + args.secrepo + "' pass: ", true);
     }
 
     switch(args.op.toLowerCase()) {
     case "list"       : args = $job("SBucket List", args); break;
-    case "getbucket"  : args = $job("SBucket Get Bucket", args); break; 
+    case "getbucket"  : args = $job("SBucket Get Bucket", args); args.__format = _$(args.__format).default("yaml"); break; 
     case "setbucket"  : args = $job("SBucket Set Bucket", args); break;
     case "unsetbucket": args = $job("SBucket UnSet Bucket", args); break;
     case "setfn"      : args = $job("SBucket SetFn", args); break;
@@ -67,8 +67,8 @@ jobs:
 # -----------------
 - name: SBucket Get
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
-    args.seckey    = _$(args.seckey, "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
     }
@@ -77,8 +77,8 @@ jobs:
 # -------------------
 - name: SBucket GetFn
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
-    args.seckey    = _$(args.seckey, "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
     }
@@ -87,8 +87,8 @@ jobs:
 # -----------------
 - name: SBucket Set
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
-    args.seckey    = _$(args.seckey, "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
 
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
@@ -104,8 +104,8 @@ jobs:
 # --------------------
 - name: SBucket SetObj
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
-    args.seckey    = _$(args.seckey, "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
 
     if (isUnDef(args.secobj)) {
       args.secobj = ask("Sec Obj: ");
@@ -147,8 +147,8 @@ jobs:
 # -------------------
 - name: SBucket SetFn
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
-    args.seckey    = _$(args.seckey, "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
 
     if (isUnDef(args.secfn)) {
       args.secfn = ask("Sec Fn: ");
@@ -178,17 +178,17 @@ jobs:
 # ------------------------
 - name: SBucket Get Bucket
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
     }
     args.output = $sec(args.secrepo, __, __, args.secpass).getBucket(args.secbucket, args.secbucketpass);
 
-# ------------------------
+# ------------------------s
 - name: SBucket Set Bucket
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
-    args.bucket    = _$(args.bucket, "bucket").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.bucket    = _$(askDef(args.bucket, "Bucket data: "), "bucket").$_();
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
     }
@@ -197,7 +197,7 @@ jobs:
 # --------------------------
 - name: SBucket UnSet Bucket
   exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
       args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
     }
