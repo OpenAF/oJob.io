@@ -135,14 +135,18 @@ jobs:
         }
         args.secargs = {};
         for(var param in ags) {
-          args.secargs[ags[param]] = ask(" " + ags[param] + ": ");
+          var agss = ags[param].toLowerCase().trim();
+          if (agss.indexOf("secret") >= 0 || agss.indexOf("pass") >= 0 || agss.indexOf("password") >= 0)
+            args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ");
+          else
+            args.secargs[ags[param]] = ask(" " + ags[param] + ": ");
         }
         print("");
       }
     } catch(e) {
     }
     log("Setting object '" + args.seckey + "' with arguments for '" + args.secobj + "' on bucket '" + args.secbucket + "'...");
-    $sec(args.secrepo, __, __, args.secpass).setFn(args.seckey, args.secobj, args.secargs, args.secbucket, args.secbucketpass);
+    $sec(args.secrepo, __, __, args.secpass).setObj(args.seckey, args.secobj, args.secargs, args.secbucket, args.secbucketpass);
     
 # -------------------
 - name: SBucket SetFn
@@ -166,7 +170,11 @@ jobs:
         print("\n" + args.secfn + "(" + ags.join(", ") + ")");
         args.secargs = {};
         for(var param in ags) {
-          args.secargs[ags[param]] = ask(" " + ags[param] + ": ");
+          var agss = ags[param].toLowerCase().trim();
+          if (agss.indexOf("secret") >= 0 || agss.indexOf("pass") >= 0 || agss.indexOf("password") >= 0)
+            args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ");
+          else
+            args.secargs[ags[param]] = ask(" " + ags[param] + ": ");
         }
         print("");
       }
