@@ -62,6 +62,8 @@ jobs:
     ow.loadFormat();
     
     args.path = _$(args.path, "path").default(".");
+    args.nat  = _$(args.nat, "nat").default("true");
+    
     global.url = _$(args.url, "url").default("tcp://" + ow.format.getPublicIP().ip);
     global.keysize = _$(args.keysize, "keysize").default(2048);
 
