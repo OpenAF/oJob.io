@@ -5,7 +5,7 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210412
+  - openaf: 20210515
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
@@ -33,13 +33,25 @@ jobs:
       temp = true;
     }
 
-    if (isDef(__pm._list)) {
+    if (isDef(__pm._list) || isDef(__pm._map)) {
       plugin("XLS");
       ow.loadFormat();
 
+      var ar;
+      if (isDef(__pm._map) && isUnDef(__pm._list)) {
+         ow.loadObj();
+         var o = ow.obj.flatMap(__pm._map);
+         ar = Object.keys(o).map(r => ({ key: r, value: o[r] }));
+      } else {
+         ar = __pm._list;
+      }
+      traverse(ar, (aK, aV, aP, aO) => {
+         if (isString(aV) && aV.startsWith("=")) aO[aK] = "'" + aV;
+      });
+
       var xls = new XLS();
       var sheet = xls.getSheet("result");
-      ow.format.xls.setTable(xls, sheet, "A", 1, __pm._list, __, { bold: true, borderBottom: "medium", borderBottomColor: "red" });
+      ow.format.xls.setTable(xls, sheet, "A", 1, ar, __, { bold: true, borderBottom: "medium", borderBottomColor: "red" });
       var f = log("Writing to " + args.file + "..."); 
       xls.writeFile(args.file);
       xls.close();
