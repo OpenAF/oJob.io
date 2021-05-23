@@ -1,0 +1,41 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Displays a 8-bit reference color map.
+
+todo:
+- Color Map
+
+ojob:
+  opacks      :
+  - openaf: 20210523
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ---------------
+- name: Color Map
+  exec: |
+    var s = "", s1 = "", s2 = ""; 
+    ow.loadFormat();
+  
+    for(var ii = 0; ii <= 255; ii++) { 
+       if (ii == 0) { s += "Basic colors:\n\n" }
+       if (ii == 232) { s += s1 + s2 + "\nGrey colors:\n\n" }
+       if (ii == 16) { s += "\n216 colors:\n\n" }
+       
+       var f = 255, use1 = true;
+       if ((ii<=15 && ii>7) || (ii>15 && (ii-16)%36 > 17)) { f = 0; use1 = false; }
+       var tmp = ansiColor("BG(" + ii + "),FG("+f+")", (s.endsWith("\u001b[m")?" ":" ") + ow.format.string.leftPad(String(ii), 3, "0") + " "); 
+       if (ii < 16 || ii > 231) s += tmp;
+       if (ii==15) s += ansiColor("RESET","\n"); 
+       if (ii > 15 && ii < 232 && (ii-15) % (36/2) == 0) tmp += ansiColor("RESET", "\n") 
+       if (ii > 15 && ii < 232) { if (use1) { s1 += tmp;} else {s2 += tmp;} }
+    }; 
+
+    print("\n\n" + s + ansiColor("BG(0),FG(255)", " "))
