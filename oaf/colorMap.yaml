@@ -2,6 +2,10 @@
 init:
   help: &HELP
     text   : Displays a 8-bit reference color map.
+    expects:
+    - name   : mode
+      desc   : Choose between a foreground (FG) or background (BG) color map
+      example: FG
 
 todo:
 - Color Map
@@ -11,7 +15,6 @@ ojob:
   - openaf: 20210523
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
   logToConsole: true   # to change when finished
-        
 
 jobs:
 # ----------
@@ -21,21 +24,45 @@ jobs:
 # ---------------
 - name: Color Map
   exec: |
-    var s = "", s1 = "", s2 = ""; 
-    ow.loadFormat();
-  
-    for(var ii = 0; ii <= 255; ii++) { 
-       if (ii == 0) { s += "Basic colors:\n\n" }
-       if (ii == 232) { s += s1 + s2 + "\nGrey colors:\n\n" }
-       if (ii == 16) { s += "\n216 colors:\n\n" }
-       
-       var f = 255, use1 = true;
-       if ((ii<=15 && ii>7) || (ii>15 && (ii-16)%36 > 17)) { f = 0; use1 = false; }
-       var tmp = ansiColor("BG(" + ii + "),FG("+f+")", (s.endsWith("\u001b[m")?" ":" ") + ow.format.string.leftPad(String(ii), 3, "0") + " "); 
-       if (ii < 16 || ii > 231) s += tmp;
-       if (ii==15) s += ansiColor("RESET","\n"); 
-       if (ii > 15 && ii < 232 && (ii-15) % (36/2) == 0) tmp += ansiColor("RESET", "\n") 
-       if (ii > 15 && ii < 232) { if (use1) { s1 += tmp;} else {s2 += tmp;} }
-    }; 
+    args.mode = _$(args.mode, "mode").isString().check(r=>r.toLowerCase() == "bg" || r.toLowerCase() == "fg", "needs to be FG or BG").default("FG");
+    args.mode = args.mode.toUpperCase();
 
-    print("\n\n" + s + ansiColor("BG(0),FG(255)", " "))
+    ow.loadFormat();
+    var pC = c => printnl(ansiColor(args.mode + "(" + c + ")", " " + ow.format.string.leftPad(String(c), 3, "0") + " "))
+    var pR = () => ansiColor("RESET", "")
+
+    print("Basic colors:\n");
+    for(var n = 0; n <= 7; n++) pC(n)
+    print(pR())
+
+    for(var n = 8; n <= 15; n++) pC(n)
+    print(pR() + "\n")
+
+    var mC = (STEP, START, isPos) => {
+      var n
+      for(var i = 0; i <= 5; i++) {
+         for(var j = 0; j <= 11; j++) {
+        if (j < 6) {
+           n = START + (j * STEP) + (isPos ? i : -i)
+        } else {
+           n = START + ( ( 17 - j ) * STEP ) + (isPos ? i : -i)
+        }
+        pC(n)
+         }
+         print(pR())
+      }
+      print(pR())
+    }
+
+    print("216 colors:\n");
+    mC(6, 16, true);
+    mC(6, 93, false);
+    mC(6, 160, true);
+
+    print("Grey colors:\n");
+    for(var n = 232; n <= 243; n++) pC(n)
+    print(pR())
+
+    for(var n = 255; n >= 244; n--) pC(n)
+    print(pR())
+
