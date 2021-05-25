@@ -24,19 +24,20 @@ jobs:
 # ---------------
 - name: Color Map
   exec: |
-    args.mode = _$(args.mode, "mode").isString().check(r=>r.toLowerCase() == "bg" || r.toLowerCase() == "fg", "needs to be FG or BG").default("FG");
+    args.mode = _$(args.mode, "mode").isString().check(r=>isDef(r) && (r.toLowerCase() == "bg" || r.toLowerCase() == "fg"), "needs to be FG or BG").default("FG");
     args.mode = args.mode.toUpperCase();
 
     ow.loadFormat();
-    var pC = c => printnl(ansiColor(args.mode + "(" + c + ")", " " + ow.format.string.leftPad(String(c), 3, "0") + " "))
+    var out = "";
+    var pC = c => out += ansiColor(args.mode + "(" + c + ")", " " + ow.format.string.leftPad(String(c), 3, "0") + " ")
     var pR = () => ansiColor("RESET", "")
 
-    print("Basic colors:\n");
+    out += "Basic colors:\n\n";
     for(var n = 0; n <= 7; n++) pC(n)
-    print(pR())
+    out += pR() + "\n";
 
     for(var n = 8; n <= 15; n++) pC(n)
-    print(pR() + "\n")
+    out += pR() + "\n\n";
 
     var mC = (STEP, START, isPos) => {
       var n
@@ -49,20 +50,21 @@ jobs:
         }
         pC(n)
          }
-         print(pR())
+         out += pR() + "\n"
       }
-      print(pR())
+      out += pR() + "\n"
     }
 
-    print("216 colors:\n");
+    out += "216 colors:\n\n";
     mC(6, 16, true);
     mC(6, 93, false);
     mC(6, 160, true);
 
-    print("Grey colors:\n");
+    out += "Grey colors:\n\n";
     for(var n = 232; n <= 243; n++) pC(n)
-    print(pR())
+    out += pR() + "\n"
 
     for(var n = 255; n >= 244; n--) pC(n)
-    print(pR())
+    out += pR() + "\n"
 
+    print(out);
