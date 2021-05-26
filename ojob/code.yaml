@@ -30,12 +30,18 @@ jobs:
 # ------------------
 - name: Replace code
   exec: |
+    _$(args.job, "job").$_();
+    _$(args.js, "js").$_();
+
     var code = require("code.js");
-    code.replaceCodeInYAML(args.job, args.js.split(",").map(s => s.trim()));
+    args.files = args.js.split(",").map(s => s.trim());
+    code.replaceCodeInYAML(args.job, args.files);
 
 # ------------------
 - name: Extract code
   exec: |
+    _$(args.job, "job").$_();
+
     var code = require("code.js");
     var files = code.extractCodeFromYAML(args.job);
 
@@ -53,7 +59,7 @@ jobs:
     var res = {};
 
     switch(args.op) {
-    case "replace": $job("Replace code", args); break;
+    case "replace": res = $job("Replace code", args).files; break;
     case "extract": res = $job("Extract code", args).files; break;
     case "help"   : 
     default       : res = { Help: args.init.help };
