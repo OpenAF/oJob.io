@@ -64,7 +64,7 @@ jobs:
     var remote = getOPackRemoteDB();
 
     ow.loadObj();
-    ow.obj.fromObj2Array(getOPackLocalDB(), "name").map(r => {
+    ow.obj.fromObj2Array(getOPackLocalDB(), "_key").map(r => {
       if (r.name != "OpenAF") args.versions.push({
         name   : r.name,
         current: r.version,
