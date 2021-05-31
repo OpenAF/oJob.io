@@ -1,0 +1,235 @@
+# Author: Nuno Aguiar
+init:
+  port: &PORT 8888
+  host: &HOST 127.0.0.1
+  uri : &URI  "/"
+  pid : &PID  oJobGUI.pid
+
+  template: |
+    <link href="css/materialize-icon.css" rel="stylesheet">
+    <link href="css/materialize.css" type="text/css" rel="stylesheet" media="screen,projection"/>
+    <script src="js/jquery.js"></script>
+    <script src="js/materialize.js"></script>
+
+    # {{title}} <img align="right" src="/fonts/openaf_small.png">
+
+    ## Input
+
+    {{text}}
+
+    {{#each expects}}
+    <label for="__{{name}}"><b>{{name}}</b><br>{{desc}}</label>
+    {{#is type 'file'}}
+    <div class="file-field input-field">
+    <div class="btn"><span>Browse</span><input type="file"></div>
+    <div class="file-path-wrapper"><input class="file-path validate" type="text" id="__{{name}}"></div>
+    </div>
+    {{else}}
+    <input placeholder="{{example}}" id="__{{name}}" type="{{type}}" class="validate">
+    {{/is}}
+    {{/each}}
+
+    <div align="right"><button class="btn waves-effect waves-light" type="submit" onclick="clickIt()" id="btn" name="action">Execute<i class="material-icons right">send</i></button></div>
+  
+    ## Result
+
+    <div id="__result"><i>(after executing the result will be shown here)</i></div>
+
+    <script>
+    function clickIt() {
+      var _args = { __job: '{{job}}' };
+      {{#each expects}}
+      _args["{{name}}"] = $("#__{{name}}").val();
+      {{/each}}
+      $("#__result").html("...");
+      {{#if single}}
+      $('#btn').prop('disabled', true);
+      {{/if}}
+      $.ajax({
+        type: "POST",
+        url : "/_j",
+        data: _args,
+        success: function(data) {
+          $("#__result").html(data.h);
+        }
+      });
+    }
+    window.onbeforeunload = function(event) {
+      $.ajax({ async: false, type: 'GET', url: '/quit', success: function(d) {}});
+      delete e['returnValue'];
+    }
+    </script>
+
+
+  help: &HELP
+    text   : Provides a browser-based form to execute the provided oJob.
+    expects: 
+    - name   : job
+      desc   : The job you want to execute
+      example: ojob.io/echo
+    - name   : port
+      desc   : The port where the web server will be launched (defaults to 8888)
+      example: 8888
+
+todo:
+- name: Prepare data
+# -----------------------
+- name: HTTP Start Server
+  args: |
+    ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port), 
+       "host": (isDef(args.host) ? Number(args.host) : global.args.init.host), 
+        "mapLibs": true })
+
+# ------------------
+- name: HTTP Default
+  args: |
+    ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       "host": (isDef(args.host) ? Number(args.host) : global.args.init.host), 
+        "uri" : "/" })
+
+# -------------------
+- name: Start content
+  args: |
+    ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       "host": (isDef(args.host) ? Number(args.host) : global.args.init.host), 
+        "uri" : "/job" })
+
+# ----------------
+- name: Start quit
+  args: |
+    ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       "host": (isDef(args.host) ? Number(args.host) : global.args.init.host), 
+        "uri" : "/quit" })
+
+# ---------------
+- name: Start job
+  args: |
+    ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       "host": (isDef(args.host) ? Number(args.host) : global.args.init.host), 
+        "uri" : "/_j" })
+
+# -----------------------
+- name: Show instructions
+  args: |
+    ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       "host": (isDef(args.host) ? Number(args.host) : global.args.init.host) })
+
+ojob:
+  daemon      : true
+  sequential  : true
+  opacks      :
+  - openaf     : 20210515
+  - oJob-common: 20210425
+  unique      :
+    pidFile     : *PID
+    killPrevious: false
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+include:
+- oJobHTTPd.yaml
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -----------------------
+- name: Show instructions
+  exec: |
+    print(repeat(80, '='));
+    print("If the browser doesn't open try opening your browse to http://" + args.host + ":" + args.port + "/job.");
+    print("\nTo end this just hit Ctrl-C or close this window.");
+    print(repeat(80, '='));
+    print("");
+    openInBrowser("http://" + args.host + ":" + args.port + "/job");
+
+# ----------------
+- name: Start quit
+  to  : HTTP Service
+  args:
+    execURI: |
+      print("Exiting...");
+      exit(0);
+
+# -------------------
+- name: Start content
+  to  : HTTP Service
+  args:
+    execURI: |
+      try {
+        var r = ow.server.httpd.reply(String(ow.template.parseMD2HTML(global.content, true)), "200", "text/html");
+        return r;
+      } catch(e){sprintErr(e)}
+
+# ---------------
+- name: Start job
+  to  : HTTP Service
+  args:
+    execURI: |
+      var ar = clone(request.params);
+      var j = ar.__job;
+      traverse(ar, (aK, aV, aP, aO) => {
+        if (aV == "") aO[aK] = __;
+      });
+      delete ar["NanoHttpd.QUERY_STRING"];
+      delete ar["__job"];
+
+      oJobRunFile(j, merge(ar, { __format: "pm" }), genUUID(), __, true);
+      var res = clone(__pm);
+      if (isDef(res._map)) res = res._map;
+      if (isDef(res._list)) res = res._list;
+      if (isDef(res.result)) res = { result: res.result };
+
+      if (toBoolean(args.single)) {
+        $do(() => {
+          sleep(1500, true);
+          exit(0);
+        });
+      }
+
+      return ow.server.httpd.reply({ h: ow.template.html.parseMap(res, true).out }, 200, "application/json");
+
+# ------------------
+- name: Prepare data
+  exec: |
+    ow.loadTemplate();
+    ow.template.addConditionalHelpers();
+
+    _$(args.job, "job").$_();
+    var cjob;
+
+    if (io.fileExists(args.job)) {
+      if (args.job.match(/\.ya?ml$/)) cjob = io.readFileYAML(args.job);
+      if (args.job.match(/\.json$/))  cjob = io.readFileJSON(args.job);
+    } else {
+      if (!(args.job.toLowerCase().match(/^https?:\/\//))) {
+        var newjob = "https://" + args.job;
+        ow.loadFormat();
+        var host = (new java.net.URL(newjob).getHost());
+        if (!ow.format.testPort(host, 443) && ow.format.testPort(host, 80)) newjob = "http://" + args.job;
+        args.job = newjob;
+      }
+      cjob = $rest({ uriQuery: true }).get(args.job);
+    }
+
+    var tmpl = args.init.template;
+    var data = $from(cjob.jobs).equals("name", "Help")
+    if (data.any() && isMap(data.at(0).help)) data = data.at(0).help; else throw "No Help job found in '" + args.job + "'.";
+    
+    data.title = args.job.replace(/^https?:\/\//, "");
+    data.job = args.job;
+    data.single = toBoolean(args.single);
+
+    if (isArray(data.expects)) {
+      data.expects.forEach(entry => {
+        entry.type = "text";
+        var test = entry.name.toLowerCase();
+
+        if (test.indexOf("email") >= 0) entry.type = "email";
+        if (test.indexOf("file") >= 0)  entry.type = "file";
+        if (test.indexOf("pass") >= 0)  entry.type = "password";
+      });
+    }
+ 
+    global.content = templify(tmpl, data);
