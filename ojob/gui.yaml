@@ -227,7 +227,7 @@ jobs:
         var test = entry.name.toLowerCase();
 
         if (test.indexOf("email") >= 0) entry.type = "email";
-        if (test.indexOf("file") >= 0)  entry.type = "file";
+        //if (test.indexOf("file") >= 0)  entry.type = "file";
         if (test.indexOf("pass") >= 0)  entry.type = "password";
       });
     }
