@@ -1,0 +1,70 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Displays a 8-bit reference color map.
+    expects:
+    - name   : mode
+      desc   : Choose between a foreground (FG) or background (BG) color map
+      example: FG
+
+todo:
+- Color Map
+
+ojob:
+  opacks      :
+  - openaf: 20210523
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ---------------
+- name: Color Map
+  exec: |
+    args.mode = _$(args.mode, "mode").isString().check(r=>isDef(r) && (r.toLowerCase() == "bg" || r.toLowerCase() == "fg"), "needs to be FG or BG").default("FG");
+    args.mode = args.mode.toUpperCase();
+
+    ow.loadFormat();
+    var out = "";
+    var pC = c => out += ansiColor(args.mode + "(" + c + ")", " " + ow.format.string.leftPad(String(c), 3, "0") + " ")
+    var pR = () => ansiColor("RESET", "")
+
+    out += "Basic colors:\n\n";
+    for(var n = 0; n <= 7; n++) pC(n)
+    out += pR() + "\n";
+
+    for(var n = 8; n <= 15; n++) pC(n)
+    out += pR() + "\n\n";
+
+    var mC = (STEP, START, isPos) => {
+      var n
+      for(var i = 0; i <= 5; i++) {
+         for(var j = 0; j <= 11; j++) {
+        if (j < 6) {
+           n = START + (j * STEP) + (isPos ? i : -i)
+        } else {
+           n = START + ( ( 17 - j ) * STEP ) + (isPos ? i : -i)
+        }
+        pC(n)
+         }
+         out += pR() + "\n"
+      }
+      out += pR() + "\n"
+    }
+
+    out += "216 colors:\n\n";
+    mC(6, 16, true);
+    mC(6, 93, false);
+    mC(6, 160, true);
+
+    out += "Grey colors:\n\n";
+    for(var n = 232; n <= 243; n++) pC(n)
+    out += pR() + "\n"
+
+    for(var n = 255; n >= 244; n--) pC(n)
+    out += pR() + "\n"
+
+    print(out);
