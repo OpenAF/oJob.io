@@ -60,6 +60,10 @@ jobs:
         $sh("start " + args.file).exec();
         log("Opening in excel...");
         sleep(args["wait"]);
+      } else if (ow.format.getOS().startsWith("Mac") && temp) {
+        $sh("open " + args.file).exec();
+        log("Opening in excel...");
+        sleep(args["wait"]);
       }
     } else {
       logErr("Can't use input");
