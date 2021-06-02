@@ -49,8 +49,8 @@ jobs:
     var plat = String(java.lang.System.getProperty("os.arch"));
     if (plat == "aarch64") {
       // Determine package manager
-      var os = [{ name: "RedHat", cmd: "yum",     tmpl: "yum install {{package}}"},
-                { name: "Debian", cmd: "apt-get", tmpl: "apt-get install {{package}"},
+      var os = [{ name: "RedHat", cmd: "yum",     tmpl: "yum -y install {{package}}"},
+                { name: "Debian", cmd: "apt-get", tmpl: "apt-get install {{package}} -y"},
                 { name: "Alpine", cmd: "apk",     tmpl: "apk add {{package}}"}];
         
       // GIT install command
