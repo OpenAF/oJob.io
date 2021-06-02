@@ -25,7 +25,7 @@ jobs:
     text   : Creates an openvpn docker daemon and shell scripts to add/del/list users.
     expects:
     - name: url
-      desc: The vpn external url (either "tcp://some.address" or "udp://some.address"
+      desc: The vpn external url (either "tcp://some.address" or "udp://some.address")
     - name: path
       desc: Path where the scripts to use the vpn will be created (defaults to ".")
     - name: volume
@@ -48,6 +48,24 @@ jobs:
   exec: |
     var plat = String(java.lang.System.getProperty("os.arch"));
     if (plat == "aarch64") {
+      // Determine package manager
+      var os = [{ name: "RedHat", cmd: "yum",     tmpl: "yum install {{package}}"},
+                { name: "Debian", cmd: "apt-get", tmpl: "apt-get install {{package}"},
+                { name: "Alpine", cmd: "apk",     tmpl: "apk add {{package}}"}];
+        
+      // GIT install command
+      log("Installing git...");
+      var cmd = templify( $from( os )
+                          .attach("exists", r => $sh("which " + r.cmd).get(0).exitcode == 0)
+                          .equals("exists", true)
+                          .at(0)
+                          .tmpl, { 
+                            package: "git" 
+                          } );
+      $sh(cmd)
+      .prefix("install git")
+      .get();
+ 
       logWarn("Need to build container for arm...");
       $sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/kylemanna/docker-openvpn.git")
       .prefix("build")
@@ -61,10 +79,10 @@ jobs:
   exec: |
     ow.loadFormat();
     
-    args.path = _$(args.path, "path").default(".");
-    args.nat  = _$(args.nat, "nat").default("true");
+    args.path   = _$(args.path, "path").default(".");
+    args.nat    = _$(args.nat, "nat").default("true"); 
     
-    global.url = _$(args.url, "url").default("tcp://" + ow.format.getPublicIP().ip);
+    global.url = _$(args.url, "url").default("udp://" + ow.format.getPublicIP().ip);
     global.keysize = _$(args.keysize, "keysize").default(2048);
 
     var exists = $sh("docker").get(0).exitcode;
@@ -73,7 +91,7 @@ jobs:
     var res;
     global.volume = _$(args.volume, "volume").default("openvpn");
 
-    if (args.volume.indexOf("/") < 0 && args.volume.indexOf("\\") < 0) {
+    if (global.volume.indexOf("/") < 0 && global.volume.indexOf("\\") < 0) {
       log("Creating volume " + global.volume + "...");
       res = $sh("docker volume create " + global.volume).prefix("volume").get(0);
       if (res.exitcode != 0) throw "Failed to create " + global.volume + " docker volume.";
