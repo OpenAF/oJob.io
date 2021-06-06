@@ -1,6 +1,7 @@
 # Author: Nuno Aguiar
 
 todo:
+- name: Init
 - name: Setup symlinks for openaf
   args:
   - BIN: oaf
@@ -14,7 +15,7 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20201111
+  - openaf: 20210515
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
@@ -34,14 +35,20 @@ jobs:
       desc   : An alternative path to an openaf installation folder (defaults to the current openaf folder)
       example: /oaf
 
+# ----------
+- name: Init
+  exec: |
+    ow.loadFormat(); ow.loadTemplate();
+
 # -------------------
 - name: Get variables
   exec: |
+    if (isUnDef(args.TARGET) && ow.format.getOS().startsWith("Mac OS")) args.TARGET = "/usr/local/bin";
+
     args.OPENAF_PATH = _$(args.OPENAF_PATH, "OPENAF_PATH").default(getOpenAFPath());
     args.TARGET      = _$(args.TARGET, "TARGET").default("/usr/bin");
     args.UNINSTALL   = _$(args.UNINSTALL, "UNINSTALL").default("false");
      
-    ow.loadFormat();
     if (ow.format.isWindows()) throw "Not supported in Windows";
     if (args.OPENAF_PATH.endsWith("/")) args.OPENAF_PATH = args.OPENAF_PATH.substr(0, args.OPENAF_PATH.length - 1); 
 
@@ -50,10 +57,10 @@ jobs:
   from: Get variables
   lang: shell
   exec: |
-    echo Removing /usr/bin/$BIN...
-    rm /usr/bin/$BIN 2> /dev/null
+    echo Removing $TARGET/$BIN...
+    rm $TARGET/$BIN 2> /dev/null
     if [ "$UNINSTALL" = "false" ]; then
-       echo Setup /usr/bin/$BIN...
-       ln -s $OPENAF_PATH/$BIN /usr/bin/$BIN
+       echo Setup $TARGET/$BIN...
+       ln -s $OPENAF_PATH/$BIN $TARGET/$BIN
        chmod a+x $OPENAF_PATH/$BIN
     fi
