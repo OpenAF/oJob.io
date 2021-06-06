@@ -1,0 +1,55 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Converts input __pm into a json stdout or file
+    expects: 
+    - name   : file
+      desc   : JSON file to store the output
+      example: output.json
+    - name   : compact
+      desc   : If compact=true the output JSON will be compacted (defaults to false)
+      example: "false"
+    - name   : delete
+      desc   : If delete=false the __pm output won't be deleted (defaults to true)
+      example: "true"
+
+todo:
+- To JSON
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -------------
+- name: To JSON
+  exec: |
+    var out = __pm;
+
+    if (isDef(__pm._map)) out = __pm._map;
+    if (isDef(__pm._list)) out = __pm._list;
+
+    args.file = _$(args.file, "file").default(__);
+    args.compact = toBoolean(_$(args.compact, "compact").default("false"));
+    args.delete = toBoolean(_$(args.delete, "delete").default("true"));
+
+    if (isDef(args.file)) {
+      io.writeFileJSON(args.file, out);
+    } else {
+      sprint(out, args.compact ? "" : __);
+    }
+
+    if (args.delete) {
+      var done = false;
+      if (isDef(__pm._map)) { done = true; delete __pm._map } 
+      if (isDef(__pm._list)) { done = true; delete __pm._list } 
+
+      if (!done) __pm = {};
+    }
