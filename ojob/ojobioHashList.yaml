@@ -1,0 +1,42 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Returns a list of hash for each ojob in a ojob.io like site.
+    expects: 
+    - name   : url
+      desc   : The URL for a ojob.io like site
+      example: https://ojob.io
+
+todo:
+- Generate hash list
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ------------------------
+- name: Generate hash list
+  exec: |
+    args.url = _$(args.url, "url").default("https://ojob.io");
+
+    var data = $rest().get(args.url + "/index.json");
+    var res = {};
+
+    if (isMap(data) && isMap(data.init) && isArray(data.init.l)) {
+      data = data.init.l.map(r => r.replace(/\.yaml$/, ".json"));
+      data.forEach(r => {
+        log("Getting hash for '" + r + "'...");
+        res[r] = "sha384-" + sha384( $rest().get2Stream(r) );
+      });
+    }
+  
+    ow.oJob.output(res, args);
