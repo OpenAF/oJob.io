@@ -1,0 +1,67 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Creates the necessary files for a headless Raspberry Pi to boot connected to WiFi and with SSH.
+    expects: 
+    - name   : bootPath
+      desc   : The path on the current computer to the target PI boot volume (e.g. /boot)
+      example: /mnt/newPI/boot
+    - name   : country
+      desc   : Two letter country code (e.g. US)
+      example: US
+    - name   : wifiName
+      desc   : The WiFi network name (e.g. myNetwork)
+      example: myNetwork
+    - name   : wifiPswd
+      desc   : The WiFi password
+  
+  wpa: |
+    ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
+    update_config=1
+    country={{country}}
+
+    network={
+      ssid="{{wifiName}}"
+      psk="{{wifiPswd}}"
+    }
+    
+
+todo:
+- Creates files
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ----------------
+- name: Create ssh
+  exec: |
+    var file = args.bootPath + "/ssh";
+    log("Writing " + file);
+    io.writeFileString(file, "");    
+
+# --------------------------------
+- name: Create wpa_supplicant.conf
+  exec: |
+    var file = args.bootPath + "/wpa_supplicant.conf";
+    log("Writing " + file);
+    io.writeFileString(file, templify(args.init.wpa, args));
+
+# -------------------
+- name: Creates files
+  to  : 
+  - Create ssh
+  - Create wpa_supplicant.conf
+  exec: |
+    _$(args.bootPath, "bootPath").check(io.fileExists).$_();
+    _$(args.wifiName, "wifiName").$_();
+    _$(args.country, "country").isString().check(r => String(r).length == 2, "Needs to be a 2-letter code").$_();
+    _$(args.wifiPswd, "wifiPswd").$_();
