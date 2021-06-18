@@ -21,7 +21,7 @@ jobs:
   exec: |
     var fn = h => h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
 
-    var rss = af.fromXML2Obj($rest().get("http://feeds.feedburner.com/AmazonWebServicesBlog")).rss.channel.item.map(r => ({ title: r.title, description: fn(r.description), date: r.pubDate, link: r.link }));
+    var rss = af.fromXML2Obj($rest().get("https://aws.amazon.com/blogs/aws/feed")).rss.channel.item.map(r => ({ title: r.title, description: fn(r.description), date: r.pubDate, link: r.link }));
 
     ow.oJob.output(rss, args);
 
