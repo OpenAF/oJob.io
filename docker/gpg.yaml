@@ -1,0 +1,151 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : |
+      Wrapper to create a container with gpg and perform operations. You need to provide a docker volume (gpgvol) so gpg
+      can store/use the private information.
+      NOTE: For decrypt and sign operations ensure that you run it on a trusted system.
+    expects: 
+    - name   : op
+      desc   : "The operation to perform (e.g: genkey, listkeys, getpubkey, sign, verify, encrypt, decrypt)"
+      example: listkeys
+    - name   : gpgvol
+      desc   : The volume to store the gpg secure information
+      example: gnupg
+    - name   : input
+      desc   : The input file to sign or encrypt
+    - name   : output
+      desc   : The output file to verify or decrypt
+    - name   : recipient
+      desc   : When encrypting or getting the public key the intended email address of the recipient of the message or owner of the private key.
+
+todo:
+- Check for docker
+- Choose operation
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/docker/_common.yaml 
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# --------------------
+- name: Execute docker
+  exec: |
+    _$(args.cmds, "cmds").isArray().$_();
+   
+    var cmds = ["docker", "run", "--rm", "-ti", "-v", args.gpgvol + ":/root/.gnupg"];
+    if (isDef(args.volume)) { 
+       cmds.push("-v");
+       cmds.push(args.volume + ":/input");
+    }
+    cmds.push("alpine");
+    cmds.push("/bin/sh");
+    cmds.push("-c");
+    cmds.push("apk update && apk add gnupg && echo " + repeat(80, '=') + " && echo " + repeat(80, '=') + " && " + args.cmds.join(" && "));
+
+    log("Starting temporary container...");
+    $sh(cmds).exec(0);
+    log("Done.");
+
+# -----------------
+- name: GPG Gen key
+  to  : Execute docker
+  args:
+    cmds:
+    - gpg2 --full-gen-key
+
+# ------------------------
+- name: GPG Get public key
+  to  : Execute docker
+  exec: |
+    _$(args.recipient, "recipient").$_();
+
+    args.cmds = [ "gpg2 --batch --yes --armor --export " + args.recipient ];
+
+# -------------------
+- name: GPG List keys
+  to  : Execute docker
+  args:
+    cmds:
+    - gpg --list-keys
+
+# --------------
+- name: GPG Sign
+  to  : Execute docker
+  exec: |
+    _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
+
+    args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
+    args.volume = args.volume.substr(0, args.volume.lastIndexOf("/"));
+
+    args.output = _$(args.output, "output").default(args.input + ".asc");
+    args.pass = Packages.openaf.AFCmdBase.afc.dIP( askDef(args.pass, "key pass: ", true) );
+
+    args.cmds = [ "echo '" + args.pass + "' > /tmp/p && gpg2 --batch --output /input/" + args.output + " --pinentry-mode=loopback --passphrase-file /tmp/p -ab /input/" + args.input + " && rm /tmp/p" ];
+
+# -----------------
+- name: GPG Decrypt
+  to  : Execute docker
+  exec: |
+    _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
+
+    args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
+    args.volume = args.volume.substr(0, args.volume.lastIndexOf("/"));
+
+    args.output = _$(args.output, "output").default(args.input.replace(/\.gpg$/, ""));
+    args.pass = Packages.openaf.AFCmdBase.afc.dIP( askDef(args.pass, "key pass: ", true) );
+
+    args.cmds = [ "echo '" + args.pass + "' > /tmp/p && gpg2 --batch --output /input/" + args.output + " --pinentry-mode=loopback --passphrase-file /tmp/p --decrypt /input/" + args.input + " && rm /tmp/p" ];
+
+
+# -----------------
+- name: GPG Encrypt
+  to  : Execute docker
+  exec: |
+    _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
+    _$(args.recipient, "recipient").$_();
+
+    args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
+    args.volume = args.volume.substr(0, args.volume.lastIndexOf("/"));
+
+    args.output = _$(args.output, "output").default(args.input + ".gpg");
+
+    args.cmds = [ "gpg2 --batch --yes --output /input/" + args.output + " --encrypt --recipient " + args.recipient + " /input/" + args.input ];
+
+# ----------------
+- name: GPG Verify
+  to  : Execute docker
+  exec: |
+    _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
+
+    args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
+    args.volume = args.volume.substr(0, args.volume.lastIndexOf("/"));
+
+    args.cmds = [ "gpg2 --verify /input/" + args.input ];
+
+# ----------------------
+- name: Choose operation
+  exec: |
+    _$(args.gpgvol, "gpgvol").$_();
+
+    args.op = _$(args.op, "op").default("listkeys");
+
+    switch(args.op.trim().toLowerCase()) {
+    case "genkey"   : $job("GPG Gen key", args); break;
+    case "sign"     : $job("GPG Sign", args); break;
+    case "encrypt"  : $job("GPG Encrypt", args); break;
+    case "decrypt"  : $job("GPG Decrypt", args); break;
+    case "verify"   : $job("GPG Verify", args); break;
+    case "getpubkey": $job("GPG Get public key", args); break;
+    case "listkeys" :
+    default:         $job("GPG List keys", args);
+    }
