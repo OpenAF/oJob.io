@@ -28,13 +28,13 @@ jobs:
   exec: |
     ow.loadFormat();
 
-    args.from = _$(args.from, "from").default(void 0);
+    args.from = _$(args.from, "from").default(__);
     args.to   = _$(args.to, "to").default("UTC");
 
     if (isUnDef(args.from)) args.from = ow.format.fromDate(new Date(), "z");
     args.time = _$(args.time, "time").default(ow.format.fromDate(new Date(), "HHmm"));
 
-    var sa = new java.text.SimpleDateFormat("hhmm");
+    var sa = new java.text.SimpleDateFormat("HHmm");
     sa.setTimeZone(java.util.TimeZone.getTimeZone(args.from)); 
     var myEntry   = new Date(String(sa.parse(args.time).toInstant()));;
 
@@ -51,6 +51,3 @@ jobs:
     res = $a2m(Object.keys(res).sort((a,b) => (ores[a] - ores[b])), $m2a(Object.keys(res).sort((a,b) => (ores[a] - ores[b])), res));
 
     ow.oJob.output(res, args);
-
-
-
