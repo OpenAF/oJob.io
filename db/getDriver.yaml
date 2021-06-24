@@ -172,6 +172,16 @@ init:
       docs    : https://drill.apache.org/docs/using-the-jdbc-driver
       url     : jdbc:drill:zk={{host}}:{{port}}/{{directory}}/{{clusterId}}
 
+    # Paradox
+    - name    : paradox
+      type    : maven
+      typeArgs:
+        groupId   : com.googlecode.paradoxdriver
+        artifactId: paradoxdriver
+      class   : com.googlecode.paradox.Driver
+      docs    : https://github.com/leonhad/paradoxdriver
+      url     : jdbc:paradox:{{path}}
+
     # CSV
     - name    : csv
       type    : maven
