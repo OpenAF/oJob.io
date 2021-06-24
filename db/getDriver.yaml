@@ -1,0 +1,281 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Builds and optionally install an oPack with a specific JDBC driver  
+    expects: 
+    - name   : op
+      desc   : The operation to be performed (e.g. list; install; build)
+      example: list
+    - name   : db
+      desc   : The db to install or build (use op=list to check the possible values)
+  
+  code: |
+    (function() {
+      var LIB_PATH = (isDef(getOPackPaths()["jdbc-{{name}}"]) ? getOPackPaths()["jdbc-{{name}}"]+"/" : ".");
+      if (Object.keys(Packages.{{class}}).length <= 2) {
+          delete Packages.{{class}};
+          $from(io.listFiles(LIB_PATH).files).ends("filename", ".jar").select(function(r) {
+              af.externalAddClasspath("file:///" + r.canonicalPath.replace(/\\/g, "/"));
+          });
+          if (isNull(Packages.openaf.core.DB.drivers.get("{{urlPrefix}}"))) {
+            Packages.openaf.core.DB.drivers.put("{{urlPrefix}}", "{{class}}");
+          }
+      }
+
+      global.DB{{name}} = function(aURL, aUser, aPass, aTimeout) {
+          _$(aURL).isString().$_("Missing aURL ({{{url}}}) (docs: {{docs}})");
+
+          // Docs: {{docs}}
+          // URL : {{{url}}}
+          return new DB("{{class}}", aURL, aUser, aPass, aTimeout);
+      }
+    })();
+
+  data:
+    drivers:
+    # OpenDistro for ElasticSearch
+    - name    : opendistro
+      type    : maven
+      typeArgs:
+        groupId   : com.amazon.opendistroforelasticsearch.client
+        artifactId: opendistro-sql-jdbc
+      class   : com.amazon.opendistroforelasticsearch.jdbc.Driver
+      docs    : https://github.com/opendistro-for-elasticsearch/sql/tree/main/sql-jdbc
+      url     : jdbc:elasticsearch://{{url}}
+
+    # Microsoft SQL Server
+    - name    : sqlserver
+      type    : maven
+      typeArgs:
+        groupId   : com.microsoft.sqlserver
+        artifactId: mssql-jdbc
+        version   : 9.2.1.jre8
+      class   : com.microsoft.sqlserver.jdbc.SQLServerDriver
+      docs    : https://docs.microsoft.com/en-us/sql/connect/jdbc/microsoft-jdbc-driver-for-sql-server
+      url     : jdbc:sqlserver://{{server}}:{{port}};databaseName={{databaseName}}
+
+    # Microsoft Access (UCanAccess)
+    - name    : mdb
+      type    : maven
+      typeArgs:
+        groupId   : net.sf.ucanaccess
+        artifactId: ucanaccess
+        version   : 5.0.1
+        others    :
+        - groupId   : com.healthmarketscience.jackcess
+          artifactId: jackcess
+          version   : 3.0.1
+        - groupId   : org.hsqldb
+          artifactId: hsqldb
+          version   : 2.5.0
+      class    : net.ucanaccess.jdbc.UcanaccessDriver
+      docs     : http://ucanaccess.sourceforge.net/site.html
+      url      : jdbc:ucanaccess://{{file}};memory=false
+
+    # HSQLDB
+    - name    : hsqldb
+      type    : maven
+      typeArgs:
+        groupId   : org.hsqldb
+        artifactId: hsqldb
+      class   : org.hsqldb.jdbc.JDBCDriver
+      docs    : http://hsqldb.org/doc/2.0/guide/dataaccess-chapt.html#dac_jdbc_overview
+      url     : jdbc:hsqldb:{{file}}
+
+    # H2
+    - name    : h2
+      type    : maven
+      typeArgs:
+        groupId   : com.h2database
+        artifactId: h2
+      class   : org.h2.Driver
+      docs    : http://www.h2database.com/html/cheatSheet.html
+      url     : jdbc:h2:{{file}}
+
+    # PostgreSQL
+    - name    : postgresql
+      type    : maven
+      typeArgs:
+        groupId   : org.postgresql
+        artifactId: postgresql
+      class   : org.postgresql.Driver
+      docs    : https://jdbc.postgresql.org/documentation/head/connect.html
+      url     : jdbc:postgresql://{{host}}:{{port}}/{{database}} 
+
+    # Oracle
+    - name    : oracle
+      type    : maven
+      typeArgs:
+        groupId   : com.oracle.database.jdbc 
+        artifactId: ojdbc8
+      class   : oracle.jdbc.OracleDriver
+      docs    : https://docs.oracle.com/en/database/oracle/oracle-database/19/jajdb/oracle/jdbc/OracleDriver.html
+      url     : jdbc:oracle:{{type}}:@{{host}}:{{port}}:{{database}}
+
+    # MySQL
+    - name    : mysql
+      type    : maven
+      typeArgs:
+        groupId   : mysql
+        artifactId: mysql-connector-java
+      class   : com.mysql.cj.jdbc.Driver
+      docs    : https://dev.mysql.com/doc/connector-j/8.0/en/connector-j-reference-jdbc-url-format.html
+      url     : jdbc:mysql://{{host}}:{{port}}/{{database}}
+
+    # MariaDB
+    - name    : mariadb
+      type    : maven
+      typeArgs:
+        groupId   : org.mariadb.jdbc
+        artifactId: mariadb-java-client
+      class   : org.mariadb.jdbc.Driver
+      docs    : https://mariadb.com/kb/en/about-mariadb-connector-j
+      url     : jdbc:mariadb://{{host}}:{{port}}/{{database}}
+
+    # YugaByteDB
+    - name    : yugabytedb
+      type    : maven
+      typeArgs:
+        groupId   : com.yugabyte
+        artifactId: jdbc-yugabytedb
+      class   : org.postgresql.Driver
+      docs    : https://github.com/yugabyte/jdbc-yugabytedb
+      url     : jdbc:postgresql://{{host}}:{{port}}/{{database}} 
+
+    # SQLite
+    - name    : sqlite
+      type    : maven
+      typeArgs:
+        groupId   : org.xerial
+        artifactId: sqlite-jdbc
+      class   : org.sqlite.JDBC
+      docs    : https://github.com/xerial/sqlite-jdbc
+      url     : jdbc:sqlite:{{file}}
+
+    # DB2
+    - name    : db2
+      type    : maven
+      typeArgs:
+        groupId   : com.ibm.db2
+        artifactId: jcc
+      class   : com.ibm.db2.jcc.DB2Driver
+      docs    : https://www.ibm.com/docs/en/db2/11.5?topic=cdsudidsdjs-url-format-data-server-driver-jdbc-sqlj-type-4-connectivity
+      url     : jdbc:db2://{{server}}:{{port}}/{{database}}
+
+    # Apache Drill
+    - name    : drill
+      type    : maven
+      typeArgs:
+        groupId   : org.apache.drill.exec
+        artifactId: drill-jdbc-all
+      class   : org.apache.drill.jdbc.Driver
+      docs    : https://drill.apache.org/docs/using-the-jdbc-driver
+      url     : jdbc:drill:zk={{host}}:{{port}}/{{directory}}/{{clusterId}}
+
+    # CSV
+    - name    : csv
+      type    : maven
+      typeArgs:
+        groupId   : org.xbib.jdbc
+        artifactId: jdbc-driver-csv
+      class   : org.xbib.jdbc.csv.CsvDriver
+      docs    : https://github.com/jprante/jdbc-driver-csv
+      url     : jdbc:xbib:csv:{{folder}}
+
+todo:
+- Get Drivers
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -----------------
+- name: Build oPack
+  exec: |
+    _$(args.db, "db")
+    .isString()
+    .oneOf(args.init.data.drivers.map(r => r.name), "Please choose on of the listed dbs (use op=list)")
+    .$_();
+
+    var db = $from(args.init.data.drivers).equals("name", args.db).at(0);
+    if (isDef(db)) {
+      var target = "jdbc-" + db.name;
+      io.mkdir(target);
+
+      // Get maven files
+      if (db.type == "maven") {
+        var lst = [ db.typeArgs ];
+        if (isDef(db.typeArgs.others)) lst = lst.concat(db.typeArgs.others);
+
+        ow.loadJava();
+        var m = new ow.java.maven();
+        lst.forEach(d => {
+          log("Downloading " + d.groupId + "." + d.artifactId + "...");
+          if (isDef(d.version)) {
+            m.getFileVersion(d.groupId + "." + d.artifactId, d.artifactId + "-{{version}}.jar", d.version, target );
+          } else {
+            m.getFile(d.groupId + "." + d.artifactId, d.artifactId + "-{{version}}.jar", target )
+          }
+          try { 
+            m.getLicenseByVersion(d.groupId + "." + d.artifactId, d.artifactId + "-{{version}}.jar", d.version, target );
+          } catch(e) { }
+        });
+      }
+
+      // Generate script
+      log("Generating helper lib " + target + ".js ...");
+      db.urlPrefix = db.url.replace(/(jdbc:\w+:).+$/, "$1");
+      io.writeFileString(target + "/" + target + ".js", templify(args.init.code, db));
+
+      log("Generating opack...");
+      ow.loadFormat();
+
+      $sh(getOpenAFPath() + "/opack genpack " + target).prefix("genpack").get(0);
+      var pack = io.readFileYAML(target + "/.package.yaml");
+      pack.author = "ojob.io/db/jdbc";
+      pack.keywords = [ "DB", "JDBC", db.name ];
+      pack.description = "Wrapper for JDBC drivers of " + db.name;
+      pack.name = "jdbc-" + db.name;
+      pack.license = "Check the LICENSES.txt file";
+      pack.version = ow.format.fromDate(new Date(), "yyyyMMdd");
+      pack.repository = {};
+      pack.dependencies = { openaf: ">=" + getVersion() };
+      io.writeFileYAML(target + "/.package.yaml", pack);
+
+      $sh(getOpenAFPath() + "/opack pack " + target).prefix("pack").get(0);
+      io.rm(target);
+
+      if (args.install) {
+        var f = io.listFilenames(".").filter(r => r.indexOf(target) >= 0);
+        if (f.length > 0) {
+          log("Installing opack " + f[0] + "...");
+          $sh(getOpenAFPath() + "/opack install " + f[0] + " -force").prefix("install").get(0);
+        }
+      }
+
+      log("To use it just:\n\n\tloadLib(\"" + target + ".js\");\n\tvar db = new DB(\"" + db.url + "\", ...)\n");
+    }
+
+
+# -----------------
+- name: Get Drivers
+  exec: |
+    args.op = _$(args.op, "op").isString().default("help");
+    var res = {};
+
+    switch(args.op.trim().toLowerCase()) {
+    case "build"  : $job("Build oPack", args); break;
+    case "install": $job("Build oPack", merge({ install: true }, args)); break;
+    case "list"   : res = args.init.data.drivers.map(r => r.name).sort(); break;
+    default       : res = { Help: args.init.help }
+    }
+
+    ow.oJob.output(res, args);
