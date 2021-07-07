@@ -15,13 +15,42 @@ jobs:
 - name: Help
   help: 
     text   : Retrieves Google Cloud RSS
+    expects:
+    - name   : weeks
+      desc   : Number of weeks to parse (defaults to 4)
+      example: 4
 
 # ---------
 - name: Azure
   exec: |
+    args.weeks = Number( _$(args.weeks, "weeks").isString().default(4) );
+
+    ow.loadFormat();
     var fn = h => h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
 
-    var rss = af.fromXML2Obj($rest().get("https://cloudblog.withgoogle.com/rss/")).rss.channel.item.map(r => ({ title: r.title, description: fn(r.description), date: r.pubDate, link: r.link }));
+    rss = af.fromXML2Obj($rest().get("https://cloudblog.withgoogle.com/rss/")).rss.channel.item.map(r => ({ title: r.title, description: r.description, date: r.pubDate, link: r.link }));
 
-    ow.oJob.output(rss, args);
+    rss = $from(rss)
+    .equals("title", "What’s new with Google Cloud")
+    .at(0)
+    .description;
+
+    var dates = rss.match(/<h3>Week of .+?<\/h3>/g).map(r => fn(r.replace(/<h3>(.+)<\/h3>/g, "$1")));
+    var out = [];
+    for(var ii = 0; ii < args.weeks; ii++) {
+      var tmp = rss.substring(rss.indexOf(dates[ii]), rss.indexOf(dates[ii+1]));
+      out = out.concat(tmp
+      .match(/<li>.+?<\/li>/mg)
+      .map(r => {
+        var l = r.match(/https:\/\/[^"]+/mg);
+        l = (isNull(l) ? __ : l.join("\n"))
+        return {
+          week : dates[ii],
+          text : fn(r),
+          links: ow.format.unescapeHTML4(l)
+        }
+      }));
+    }
+
+    ow.oJob.output(out, args);
 
