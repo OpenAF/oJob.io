@@ -1,12 +1,12 @@
 # Author: Nuno Aguiar
 
 todo:
-- Azure
+- GCP
 
 ojob:
   sequential  : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20210515
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
@@ -21,7 +21,7 @@ jobs:
       example: 4
 
 # ---------
-- name: Azure
+- name: GCP
   exec: |
     args.weeks = Number( _$(args.weeks, "weeks").isString().default(4) );
 
