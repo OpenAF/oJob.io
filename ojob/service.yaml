@@ -53,29 +53,19 @@ jobs:
   args:
     uri       : /html
     returnHTML: true
-    execGET   : "return ow.server.httpd.reply('', 200, 'text/html', {})"
+    execGET   : "return { }"
     execPOST  : |
-      try { 
       if (isUnDef(data.__ojob)) return {};
       log("Running '" + stringify(data, void 0, "") + "'...");
       __pm = {};
       oJobRunFile(data.__ojob, merge(data, { __format: "pm" }), genUUID(), void 0, true);
       var res = clone(__pm);
-
-      ow.loadTemplate();
-      var c = {};
-      if (isDef(res)) {
-         if (isDef(res._map))  c = ow.template.html.parseMap(res._map, true);
-         if (isDef(res._list)) c = ow.template.html.parseMap(res._list, true);
-      }
-      
-      c.out = c.out.replace(new RegExp("((http|https|ftp)://[a-zA-Z0-9@:%._\\+~#?&//=]{2,256}\\.[a-z]{2,6}\\b([-a-zA-Z0-9@:%._\\+~#?&//=]*))", "gi"), "<a href=\"$1\">$1</a>");
-      var html = "<html><style>" + c.css + "</style><body>" + c.out + "</body></html>"; 
- 
-      return ow.server.httpd.reply(html, 200, 'text/html', {}) 
-      } catch(e) { sprintErr(e) }
-    execPUT   : "return ow.server.httpd.reply('', 200, 'text/html', {})"
-    execDELETE: "return ow.server.httpd.reply('', 200, 'text/html', {})"
+      if (isDef(res._map)) return res._map;
+      if (isDef(res._list)) return res._list;
+      if (isDef(res.result)) return { result: res.result };
+      return res; 
+    execPUT   : "return { }"
+    execDELETE: "return { }"
   exec: |
     args.port = Number( _$(args.port, "port").default(global.args.init.port) );
 
@@ -85,7 +75,7 @@ jobs:
   to  : REST Service
   args:
     uri       : /
-    execGET   : "return { a: 1 }"
+    execGET   : "return { }"
     execPOST  : |
       if (isUnDef(data.__ojob)) return {};
       log("Running '" + stringify(data, void 0, "") + "'...");
