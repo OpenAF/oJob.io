@@ -39,6 +39,7 @@ jobs:
     var out = [];
     for(var ii = 0; ii < args.weeks; ii++) {
       var tmp = rss.substring(rss.indexOf(dates[ii]), rss.indexOf(dates[ii+1]));
+      if (tmp.length == 0) continue;
       out = out.concat(tmp
       .match(/<li>.+?<\/li>/mg)
       .map(r => {
