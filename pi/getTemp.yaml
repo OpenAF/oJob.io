@@ -1,0 +1,50 @@
+# Author: Get temperature
+init:
+  help: &HELP
+    text   : Get PI's current CPU temperature
+    expects: 
+    - name   : samples
+      desc   : Number of samples to retrieve (defaults to 1)
+      example: 5
+    - name   : wait
+      desc   : Time to wait between samples in ms (defaults to 1000ms)
+      example: 1000
+
+todo:
+- Get temperature
+
+ojob:
+  opacks      :
+  - openaf: 20210721
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ---------------------
+- name: Get temperature
+  exec: |
+    args.samples = _$(args.samples, "samples").isNumber().default(1);
+    args.wait    = _$(args.wait, "wait").isNumber().default(1000);
+
+    var samples = [], data = [], ini = 0;
+
+    for(var t = 0; t < args.samples; t++) {
+      var temp = Number($sh("cat /sys/class/thermal/thermal_zone0/temp").get(0).stdout / 1000);
+      log("[" + (t+1) + "/" + args.samples + "] Measured " + temp + "C...");
+
+      samples.push(temp);
+      data.push([ t, temp ]);
+
+      if (t+1 < args.samples) {
+        sleep(args.wait);
+        ini = Number(ini) + Number(args.wait);
+      }
+    }
+
+    ow.oJob.output({ temperatures: samples}, args);
