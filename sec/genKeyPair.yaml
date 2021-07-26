@@ -1,0 +1,53 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Generates cyprographic keys for other OpenAF uses 
+    expects: 
+    - name   : keysize 
+      desc   : The corresponding keysize to generate (for asymmetric keys is 2048 by default)
+      example: 2048 
+    - name   : pubkey
+      desc   : The file path to store the public key
+      example: public.key
+    - name   : privkey
+      desc   : The file path to store the private key
+      example: private.key
+
+todo:
+- Generate key pair
+
+ojob:
+  opacks      :
+  - openaf: 20210721
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -----------------------
+- name: Generate key pair
+  exec: |
+    args.keysize = _$(args.keysize, "keysize").default(__);
+    args.pubkey  = _$(args.pubkey, "pubkey").default(__);
+    args.privkey = _$(args.privkey, "privkey").default(__);
+
+    ow.loadJava();
+    var c = new ow.java.cipher();
+    var kp = c.genKeyPair(args.keysize); 
+
+    args.pubk = c.saveKey2String(kp.publicKey, false);
+    args.prik = c.saveKey2String(kp.privateKey, true);
+ 
+    if (isDef(args.pubkey))  { io.writeFileString(args.pubkey, args.pubk); delete args.pubk }
+    if (isDef(args.privkey)) { io.writeFileString(args.privkey, args.prik); delete args.prik }
+
+    ow.oJob.output({
+       privateKey: args.prik,
+       publicKey : args.pubk,
+       keySize   : args.keysize
+    }, args);
+
