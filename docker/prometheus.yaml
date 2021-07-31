@@ -11,8 +11,7 @@ init:
     # Alertmanager configuration
     alerting:
       alertmanagers:
-      - follow_redirects: true
-        scheme: http
+      - scheme: http
         timeout: 10s
         api_version: v2
         static_configs:
@@ -34,7 +33,6 @@ init:
         scrape_timeout: 10s
         metrics_path: /metrics
         scheme: http
-        follow_redirects: true
         # metrics_path defaults to '/metrics'
         # scheme defaults to 'http'.
         static_configs:
