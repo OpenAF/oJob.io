@@ -1,5 +1,15 @@
 # Author: Nuno Aguiar
 init:
+  help: &HELP
+    text   : Generates a quick docker-compose with prometheus and, optionally, grafana.
+    expects: 
+    - name: grafana 
+      desc: "If grafana=true grafana will be added to the docker-compose file."
+    - name: pushgateway
+      desc: "If pushgateway=true pushgateway will be added to the docker-compose file."
+    - name: prometheusConfig
+      desc: "The localfilename containing the prometheus configuration (default: prometheus.yml)"
+
   prom: |
     # my global config
     global:
@@ -36,12 +46,26 @@ init:
         # metrics_path defaults to '/metrics'
         # scheme defaults to 'http'.
         static_configs:
-        - targets: ['localhost:9090']         
+        - targets: ['localhost:9090']
+    {{#if pushgateway}}
+      - job_name: 'pushgateway'
+        honor_timestamps: true
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        scheme: http
+        # metrics_path defaults to '/metrics'
+        # scheme defaults to 'http'.
+        static_configs:
+        - targets: ['pushgateway:9091']
+    {{/if}}     
 
   dc  : |
     version : '3'
+    
     networks:
       prom:
+
     services:
 
       prometheus:
@@ -53,8 +77,16 @@ init:
         - {{promYaml}}:/etc/prometheus/prometheus.yml
         - prometheus:/prometheus
         networks:
+        - prom{{#if pushgateway}}
+
+      pushgateway:
+        image   : prom/pushgateway
+        hostname: pushgateway
+        ports   :
+        - "9091:9091"
+        networks:
         - prom
-      {{#if grafana}}
+      {{/if}}{{#if grafana}}
 
       # Login with admin/admin
       grafana:
@@ -80,32 +112,29 @@ include:
 - ojob.io/docker/_common.yaml
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20200523
-  catch       : logErr(exception);
+  - openaf: 20210721
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
   logToConsole: false   # to change when finished
 
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Generates a quick docker-compose with prometheus and, optionally, grafana.
-    expects: 
-    - name: grafana 
-      desc: "If grafana=true grafana will be added to the docker-compose file."
-    - name: prometheusConfig
-      desc: "The localfilename containing the prometheus configuration (default: prometheus.yml)"
+  help: *HELP
 
 # ------------------------
 - name: Install prometheus 
   exec: |
-    args.grafana          = _$(args.grafana, "grafana").default("false"); 
+    args.grafana          = _$(args.grafana, "grafana").default("false");
+    args.pushgateway      = _$(args.pushgateway, "pushgateway").default("false"); 
     args.prometheusConfig = _$(args.prometheusConfig, "prometheusConfig").default(io.fileInfo(".").canonicalPath + "/prometheus.yml");
 
-    io.writeFileString(args.prometheusConfig, args.init.prom);
+    var data = { 
+       grafana    : toBoolean(args.grafana),
+       pushgateway: toBoolean(args.pushgateway)
+    };
+
+    io.writeFileString(args.prometheusConfig, templify(args.init.prom, data));
   
-    tprint(args.init.dc, { 
-       grafana : (args.grafana.toLowerCase() == "true" ? true : false),
-       promYaml: io.fileInfo(args.prometheusConfig).canonicalPath
-    });
+    data.promYaml = io.fileInfo(args.prometheusConfig).canonicalPath;
+    tprint(args.init.dc, data);
