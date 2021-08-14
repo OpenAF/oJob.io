@@ -1,0 +1,73 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Tries to compile a YAML oJob with OpenAF exec code into JSON oJob compressed file
+    expects: 
+    - name   : source
+      desc   : The YAML oJob file
+      example: ojob.yaml
+    - name   : target
+      desc   : The target json file
+      example: ojob.json
+
+todo:
+- name: Get jobs
+- name: Output ojob
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  - GoogleCompiler
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+  channels    :
+    create:
+    - name: jobs
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# --------------
+- name: Get jobs
+  each: Compile job
+  exec: |
+    _$(args.source, "source").isString().$_();
+
+    var oj = io.readFileYAML(args.source);
+
+    $set("source", oj);
+    if (isArray(oj.jobs)) oj.jobs.forEach(r => each(r));
+
+# -----------------
+- name: Compile job
+  exec: |
+    if (isDef(args.exec)) {
+      log("Processing '" + args.name + "'...");
+
+      var res = $sh()
+                .sh(ow.format.getJavaHome() + "/bin/java -jar " + getOPackPath("GoogleCompiler") + "/compiler.jar --language_out ECMASCRIPT5 --env CUSTOM --strict_mode_input false --rewrite_polyfills false", "(function() {" + args.exec +"})()")
+                .get(0);
+
+      $ch("jobs").set({ 
+        name: args.name
+      }, {
+        name: args.name,
+        exec: res.stdout.replace(/^\(function\(\){/, "").replace(/\}\)\(\)\;\n$/, "")
+      })
+    }
+  
+# -----------------
+- name: Output ojob
+  exec: |
+    var oj = $get("source");
+
+    if (isArray(oj.jobs)) {
+      oj.jobs.map(j => {
+        var t = $ch("jobs").get({ name: j.name });
+        if (isDef(t) && isDef(t.exec)) j.exec = t.exec;
+      });
+    }
+    args.target = _$(args.target, "target").isString().default(args.source.replace(/\.yaml$/, ".json"));
+    io.writeFileJSON(args.target, oj, "");
