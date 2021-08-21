@@ -45,7 +45,7 @@ jobs:
       text   : Starts a very simple HTTP server on the provided port for file upload
       expects:
       - name: port 
-        desc: The port to use (default to 8888)
+        desc: The port to use (default to 8080)
       - name: path
         desc: The path from which to browse files (defaults to '.')
       - name: uploadUri
