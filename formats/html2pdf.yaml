@@ -22,6 +22,7 @@ init:
       desc   : The output PDF or PNG file
 
 todo:
+- Check for docker
 - Options
 
 ojob:
@@ -33,14 +34,17 @@ ojob:
         
 include:
 - ojob.yaml
+- ojob.io/docker/_common.yaml
 
 jobs:
 # ----------
 - name: Help
   help: *HELP
 
+# -------------
 - name: Options
   to  : ojob options
+  deps: Check for docker
   args:
     optionOn : op 
     lowerCase: true
