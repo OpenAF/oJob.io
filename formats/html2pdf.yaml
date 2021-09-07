@@ -9,12 +9,7 @@ init:
     text   : Converts a HTML file into a PDF or PNG file.
     expects: 
     - name   : op
-      desc   : | 
-        The operation to execute:
-
-          op=pdf  - Build docker image and convert input html into a pdf file
-          op=png  - Build docker image and convert input html into a png file
-          op=rm   - Remove docker image
+      desc   : "The operation to execute: (op=pdf) Build docker image and convert input html into a pdf file; (op=png) Build docker image and convert input html into a png file; (op=rm) Remove docker image"
       example: pdf
     - name   : in
       desc   : The input HTML file
