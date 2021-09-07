@@ -1,0 +1,99 @@
+# Author: Nuno Aguiar
+init:
+  wkhtmltopdf: 
+    FROM amazonlinux:2
+
+    RUN yum install -y https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.amazonlinux2.x86_64.rpm && yum install -y which gzip tar wget curl
+
+  help: &HELP
+    text   : Converts a HTML file into a PDF or PNG file.
+    expects: 
+    - name   : op
+      desc   : | 
+        The operation to execute:
+
+          op=pdf  - Build docker image and convert input html into a pdf file
+          op=png  - Build docker image and convert input html into a png file
+          op=rm   - Remove docker image
+      example: pdf
+    - name   : in
+      desc   : The input HTML file
+    - name   : out
+      desc   : The output PDF or PNG file
+
+todo:
+- Options
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  - oJob-common
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+        
+include:
+- ojob.yaml
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+- name: Options
+  to  : ojob options
+  args:
+    optionOn : op 
+    lowerCase: true
+    todos    :
+      pdf: &DEFAULT
+      - Build docker
+      - Convert from html to pdf
+      png:
+      - Build docker
+      - Convert from html to png
+      rm:
+      - Remove docker
+    default: *DEFAULT
+
+
+# ------------------
+- name: Build docker
+  exec: |
+    $sh()
+    .sh("docker build -t wkhtmltopdf -", args.init.wkhtmltopdf)
+    .prefix("build")
+    .get(0);
+
+# -------------------
+- name: Remove docker
+  lang: shell
+  exec: |
+    docker rmi wkhtmltopdf
+
+# ------------------------------
+- name: Convert from html to pdf
+  to  : Convert
+  exec: |
+    _$(args.in, "in").isString().$_();
+    args.cmd = _$(args.cmd, "cmd").isString().default("wkhtmltopdf");
+
+    args.path = io.fileInfo(args.in).canonicalPath.replace(/\/[^\/]+$/, "");
+    if (isUnDef(args.out)) args.out = args.in.replace(".html", ".pdf");
+
+# ------------------------------
+- name: Convert from html to png
+  to  : Convert
+  exec: |
+    _$(args.in, "in").isString().$_();
+    args.cmd = _$(args.cmd, "cmd").isString().default("wkhtmltoimage");
+
+    args.path = io.fileInfo(args.in).canonicalPath.replace(/\/[^\/]+$/, "");
+    if (isUnDef(args.out)) args.out = args.in.replace(".html", ".png");
+
+# -------------
+- name: Convert
+  lang: shell
+  typeArgs:
+    shellPrefix: wkhtmltopdf
+  exec: |
+    docker run --rm -v {{path}}:/out wkhtmltopdf {{cmd}} /out/{{in}} /out/{{out}} {{{extra}}}
