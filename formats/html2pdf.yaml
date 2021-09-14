@@ -25,7 +25,18 @@ ojob:
   - openaf: 20210515
   - oJob-common
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
-  logToConsole: true   # to change when finished
+  logToConsole: true   
+  langs       :
+  - lang  : oafshell
+    langFn: |
+      var s = $sh();
+      code.split("\n").forEach(l => s = s.sh(templify(l, args)) );
+      if (isDef(job) && isDef(job.typeArgs) && isDef(job.typeArgs.shellPrefix)) {
+         s = s.prefix(job.typeArgs.shellPrefix);
+         s.get();
+      } else {
+         s.exec();
+      }
         
 include:
 - ojob.yaml
@@ -91,8 +102,6 @@ jobs:
 
 # -------------
 - name: Convert
-  lang: shell
-  typeArgs:
-    shellPrefix: wkhtmltopdf
+  lang: oafshell
   exec: |
     docker run --rm -v {{path}}:/out wkhtmltopdf {{cmd}} /out/{{in}} /out/{{out}} {{{extra}}}
