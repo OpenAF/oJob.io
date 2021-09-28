@@ -1,0 +1,57 @@
+# Author: Nuno Aguiar
+init:
+  help: &HELP
+    text   : Rebuilds the current's user local opack database
+    # expects: 
+    # - name   : something
+    #   desc   : To do stuff
+    #   example: aValueExample
+
+todo:
+- Check for user local opack database
+- Rebuild user local opack database
+
+ojob:
+  opacks      :
+  - openaf     : 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -----------------------------------------
+- name: Check for user local opack database
+  exec: |
+    ow.loadFormat()
+    var home = ow.format.getUserHome();
+
+    if (!io.fileExists(home + "/.openaf-opack.db"))
+       throw "Local user opack database not found."
+
+    plugin("ZIP");
+    var zip = new ZIP();
+    var packs = jsonParse( af.fromInputStream2String(zip.streamGetFileStream(ow.format.getUserHome()  + "/.openaf-opack.db", "packages.json")) );
+    $set("packs", packs);
+
+# ---------------------------------------
+- name: Rebuild user local opack database
+  exec: |
+    var packs = $get("packs");
+
+    ow.loadFormat()
+    var home = ow.format.getUserHome();
+    log("Backup current local database to ~/.openaf-opack.db.bak...");
+    io.cp(home + "/.openaf-opack.db", home + "/.openaf-opack.db.bak");
+    log("Removing current local database...");
+
+    $from(packs)
+    .notEquals("name", "OpenAF")
+    .notEquals("name", "OpenCli")
+    .select(pack => {
+      log("-- adding " + pack._key + "...");
+      oPack("add2db " + pack._key);
+    });
