@@ -76,7 +76,7 @@ jobs:
         python   : args.python,
         jvmArgs  : af.fromJavaArray(java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()).join(" ")
       }));
-      $sh("chmod u+x " + script).exec();
+      $sh("chmod a+rx " + script).exec();
       log("Generated script " + script);
 
       if (isDef(args.example)) {
