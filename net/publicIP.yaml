@@ -4,7 +4,7 @@ help: &HELP
   expects: 
   - name     : ip
     desc     : The ip to look for (e.g. 1.2.3.4)
-    mandatory: true
+    mandatory: false
     example  : 8.8.8.8
 
 todo:
