@@ -1,14 +1,18 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Get a HTTPS host SSL certificate dates
+  expects: 
+  - name     : host
+    desc     : The HTTPS host 
+    example  : github.com
+    mandatory: true
+  - name     : port
+    desc     : The HTTPS host port (default 443) 
+    example  : "443"
+    mandatory: true
+
 init:
-  help: &HELP
-    text   : Get a HTTPS host SSL certificate dates
-    expects: 
-    - name   : host
-      desc   : The HTTPS host 
-      example: github.com
-    - name   : port
-      desc   : The HTTPS host port (default 443) 
-      example: "443"
+  help: *HELP
 
 todo:
 - Get SSL certificates

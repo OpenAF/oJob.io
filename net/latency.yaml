@@ -4,25 +4,32 @@ todo:
 - Test latency
 
 ojob:
-  sequential  : true
   opacks      :
   - openaf: 20200523
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
+help: &HELP
+  text   : Tests the latency between the current host and a target host and port for a number of times.
+  expects: 
+  - name: host 
+    desc: The hostname or IP address to test the latency to
+    mandatory: true
+    example  : yahoo.co.jp
+  - name: port
+    desc: The port to test the latency to
+    mandatory: true
+    example  : "443"
+  - name: times
+    desc: The number of times the test should be performed (defaults to 5)
+    mandatory: false
+    example  : "5"
+
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Tests the latency between the current host and a target host and port for a number of times.
-    expects: 
-    - name: host 
-      desc: The hostname or IP address to test the latency to
-    - name: port
-      desc: The port to test the latency to
-    - name: times
-      desc: The number of times the test should be performed (defaults to 5)
-
+  help: *HELP
+  
 # ------------------
 - name: Test latency
   exec: |

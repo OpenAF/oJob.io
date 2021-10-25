@@ -2,23 +2,29 @@ todo:
 - Get DoH
 
 ojob:
-  sequential  : true
   logToConsole: false
   catch       : logErr(exception)
+
+help: &HELP
+  text   : Tries to retrieve DNS over HTTPs information.
+  expects: 
+  - name     : query
+    mandatory: true
+    desc     : The query to make (e.g. google.com)
+    example  : google.com
+  - name     : type
+    desc     : The dns query type (e.g. "a")
+    mandatory: false
+    example  : a
+  - name     : provider
+    desc     : The DNS over HTTPs provide to ask between "cloudflare" and "google"
+    mandatory: false
+    example  : google
 
 jobs:
 # ----------
 - name: Help
-  help:
-    text   : Tries to retrieve DNS over HTTPs information.
-    expects: 
-    - name    : query
-      required: true
-      desc    : The query to make (e.g. google.com)
-    - name    : type
-      desc    : The dns query type (e.g. "a")
-    - name    : provider
-      desc    : The DNS over HTTPs provide to ask between "cloudfare" and "google"
+  help: *HELP
 
 # -------------
 - name: Get DoH

@@ -12,17 +12,18 @@ todo:
 - name: Summary
 
 ojob:
-  sequential  : true
   opacks      :
   - openaf: 20200523
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
+help: &HELP
+  text   : Tries to measure the network latency and download/upload bandwidth using fast.com from Netflix.
+
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Tries to measure the network latency and download/upload bandwidth using fast.com from Netflix.
+  help: *HELP
 
 # ------------------
 - name: Prepare URLs

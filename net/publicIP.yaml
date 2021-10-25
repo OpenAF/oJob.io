@@ -1,4 +1,11 @@
 // Author: Nuno Aguiar
+help: &HELP
+  text   : Provides public IP information from the current internet connection or a provided ip address.
+  expects: 
+  - name     : ip
+    desc     : The ip to look for (e.g. 1.2.3.4)
+    mandatory: true
+    example  : 8.8.8.8
 
 todo:
 - Get public IP info
@@ -11,11 +18,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Provides public IP information from the current internet connection or a provided ip address.
-    expects: 
-    - name: ip
-      desc: The ip to look for (e.g. 1.2.3.4)
+  help: *HELP
 
 # ------------------------
 - name: Get public IP info

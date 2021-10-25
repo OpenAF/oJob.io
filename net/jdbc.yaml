@@ -9,23 +9,34 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
+help: &HELP
+  text   : Tries to reach a database through a JDBC driver and measure the round-trip.
+  expects: 
+  - name     : jdbc
+    desc     : The JDBC url to use (e.g. jdbc:postgresql://127.0.0.1:5432/postgres)
+    mandatory: true
+    example  : jdbc:postgresql://hh-pgsql-public.ebi.ac.uk:5432/pfmegrnargs
+  - name     : user
+    desc     : The database user to use
+    example  : reader
+  - name     : pass
+    desc     : The database password to use
+    example  : NWDMCE5xdipIjRrp
+    mandatory: true
+  - name     : num
+    desc     : The number of executions to try (default 4)
+    example  : "4"
+    mandatory: false
+  - name     : size
+    desc     : The size of a random value to test (default 32 bytes)
+    example  : "32"
+    mandatory: false
+
+
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Tries to reach a database through a JDBC driver and measure the round-trip.
-    expects: 
-    - name   : jdbc
-      desc   : The JDBC url to use (e.g. jdbc:postgresql://127.0.0.1:5432/postgres)
-    - name   : user
-      desc   : The database user to use
-    - name   : pass
-      desc   : The database password to use
-    - name   : num
-      desc   : The number of executions to try (default 4)
-      example: 4
-    - name   : size
-      desc   : The size of a random value to test (default 32 bytes)
+  help: *HELP
 
 # -----------------------
 - name: Test JDBC latency

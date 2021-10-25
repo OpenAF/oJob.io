@@ -1,10 +1,16 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Retrieves the available WhoIs information of a public domain. 
+  expects: 
+  - name     : domain
+    desc     : The domain to look for (e.g. ojob.io)
+    mandatory: true
+    example  : microsoft.com
 
 todo:
 - Whois
 
 ojob:
-  sequential  : true
   opacks      :
     openaf: 20200523
   catch       : logErr(exception)
@@ -13,11 +19,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Retrieves the available WhoIs information of a public domain. 
-    expects: 
-    - name: domain
-      desc: The domain to look for (e.g. ojob.io)
+  help: *HELP
 
 # -----------
 - name: Whois
