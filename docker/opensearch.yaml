@@ -1,0 +1,139 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Generates a quick docker-compose with AWS OpenDistro for elasticsearch and, optionally, kibana.
+  expects: 
+  - name     : kibana
+    desc     : "If kibana=true kibana will be added to the docker-compose file."
+    mandatory: false
+    example  : "true"
+  - name     : cluster
+    desc     : If defined will add the number of elasticsearch nodes specified.
+    mandatory: false
+    example  : 2
+
+init:
+  help: *HELP
+  dc  : |
+    version : '3'
+
+    networks:
+      elastic:
+        driver: bridge
+
+    services:{{#if single}}
+      elastic:
+        image         : amazon/opendistro-for-elasticsearch:{{version}}
+        container_name: elastic
+        environment   :
+        - node.name=elastic
+        - cluster.name=es-cluster
+        - discovery.type=single-node
+        - bootstrap.memory_lock=true
+        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ulimits       :
+          memlock:
+            soft: -1
+            hard: -1
+          nofile:
+            soft: 65536
+            hard: 65536
+        ports         :
+        - "9200:9200"
+        - "9600:9600"
+        volumes :
+        - data:/usr/share/elasticsearch/data
+        networks:
+        - elastic{{else}}{{#each nodes}}
+      es{{name}}:
+        image         : amazon/opendistro-for-elasticsearch:{{../version}}
+        container_name: es{{name}}
+        environment   :
+        - node.name=es{{name}}
+        - cluster.name=es-cluster
+        - discovery.seed_hosts={{seed}}
+        - cluster.initial_master_nodes={{initial}}
+        - bootstrap.memory_lock=true
+        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        ulimits       :
+          memlock:
+            soft: -1
+            hard: -1
+          nofile:
+            soft: 65536
+            hard: 65536{{#if first}}
+        ports         :
+        - "9200:9200"
+        - "9600:9600"{{/if}}
+        volumes :
+        - data{{name}}:/usr/share/elasticsearch/data
+        networks:
+        - elastic
+      {{/each}}{{/if}}{{#if kibana}}
+      # Default credentials: admin/admin
+      kibana:
+        image         : amazon/opendistro-for-elasticsearch-kibana:{{version}}
+        container_name: kibana
+        ports         :
+        - 5601:5601
+        environment   :
+          ELASTICSEARCH_URL  : {{#if single}}https://elastic:9200{{else}}https://es01:9200{{/if}}
+          ELASTICSEARCH_HOSTS: '[{{#if single}}"https://elastic:9200"{{else}}{{{nodesList}}}{{/if}}]'
+        networks      :
+        - elastic
+      {{/if}}
+
+    volumes:{{#if single}}
+      data:{{else}}{{#each nodes}}
+      data{{name}}:{{/each}}{{/if}}
+
+todo:
+- Check for docker
+- Generate docker-compose
+
+include:
+- ojob.io/docker/_common.yaml
+
+ojob:
+  opacks      :
+  - openaf: 20210721
+  catch       : "logErr(exception);"
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -----------------------------
+- name: Generate docker-compose 
+  exec: |
+    args.kibana         = _$(args.kibana, "kibana").default("false")
+    args.cluster        = _$(args.cluster, "cluster").default(__)
+   
+    var o = $rest().get("https://api.github.com/repos/opendistro-for-elasticsearch/opendistro-build/releases")
+    var version = $from(o).equals("prerelease", false).sort("-published_at").at(0).tag_name.match(/((\d+\.)\d)+/)[0]
+
+    var data = { 
+       kibana    : toBoolean(args.kibana),
+       single    : isUnDef(args.cluster),
+       version   : version
+    };
+
+    if (isDef(args.cluster) && isNumber(args.cluster)) {
+      data.nodes = []
+      var seed = []
+      for(var ii = 1; ii <= args.cluster; ii++) seed.push("es" + String(ii))
+      for(var ii = 1; ii <= args.cluster; ii++) {
+        data.nodes.push({
+          name     : String(ii),
+          seed     : seed.filter(r => r != "es" + String(ii)).join(","),
+          initial  : seed.join(","),
+          first    : (ii == 1)
+        })
+      }
+      data.nodesList = seed.map(r => "\"https://" + String(r) + ":9200\"").join(",")
+    }
+
+    //sprint(data)
+
+    tprint(args.init.dc, data);
