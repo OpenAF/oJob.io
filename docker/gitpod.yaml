@@ -8,7 +8,7 @@ help: &HELP
     mandatory: false
   - name     : port
     desc     : The port where it should be run
-    example  : 30000
+    example  : "30000"
     mandatory: false
   - name     : nightly
     desc     : Use gitpod/openvscode-server nightly build
@@ -95,7 +95,8 @@ jobs:
        nightly: (toBoolean(args.nightly))
     }))
     io.writeFileString(shServer0, templify(args.init.sh_server0, {
-       extra: "python3 openjdk-11-jdk"
+       extra: "python3 openjdk-11-jdk",
+       nightly: (toBoolean(args.nightly))
     }))
     io.writeFileString(dockerfile, templify(args.init.dockerfile, { 
        server : shServer, 
