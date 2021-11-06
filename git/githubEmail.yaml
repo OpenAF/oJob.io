@@ -1,4 +1,11 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Sets the current GitHub noreply email for email address privacy. 
+  expects: 
+  - name     : user
+    desc     : The GitHub user for commit identification (e.g. abcxyz).
+    example  : unknown
+    mandatory: true
 
 todo:
 - Set GitHub noreply email
@@ -13,22 +20,15 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Sets the current GitHub noreply email for email address privacy. 
-    expects: 
-    - name   : user
-      desc   : The GitHub user for commit identification (e.g. abcxyz). Defaults to "unknown";
-      example: unknown
+  help: *HELP
 
 # ------------------------------
 - name: Set GitHub noreply email
   exec: |
-    args.user = _$(args.user, "user").default("unknown");
+    args.user = _$(args.user, "user")
 
     $sh("git config --global user.email \"" + args.user + "@users.noreply.github.com\"")
-    .exec();
+    .sh("git config --global user.name \"" + args.user + "\"")
+    .exec()
 
-    ow.oJob.output(args.user, args);
-
-
-
+    ow.oJob.output(args.user, args)
