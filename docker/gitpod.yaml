@@ -1,0 +1,144 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Opens a GitPod VS Code server to edit the provided path on the provided door
+  expects:
+  - name     : path
+    desc     : The path on which to edit code (defaults to '.')
+    example  : myfolder
+    mandatory: false
+  - name     : port
+    desc     : The port where it should be run
+    example  : 30000
+    mandatory: false
+  - name     : nightly
+    desc     : Use gitpod/openvscode-server nightly build
+    example  : true
+    mandatory: false
+  - name     : extra
+    desc     : Extra packages to install after startup (defaults to "python3 openjdk-11-jdk")
+    example  : python3 openjdk-11-jdk
+    mandatory: false
+
+init:
+  help: *HELP
+ 
+  sh_server: |
+    #!/usr/bin/env sh
+    nohup /home/openvscode-server-*/server0.sh > /tmp/server0.log 2>&1 &
+    cd /home/workspace
+    /home/openvscode-server-*/server2.sh $*
+
+  sh_server0: |
+    #!/usr/bin/env sh
+    sudo apt-get update
+    sudo apt-get install -y curl vim
+    curl https://openaf.io/nightly/install.sh | sh
+    sudo apt-get install -y {{extra}}     
+
+  dockerfile: |
+    FROM gitpod/openvscode-server{{tag}}
+
+    USER root
+    COPY {{{server0}}} /tmp/server0.sh
+    COPY {{{server}}}  /tmp/server.sh
+
+    RUN chsh --shell /bin/bash openvscode-server\
+     && chsh --shell /bin/bash openvscode-server\
+     && cd /home/openvscode-server-*\
+     && mv server.sh server2.sh\
+     && mv /tmp/server.sh server.sh\
+     && mv /tmp/server0.sh server0.sh\
+     && chmod a+x server0.sh\
+     && chmod a+x server.sh\
+     && chown openvscode-server: server0.sh\
+     && chown openvscode-server: server.sh
+
+    USER openvscode-server    
+
+todo:
+- Check for docker
+- Build GitPod
+- Opens a GitPod
+
+include:
+- ojob.io/docker/_common.yaml
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "logErr(exception); return false;"
+  logToConsole: true   # to change when finished
+
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ------------------
+- name: Build GitPod
+  exec: |
+    var shServer   = "ojob_gitpod_" + genUUID() + ".sh"
+    var shServer0  = "ojob_gitpod0_" + genUUID() + ".sh"
+    var dockerfile = "ojob_gitpod1_" + genUUID() + ".sh"
+
+    var clean = () => {
+       io.rm(shServer)
+       io.rm(shServer0)
+       io.rm(dockerfile)
+    }
+
+    io.writeFileString(shServer, args.init.sh_server)
+    io.writeFileString(shServer0, templify(args.init.sh_server0, {
+       extra: "python3 openjdk-11-jdk"
+    }))
+    io.writeFileString(dockerfile, templify(args.init.dockerfile, { 
+       server: shServer, 
+       server0: shServer0,
+       tag: (toBoolean(args.nightly) ? ":nightly" : "") 
+    }))
+
+    $sh("docker build --pull --no-cache -t openaf/gitpod -f " + dockerfile + " .")
+    .prefix("build")
+    .exec()
+
+    clean()
+
+# --------------------
+- name: Opens a GitPod
+  exec: |
+    args.port = Number( _$(args.port, "port").default(findRandomOpenPort()) )
+    args.path = String( _$(args.path, "path").default(".") )
+
+    ow.loadFormat()
+
+    if (io.fileExists(args.path)) {
+       args.path = io.fileInfo(args.path).canonicalPath
+    } else {
+       throw "Path '" + args.path + "' not found."
+    }
+
+    var cmd = templify("docker run --rm -it --init -d -p {{port}}:3000 -v \"{{{path}}}:/workspace:cached\" openaf/gitpod", args)
+
+    var output = $sh(cmd).get(0).stdout, dlog
+    do {
+      dlog = $sh("docker logs " + output).get(0).stdout
+      sleep(500, true)
+    } while(dlog.indexOf("Web UI available at") < 0)
+
+    var url = dlog.match(/Web UI available at (.+)/)[1]
+
+    url =  url.replace(":3000", ":" + args.port)
+    url += "&folder=vscode-remote://localhost:" + args.port + "/workspace"
+
+    if (!openInBrowser(url)) 
+       log("Open in a browser " + url.replace(/localhost/g, ow.format.getHostName()))
+    else
+       log("Available in " + url)
+
+    print("Attaching...")
+    $sh("docker attach " + output).exec()
+
+    log("Deleting image openaf/gitpod...")
+    sleep(1000, true)
+    $sh("docker rmi openaf/gitpod").prefix("docker").get(0)
