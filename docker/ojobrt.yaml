@@ -1,0 +1,69 @@
+# Author: Nuno Aguiar
+
+help: &HELP
+  text   : Runs a provided job in a oJobRT docker container. 
+  expects: 
+  - name     : job
+    desc     : The path of the oJob to execute (the oJob path will be shared with the container)
+    example  : hello.yaml
+    mandatory: true
+  - name     : tag
+    desc     : "Optionally provide a alternative openaf/ojobrt container tag (default: nightly)"
+    example  : ubi-nightly
+    mandatory: false
+  - name     : method
+    desc     : The oJobRT method to use. If different from local the "job" argument will be use as OJOB_CONFIG
+    example  : local
+    mandatory: false
+  - name     : env.KEY
+    desc     : To pass environment variables just add "env.LETTERS=abc env.NUMBERS=123 ..." where LETTERS and NUMBERS will be the keys assuming each corresponding value
+    example  : abc
+    mandatory: false
+
+init:
+  help: *HELP
+
+include:
+- ojob.io/docker/_common.yaml
+
+todo:
+- Check for docker
+- Run oJobRT
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ----------------
+- name: Run oJobRT
+  exec: |
+    args.job    = _$(args.job, "job").isString().$_()
+    args.tag    = _$(args.tag, "tag").isString().default("nightly")
+    args.method = _$(args.method, "method").isString().default("local") 
+
+    if (args.method.toLowerCase() == "local") {
+      // Determining path
+      var path = io.fileInfo(args.job).canonicalPath.replace(/\\/g, "/")
+      path = path.substr(0, path.lastIndexOf("/"))
+    }
+
+    // Determine envs
+    var envs = Object.keys(args)
+               .filter(k => k.startsWith("env."))
+               .map(k => "-e " + k.substr(4) + "=" + args[k])
+
+    if (args.method.toLowerCase() == "local") envs.push("-e OJOB_CONFIG=/input/" + args.job)
+    envs.push("-e OJOB_METHOD=" + args.method.toLowerCase())
+
+    // Trying to run
+    $sh("docker run --rm -ti -v \"$(pwd)\":/input " + envs.join(" ") + " openaf/ojobrt:" + args.tag)
+    .exec()
