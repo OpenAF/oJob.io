@@ -82,7 +82,7 @@ jobs:
 
     var shServer   = "ojob_gitpod_" + genUUID() + ".sh"
     var shServer0  = "ojob_gitpod0_" + genUUID() + ".sh"
-    var dockerfile = "ojob_gitpod1_" + genUUID() + ".sh"
+    var dockerfile = "ojob_gitpod1_" + genUUID()
 
     var clean = () => {
        io.rm(shServer)
