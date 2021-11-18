@@ -1,0 +1,95 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Moves a Windows WSL to a target folder
+  expects: 
+  - name     : wsl
+    desc     : The WSL name from the WSL list.
+    example  : docker-desktop-data
+    mandatory: true
+  - name     : target
+    desc     : The target path where the WSL files should be moved to
+    example  : "d:\\something\\somewhere"
+    mandatory: true
+
+init:
+  help: *HELP
+
+todo:
+- List WSLs
+- Stop WSL
+- Export WSL
+- Unregister WSL
+- Import WSL
+- List WSLs
+
+ojob:
+  opacks      :
+  - openaf: 20211101
+  catch       : "logErr(exception);"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ---------------
+- name: List WSLs
+  lang: shell
+  exec: |
+    @echo off
+    wsl -l -v
+
+# --------------
+- name: Stop WSL
+  lang: shell
+  exec: |
+    @echo off
+    wsl -t {{wsl}}
+
+# --------------------
+- name: Init variables
+  exec: |
+    args.targetTMP = args.target + ".tmp.tar"
+
+# -----------------------
+- name: Check export file
+  exec: |
+    if (io.fileExists(args.targetTMP)) {
+      log("Ignoring export and reusing " + args.targetTMP + "...")
+      return "reusing"
+    } else {
+      log("Exporting to " + args.targetTMP + "...")
+    }
+
+# ----------------
+- name: Export WSL
+  from: 
+  - Init variables
+  - Check export file
+  lang: shell
+  exec: |
+    @echo off
+    wsl --export {{wsl}} "{{targetTMP}}"
+
+# --------------------
+- name : Unregister WSL
+  lang : shell
+  exec : |
+    @echo off
+    wsl --unregister {{wsl}}
+
+# -----------------------------------
+- name: Init variables for Import WSL
+  exec: |
+    args.targetTMP = args.target + ".tmp.tar"
+
+# ----------------
+- name: Import WSL
+  from: Init variables
+  lang: shell
+  exec: |
+    @echo off
+    wsl --import {{wsl}} "{{target}}" "{{targetTMP}}"
