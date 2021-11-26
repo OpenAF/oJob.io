@@ -2,7 +2,7 @@
 help: &HELP
   text   : Given a markdown file will convert the first table into an array/list
   expects: 
-  - name     : md
+  - name     : file
     desc     : The markdown file
     example  : myExample.md
     mandatory: true
@@ -29,9 +29,9 @@ jobs:
 # ---------------------------
 - name: Convert markdown file 
   exec: |
-    _$(args.md, "md").$_()
+    _$(args.file, "file").$_()
  
-    var mdStr = io.readFileAsArray(args.md)
+    var mdStr = io.readFileAsArray(args.file)
     var mdTab = mdStr
                 .filter(s => s.trim().startsWith("|") && s.trim().endsWith("|"))
                 .map(r => { r = r.split("|").map(s => s.trim()); r.pop(); r.shift(); return r })
