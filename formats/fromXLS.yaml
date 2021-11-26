@@ -1,0 +1,64 @@
+# Author: Anonymous
+help: &HELP
+  text   : Given an excel sheet will try to convert it into an array of maps
+  expects: 
+  - name     : file
+    desc     : The source XLS file
+    example  : file.xlsx
+    mandatory: true
+  - name     : sheet
+    desc     : The name or number of the XLS sheet to extract data from (defaults to the first)
+    example  : Sheet1
+    mandatory: false
+  - name     : evalFormulas
+    desc     : If formulas should be evaluated when extracting data (defaults to false)
+    example  : "false"
+    mandatory: false
+  - name     : column
+    desc     : The column where the data extraction should start (default to 'A')
+    example  : "A"
+    mandatory: false
+  - name     : row
+    desc     : The row where the data extraction should start (default to 1)
+    example  : "1"
+    mandatory: false    
+
+init:
+  help: *HELP
+
+todo:
+- From XLS
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  - plugin-XLS
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# --------------
+- name: From XLS
+  exec: |
+    _$(args.file, "file").$_()
+
+    args.sheet        = _$(args.sheet, "sheet").default("0")
+    args.evalFormulas = _$(args.evalFormulas, "evalFormulas").default("false")
+    args.column       = _$(args.column, "column").default("A") 
+    args.row          = _$(args.row, "row").default("1")
+
+    plugin("XLS")
+    var xls = new XLS(args.file)
+
+    if (isNumber(args.sheet)) args.sheet = Number(args.sheet)
+    var sheet = xls.getSheet(args.sheet)
+    var data  = xls.getTable(sheet, toBoolean(args.evalFormulas), args.column, args.row)
+
+    if (isDef(data) && isMap(data)) data = data.table
+
+    ow.oJob.output(data, args)

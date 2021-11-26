@@ -1,0 +1,73 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Given an array/list of maps will convert it into a markdown table
+  expects: 
+  - name   : file
+    desc   : MD file to store the output
+    example: output.md
+  - name   : delete
+    desc   : If delete=false the __pm output won't be deleted (defaults to true)
+    example: "true"
+
+init:
+  help: *HELP
+
+todo:
+- To MD table
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# -----------------
+- name: To MD table 
+  exec: |
+    var out = __pm
+
+    if (isDef(__pm._map))  out = __pm._map
+    if (isDef(__pm._list)) out = __pm._list
+
+    args.file   = _$(args.file, "file").default(__)
+    args.delete = toBoolean(_$(args.delete, "delete").default("true"))
+
+    if (isArray(out)) {
+      var md = "", heads = []
+
+      if (out.length > 0) {
+        heads = Object.keys(out[0])
+
+        md += "| " + heads.join(" | ") + " |\n"
+        md += "|" + heads.map(h => repeat(h.length + 2, "-")).join("|") + "|\n"
+
+        for(var i = 0; i < out.length; i++) {
+          md += "| "
+
+          md += heads.map(h => out[i][h]).join(" | ")
+
+          md += " |\n"
+        }
+      }
+    }
+
+    if (isDef(args.file)) {
+      io.writeFileString(args.file, md)
+    } else {
+      print(md)
+    }
+
+    if (args.delete) {
+      var done = false
+      if (isDef(__pm._map))  { done = true; delete __pm._map } 
+      if (isDef(__pm._list)) { done = true; delete __pm._list } 
+
+      if (!done) __pm = {}
+    }

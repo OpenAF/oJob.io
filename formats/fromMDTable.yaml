@@ -1,0 +1,55 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Given a markdown file will convert the first table into an array/list
+  expects: 
+  - name     : md
+    desc     : The markdown file
+    example  : myExample.md
+    mandatory: true
+ 
+init:
+  help: *HELP
+
+todo:
+- Convert markdown file
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ---------------------------
+- name: Convert markdown file 
+  exec: |
+    _$(args.md, "md").$_()
+ 
+    var mdStr = io.readFileAsArray(args.md)
+    var mdTab = mdStr
+                .filter(s => s.trim().startsWith("|") && s.trim().endsWith("|"))
+                .map(r => { r = r.split("|").map(s => s.trim()); r.pop(); r.shift(); return r })
+
+    // Remove header
+    var header = mdTab.shift()
+    // Remove separator
+    mdTab.shift()
+
+    // Build maps
+    var res = mdTab.map(row => {
+      var r = {}
+      for(var i = 0; i < row.length; i++) {
+        if (isDef(header[i])) {
+          r[header[i]] = row[i]
+        }
+      }
+      return r
+    })
+
+    ow.oJob.output(res, args)

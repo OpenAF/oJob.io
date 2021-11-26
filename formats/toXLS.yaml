@@ -1,4 +1,15 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Tries to generate an excel file output
+  expects: 
+  - name     : file
+    desc     : The XLS file to write.
+    example  : file.xlsx
+    mandatory: false
+  - name     : wait
+    desc     : The wait time for excel to open if in Windows and file not defined (defaults to 5000ms)
+    example  : "5000"
+    mandatory: false
 
 todo:
 - To XLS
@@ -6,21 +17,14 @@ todo:
 ojob:
   opacks      :
   - openaf: 20210515
+  - plugin-XLS
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Tries to generate an excel file output
-    expects: 
-    - name   : file
-      desc   : The XLS file to write.
-      example: file.xlsx
-    - name   : wait
-      desc   : The wait time for excel to open if in Windows and file not defined (defaults to 5000ms)
-      example: "5000"
+  help: *HELP
 
 # ------------
 - name: To XLS
