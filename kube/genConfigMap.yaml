@@ -1,0 +1,124 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Generates a config map with a file or the top-level files on a folder
+  expects: 
+  - name     : name
+    desc     : The config map name
+    example  : my-configmap
+    mandatory: true
+  - name     : path
+    desc     : A folder of a file containing the config maps
+    example  : my/config
+    mandatory: true
+  - name     : zip
+    desc     : If defined it will produce a single binary data zip file with all files
+    example  : myConfig.zip
+    mandatory: false
+
+init:
+  help: *HELP
+
+todo:
+- Generate config map
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# -------------------------
+- name: Generate config map
+  from: 
+  - Check input args
+  - Generate zip file if needed
+  - Process path
+  to  :
+  - Build configmap keys
+  - Output configmap yaml
+
+# ----------------------
+- name: Check input args
+  exec: |
+    _$(args.name, "name").$_()
+    _$(args.path, "path").$_()
+    args.zip = _$(args.zip, "zip").default(__)
+
+# ---------------------------------
+- name: Generate zip file if needed
+  exec: |
+    if (isDef(args.zip)) {
+      plugin("ZIP")
+      var tmp = io.createTempFile("genOJobRT_", ".zip")
+      var zip = new ZIP()
+      zip.generate2File(tmp, { compressionLevel: 9 })
+
+      var _info = io.fileInfo(args.path)
+
+      if (_info.isFile) {
+        zip.streamPutFileStream(tmp, _info.filename, io.readFileStream(_info.filepath))
+      } else {
+        $from(io.listFiles(args.path).files)
+        .equals("isFile", true)
+        .select(r => {
+          zip.streamPutFileStream(tmp, r.filename, io.readFileStream(r.filepath))
+        })
+      }   
+
+      zip.close()
+      args.path = tmp
+    }
+
+# ------------------
+- name: Process path
+  exec: |
+    args.lst = []
+
+    // Find targets
+    if (io.fileInfo(args.path).isFile) {
+      // It's a file
+      args.lst = [ { name: (isDef(args.zip) ? args.zip : args.path), full: args.path } ]
+    } else {
+      // It's a folder
+      var _lst = io.listFiles(args.path).files
+
+      if ($from(_lst).equals("isFile", true).sum("size") > (1024*1024))
+        logWarn("Set of files is bigger than 1MB")
+
+      args.lst = _lst.map(r => ({ name: r.filename, full: r.filepath }))
+    }
+
+# --------------------------
+- name: Build configmap keys
+  exec: |
+    args.config = {}
+
+    args.lst.forEach(file => {
+      if (io.isBinaryFile(file.full)) {
+        // Is binary
+        if (isUnDef(args.config.binaryData)) args.config.binaryData = {}
+        args.config.binaryData[file.name] = af.fromBytes2String(af.toBase64Bytes(io.readFileBytes(file.full)))
+      } else {
+        // Is text
+        if (isUnDef(args.config.data)) args.config.data = {}
+        args.config.data[file.name] = io.readFileString(file.full)
+      }
+    })
+
+# ---------------------------
+- name: Output configmap yaml
+  exec: |
+    yprint(merge({
+      apiVersion: "v1",
+      kind      : "ConfigMap",
+      metadata: {
+        name: args.name
+      }
+    }, args.config))
