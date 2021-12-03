@@ -1,0 +1,86 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Tries to download the kubectl client
+  expects: 
+  - name     : path
+    desc     : Where to download to the kubectl client
+    example  : .
+    mandatory: false
+  - name     : os
+    desc     : Force the operating system (e.g. Windows, MacOS, MacOSArm, Linux)
+    example  : linux
+    mandatory: false
+
+init:
+  help: *HELP
+  urls: 
+    windows : "https://dl.k8s.io/release/{{version}}/bin/windows/amd64/kubectl.exe"
+    macos   : "https://dl.k8s.io/release/{{version}}/bin/darwin/amd64/kubectl"
+    macosarm: "https://dl.k8s.io/release/{{version}}/bin/darwin/arm64/kubectl"
+    linux   : "https://dl.k8s.io/release/{{version}}/bin/linux/amd64/kubectl"
+
+todo:
+- Download kubectl
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ----------------------
+- name: Download kubectl
+  from: 
+  - Determine latest version
+  - Determine OS
+  to  :
+  - Download correct kubectl
+  
+
+# ------------------------------
+- name: Determine latest version
+  exec: |
+    args.path = _$(args.path, "path").default(".")
+    args.os   = _$(args.os, "os").default(__)
+
+    args.version = $rest().get("https://dl.k8s.io/release/stable.txt") 
+
+# ------------------
+- name: Determine OS
+  exec: |
+    args.os = _$(args.os, "os").default(__)
+
+    if (isUnDef(args.os)) {
+      ow.loadFormat()
+      var tos = String(java.lang.System.getProperty("os.name"))
+      var tar = String(java.lang.System.getProperty("os.arch"))
+
+      if (tos.match(/Windows/)) args.os = "windows"
+      if (tos.match(/Mac OS/))  args.os = "macos"
+      if (tos.match(/Linux/))   args.os = "linux"
+
+      if (args.os == "macos" && 
+          (tar == "aarch64_be" || tar == "aarch64" || tar == "armv8b" || tar == "armv81" || tar == "arm64")) {
+            args.os = "macosarm"
+      }
+    }
+
+# ------------------------------
+- name: Download correct kubectl 
+  exec: |
+    args.path = _$(args.path, "path").default(".")
+
+    if (isDef(args.init.urls[args.os])) {
+      var url = templify(args.init.urls[args.os], { version: args.version })
+      log("Downloading " + url + "...")
+      args.file = args.path + "/" + (args.os == "windows" ? "kubectl.exe" : "kubectl")
+      $rest().get2File(args.file, url)
+
+      if (args.os != "windows") $sh("chmod u+x " + args.file).prefix("sh").get(0)
+    }
