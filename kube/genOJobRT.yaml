@@ -1,0 +1,112 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Generates an OJobRT kubernetes job configuration
+  expects: 
+  - name     : name
+    desc     : The kubernetes job name
+    example  : myjob
+    mandatory: true
+  - name     : configname
+    desc     : The Kubernetes config map with the ojob definitions
+    example  : myjob-config
+    mandatory: false
+  - name     : secretname
+    desc     : The Kubernetes config map with the secrets to be used
+    example  : myjob-secrets
+    mandatory: false
+  - name     : namespace
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: false
+  - name     : affinity
+    desc     : If true will include an affinity configuration sample
+    example  : true
+    mandatory: false
+
+init:
+  help    : *HELP
+  template: |
+    apiVersion: batch/v1
+    #kind: CronJob
+    kind: Job
+    metadata:
+      name: {{name}}{{#if useNamespace}}
+      namespace: {{namespace}}{{/if}}
+    spec:
+      #schedule: "*/5 * * * *"
+      #jobTemplate:
+      # spec:
+       template:
+        spec:{{#if affinity}}
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                    - node01{{/if}}
+          containers:
+          - image: openaf/ojobrt:ubi-nightly
+            imagePullPolicy: IfNotPresent
+            name: {{name}}
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu   : "500m"
+              limits  :
+                memory: "512Mi"
+                cpu   : "2"
+            env:
+            - name : OJOB_CONFIG
+              value: /ojob/main.yaml
+            volumeMounts:
+            - name     : config
+              mountPath: "/ojob"{{#if useSecret}}
+            - name     : secret
+              mountPath: "/secrets"{{/if}}
+            #- name     : java-cacerts
+            #  mountPath: "/etc/pki/ca-trust/extracted/java/cacerts"
+            #  subPath  : java-cacerts
+          volumes:{{#if useSecret}}
+          - name: secret
+            secret:
+              secretName: {{secretname}}{{/if}}
+          #- name: java-cacerts
+          #  configMap: 
+          #    name: cacerts-config
+          - name     : config
+            configMap:
+              name: {{configname}}
+          dnsPolicy: ClusterFirst
+          restartPolicy: Never
+
+todo:
+- Generate job config
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "logErr(exception);"
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# -------------------------
+- name: Generate job config
+  exec: |
+    args.useSecret    = isDef(args.secretname)
+    args.useNamespace = isDef(args.namespace) 
+
+    args.configname = _$(args.configname, "configname").default(args.name + "-config")
+    args.secretname = _$(args.secretname, "secretname").default(args.name + "-secrets")
+    args.namespace  = _$(args.namespace, "namespace").default("default")
+    args.affinity   = toBoolean( _$(args.affinity).default("false") )
+
+    tprint(args.init.template, args)

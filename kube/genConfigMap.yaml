@@ -14,6 +14,10 @@ help: &HELP
     desc     : If defined it will produce a single binary data zip file with all files
     example  : myConfig.zip
     mandatory: false
+  - name     : namespace
+    desc     : The kubernetes namespace where the secret should be applied
+    example  : default
+    mandatory: false
 
 init:
   help: *HELP
@@ -120,5 +124,6 @@ jobs:
       kind      : "ConfigMap",
       metadata: {
         name: args.name
+        namespace: args.namespace
       }
     }, args.config))
