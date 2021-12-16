@@ -102,7 +102,7 @@ jobs:
     args.cluster        = _$(args.cluster, "cluster").default(__)
    
     var o = $rest().get("https://api.github.com/repos/elastic/elasticsearch/releases")
-    var version = $from(o).equals("prerelease", false).sort("-published_at").at(0).tag_name.match(/((\d+\.)\d)+/)[0]
+    var version = $from(o).equals("prerelease", false).sort("-tag_name", "-published_at").at(0).tag_name.match(/((\d+\.)*\d)+/)[0]
 
     var data = { 
        kibana    : toBoolean(args.kibana),
