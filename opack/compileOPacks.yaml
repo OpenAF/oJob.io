@@ -1,0 +1,50 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Compile the corresponding oPacks or all 
+  expects: 
+  - name     : opacks
+    desc     : List of opacks separated by commas
+    example  : myPack1,myPack2
+    mandatory: false
+
+init:
+  help: *HELP
+
+todo:
+- Compile oPacks
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------
+- name: Compile oPacks
+  exec: |
+    __preCompileLevel = 2
+
+    var s = $from(getOPackLocalDB())
+
+    if (isString(args.opacks)) args.opacks.split(",").forEach((p, i) => {
+      if (i == 0) 
+        s = s.equals("name", p.trim())
+      else
+        s = s.orEquals("name", p.trim())
+    })
+
+    s.select(r => {
+      if (io.fileExists(r._key + "/.precompile")) {
+        if (io.fileExists(r._key + "/.openaf_precompiled")) {
+          log(r.name + " | Removing previous precompiled classes...")
+          io.rm(r._key + "/.openaf_precompiled")
+        }
+        var lst = io.readFileYAML(r._key + "/.precompile")
+        lst.forEach(f => {
+          log(r.name + " | Loading " + f + "...")
+          loadLib(f, true)
+        })
+      }
+    })
