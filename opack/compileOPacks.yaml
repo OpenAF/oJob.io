@@ -43,9 +43,17 @@ jobs:
         }
         var lst = io.readFileYAML(r._key + "/.precompile")
         lst.forEach(f => {
-          log(r.name + " | Loading " + f + "...")
+          log(r.name + " | Compiling " + f + "...")
           try {
-            loadLib(f, true)
+            try {
+              loadCompiled(f, false, true)
+            } catch(e1) {
+              if (e1.message == "\"exports\" is not defined.") {
+                requireCompiled(f, false, true)
+              } else {
+                throw e1
+              }
+            }
           } catch(e) {
             logErr(r.name + " | " + e)
           }
