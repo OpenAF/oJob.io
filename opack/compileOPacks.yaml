@@ -44,7 +44,11 @@ jobs:
         var lst = io.readFileYAML(r._key + "/.precompile")
         lst.forEach(f => {
           log(r.name + " | Loading " + f + "...")
-          loadLib(f, true)
+          try {
+            loadLib(f, true)
+          } catch(e) {
+            logErr(r.name + " | " + e)
+          }
         })
       }
     })
