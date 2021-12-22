@@ -1,0 +1,63 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Imports the contents of previously exported ndjson files into a OpenAF MVS file
+  expects: 
+  - name     : mvs
+    desc     : The OpenAF MVS file to import to
+    example  : mydb.db
+    mandatory: true
+  - name     : file
+    desc     : The exported data file
+    example  : export-default.ndjson
+    mandatory: true
+  - name     : map
+    desc     : The MVS map to export to
+    example  : default
+    mandatory: false
+
+init:
+  help: *HELP
+
+todo:
+- Importing data
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# --------------------
+- name: Importing data
+  exec: |
+    args.mvs    = _$(args.mvs, "mvs").$_()
+    args.file   = _$(args.file, "file").$_()
+    args.map    = _$(args.map, "map").default(__)
+
+    if (isUnDef(args.map) && args.file.indexOf("-") > 0) {
+      args.map = args.file.substr(args.file.indexOf("-") + 1).replace(/\.ndjson$/, "")
+      log("Trying to use '" + args.map + "' as the map...")
+    }
+
+    $ch("export").create(1, "mvs", { file: args.mvs, shouldCompress: true, compact: true, map: args.map })
+
+    var c = $atomic()
+    io.readLinesNDJSON(args.file, obj => {
+      if (isDef(obj.k) && isDef(obj.v)) {
+        $ch("export").set(obj.k, obj.v)
+        c.inc()
+      } else {
+        logWarn("Can't use line: " + stringify(obj, __, ""))
+      }
+    }, error => {
+      logErr(error)
+    })
+
+    log("Imported #" + c.get() + " records.")

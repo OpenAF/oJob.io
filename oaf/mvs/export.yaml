@@ -1,0 +1,62 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Exports the contents of an OpenAF MVS file
+  expects: 
+  - name     : mvs
+    desc     : The OpenAF MVS file
+    example  : mydb.db
+    mandatory: true
+  - name     : prefix
+    desc     : The exported data file prefix
+    example  : export
+    mandatory: false
+
+init:
+  help: *HELP
+
+todo:
+- Exporting data
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# --------------------
+- name: Exporting data
+  exec: |
+    args.mvs    = _$(args.mvs, "mvs").$_()
+    args.prefix = _$(args.prefix, "prefix").default("export")
+
+    log("Identifying maps in '" + args.mvs + "'...")
+    var lst = ow.ch.utils.mvs.list(args.mvs)
+    log("Found #" + lst.length + " maps.")
+
+    lst.forEach(m => {
+      log(" exporting '" + m + "'...")
+      var mvs = Packages.org.h2.mvstore.MVStore.Builder()
+      mvs = mvs.autoCommitDisabled().fileName(io.fileInfo(args.mvs).canonicalPath).open()
+      var _m = mvs.openMap(m)
+
+      var _s = _m.sizeAsLong()
+      log("  number of records #" + _s + "...")
+      var _f = args.prefix + "-" + m + ".ndjson"
+
+      if (io.fileExists(_f)) {
+        logWarn("  deleting existing '" + _f + "'...")
+        io.rm(_f)
+      }
+
+      log("  writing to '" + _f + "'...")
+      for(var o = 0; o < _s; o++) {
+        io.writeLineNDJSON(_f, { k: jsonParse(_m.getKey(o)), v: jsonParse(_m.get(_m.getKey(o))) })
+      }
+    })
