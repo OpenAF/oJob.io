@@ -1,0 +1,57 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Imports to the provided H2 database from a backup script
+  expects: 
+  - name     : url
+    desc     : JDBC URL or a H2 database file
+    example  : jdbc:h2:./myDB.db
+    mandatory: true
+  - name     : user
+    desc     : The H2 database user credential (can be encrypted)
+    example  : auser
+    mandatory: true
+  - name     : pass
+    desc     : The H2 database password credential (can be encrypted)
+    example  : apassword
+    mandatory: true
+  - name     : file
+    desc     : Script file with the exported database
+    example  : backup.sql
+    mandatory: true
+
+init:
+  help: *HELP
+
+todo:
+- Import H2 DB
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ------------------
+- name: Import H2 DB
+  exec: |
+    aJDBCURL = _$(args.url, "url").isString().$_()
+    aUser    = _$(args.user, "user").isString().$_()
+    aPass    = _$(args.pass, "pass").isString().$_()
+    aFile    = _$(args.file, "file").isString().$_()
+
+    if (!aJDBCURL.startsWith("jdbc:")) {
+      aJDBCURL = "jdbc:h2:" + aJDBCURL
+    }
+
+    log("Connecting to H2 database (" + aJDBCURL + ")...")
+    var db = new DB("org.h2.Driver", aJDBCURL, aUser, aPass)
+    log("Importing from '" + aFile + "'...")
+    db.u("runscript from '" + aFile + "'")
+    log("Done importing.")

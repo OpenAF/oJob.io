@@ -1,0 +1,62 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Migrates old H2 databases (H2 < 2.x and OpenAF <= 20210721) to newer versions. Requires an internet connection.
+  expects: 
+  - name     : url
+    desc     : JDBC URL or a H2 database file
+    example  : jdbc:h2:./myDB.db
+    mandatory: true
+  - name     : user
+    desc     : The H2 database user credential (can be encrypted)
+    example  : auser
+    mandatory: true
+  - name     : pass
+    desc     : The H2 database password credential (can be encrypted)
+    example  : apassword
+    mandatory: true
+  - name     : version
+    desc     : The old version number (e.g. 200)
+    example  : 200
+    mandatory: false
+
+
+init:
+  help: *HELP
+
+todo:
+- Migrating database
+
+ojob:
+  opacks      :
+  - openaf: 20211201
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ------------------------
+- name: Migrating database
+  exec: |
+    aJDBCURL = _$(args.url, "url").isString().$_()
+    aUser    = _$(args.user, "user").isString().$_()
+    aPass    = _$(args.pass, "pass").isString().$_()
+    aVersion = Number(_$(args.version, "version").default("200"))
+
+    if (!aJDBCURL.startsWith("jdbc:") && io.fileExists(aJDBCURL)) {
+      aJDBCURL = "jdbc:h2:" + io.fileInfo(aJDBCURL).canonicalPath
+    }
+
+    log("Starting migration of " + aJDBCURL + "...")
+    var p = new java.util.Properties()
+    p.setProperty("user", Packages.openaf.AFCmdBase.afc.dIP(aUser))
+    p.setProperty("password", Packages.openaf.AFCmdBase.afc.dIP(aPass))
+    var res = Packages.org.h2.tools.Upgrade.upgrade(aJDBCURL, p, aVersion)
+    if (res)
+      log("Migration completed successfully")
+    else
+      logWarn("Migration wasn't successfull")
