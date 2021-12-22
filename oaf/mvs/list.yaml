@@ -1,0 +1,55 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : OpenAF MVS file map listing
+  expects: 
+  - name     : mvs
+    desc     : The MVS file to check for maps
+    example  : mymap.db
+    mandatory: true
+
+init:
+  help: *HELP
+
+todo:
+- MVS list
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# --------------
+- name: MVS list
+  exec: |
+    args.mvs = _$(args.mvs, "mvs").isString().$_()
+
+    if (io.fileExists(args.mvs)) {
+      var lst = ow.ch.utils.mvs.list(args.mvs)
+
+      var _m = {
+        numberOfMaps: lst.length,
+        maps: []
+      }
+
+      lst.forEach(m => {
+        $ch("checkMaps").create(1, "mvs", { file: args.mvs, map: m })
+        _m.maps.push({
+          name: m,
+          size: $ch("checkMaps").size(),
+          keys: ($ch("checkMaps").size() > 0 ? Object.keys($ch("checkMaps").getKeys()[0]) : __)
+        })
+        $ch("checkMaps").destroy()
+      })
+
+      ow.oJob.output(_m, args)
+    } else {
+      logErr("File '" + args.mvs + "' not found.")
+    }
