@@ -1,11 +1,18 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Returns a list of hash for each ojob in a ojob.io like site.
+  expects: 
+  - name     : url
+    desc     : The URL for a ojob.io like site
+    example  : https://ojob.io
+    mandatory: false
+  - name     : file
+    desc     : Finds a OJOB_INTEGRITY entry and replaces or appends a new one
+    example  : .openaf_profile
+    mandatory: false
+
 init:
-  help: &HELP
-    text   : Returns a list of hash for each ojob in a ojob.io like site.
-    expects: 
-    - name   : url
-      desc   : The URL for a ojob.io like site
-      example: https://ojob.io
+  help: *HELP
 
 todo:
 - Generate hash list
@@ -13,7 +20,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20210515
-  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  catch       : logErr(exception)
   logToConsole: true   # to change when finished
         
 
@@ -39,4 +46,20 @@ jobs:
       });
     }
   
-    ow.oJob.output(res, args);
+    if (isString(args.file)) {
+      var extra = "OJOB_INTEGRITY = " + stringify(res, __, "") + ";"
+
+      if (io.fileExists(args.file)) {
+        var str = io.readFileString(args.file)
+        if (str.match(/^OJOB_INTEGRITY /m)) {
+          str = str.replace(/^OJOB_INTEGRITY .+$/, extra)
+        } else {
+          str += "\n" + extra
+        }
+        io.writeFileString(args.file, str)
+      } else {
+        io.writeFileString(args.file, extra)
+      }
+    } else {
+      ow.oJob.output(res, args);
+    }
