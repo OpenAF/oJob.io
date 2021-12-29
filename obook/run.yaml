@@ -1,0 +1,37 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Given a local oBook markdown file will execute it on a OpenAF console
+  expects: 
+  - name     : obook
+    desc     : The oBook .md file to execute
+    example  : example.obook.md
+    mandatory: true
+
+init:
+  help: *HELP
+
+todo:
+- Execute oBook
+
+ojob:
+  opacks      :
+  - openaf: 20211228
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# --------------------
+- name : Execute oBook
+  check:
+    in:
+      obook: string
+  exec : |
+    ow.loadDev();
+    __expr = "obook('" + args.obook + "', true)"
+    load(getOpenAFJar() + "::js/openafconsole.js")
