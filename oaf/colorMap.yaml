@@ -1,11 +1,14 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Displays a 8-bit reference color map.
+  expects:
+  - name     : mode
+    desc     : Choose between a foreground (FG) or background (BG) color map
+    example  : FG
+    mandatory: false
+
 init:
-  help: &HELP
-    text   : Displays a 8-bit reference color map.
-    expects:
-    - name   : mode
-      desc   : Choose between a foreground (FG) or background (BG) color map
-      example: FG
+  help: *HELP
 
 todo:
 - Color Map

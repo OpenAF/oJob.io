@@ -1,9 +1,27 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : |
+    Creates a small OpenAF channel file based persisted. You can access it by using $ch("example").createRemote("http://hostname:port/db").
+    If sub-maps are defined you can access them each by using $ch("example-s2").createRemote("http://hostname:port/db/s2").
+  expects: 
+    - name: port
+      desc: "The port where the channel will be exposed (default: 8080)"
+      mandatory: false
+    - name: folder
+      desc: "The folder where the file based channel persistence will be kept (default: .)"
+      mandatory: false
+    - name: maps
+      desc: "Optional comma separated list of sub maps."
+      mandatory: false
+    - name: name
+      desc: "The name of the file based channel persistence (default to current hostname)"
+      mandatory: false
+
 init:
-    port: 8080
-    path: .
-    mode: clone
-  
+  port: 8080
+  path: .
+  mode: clone
+
 todo:
 - Initialization
 - Stop database on exit
@@ -21,19 +39,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : |
-      Creates a small OpenAF channel file based persisted. You can access it by using $ch("example").createRemote("http://hostname:port/db").
-      If sub-maps are defined you can access them each by using $ch("example-s2").createRemote("http://hostname:port/db/s2").
-    expects: 
-    - name: port
-      desc: "The port where the channel will be exposed (default: 8080)"
-    - name: folder
-      desc: "The folder where the file based channel persistence will be kept (default: .)"
-    - name: maps
-      desc: "Optional comma separated list of sub maps."
-    - name: name
-      desc: "The name of the file based channel persistence (default to current hostname)"
+  help: *HELP
 
 # --------------------
 - name: Initialization

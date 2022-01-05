@@ -1,4 +1,17 @@
 # Author: Nuno Aguiar
+help: &HELP 
+   text   : Generates the odoc.db for all the .js files under a folder or a list of files.
+   expects: 
+   - name     : key
+     desc     : The oDoc key under which the documentation will be generated or a comma delimited list corresponding to each file.
+     example  : mykey
+     mandatory: true
+   - name     : folder
+     desc     : The folder under which the .js files are (defaults to '.').
+     mandatory: false
+   - name     : files
+     desc     : A comma delimited list of .js filepaths. If not defined all .js files will be considered.
+     mandatory: false
 
 todo:
 - GenODoc
@@ -13,15 +26,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Generates the odoc.db for all the .js files under a folder or a list of files.
-    expects: 
-    - name: key
-      desc: The oDoc key under which the documentation will be generated or a comma delimited list corresponding to each file.
-    - name: folder
-      desc: The folder under which the .js files are (defaults to '.').
-    - name: files
-      desc: A comma delimited list of .js filepaths. If not defined all .js files will be considered.
+  help: *HELP
 
 # -------------
 - name: GenODoc

@@ -1,7 +1,15 @@
 todo:
 - Get versions
 
+help: &HELP
+  text: Retrieves a list of the current installed oPacks and their corresponding local and central versions. Optionally it can update the oPacks that need upgrading.
+  expects:
+  - name: update
+    desc: If "true" it will try to update each of the oPacks identified to update
+
 ojob:
+  opacks      :
+    openaf: 20210721
   sequential  : true
   logToConsole: false
   catch       : |
@@ -10,11 +18,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help:
-    text: Retrieves a list of the current installed oPacks and their corresponding local and central versions. Optionally it can update the oPacks that need upgrading.
-    expects:
-    - name: update
-      desc: If "true" it will try to update each of the oPacks identified to update
+  help: *HELP
 
 # ------------------
 - name: Get versions

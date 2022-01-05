@@ -1,4 +1,14 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Generates a pyoaf script to execute python scripts with OpenAF.
+  expects: 
+  - name: example
+    desc: If defined it will write an python example script on the filename provided (e.g. example.py)
+    mandatory: false
+  - name: python
+    desc: If defined it will set the python interpreter to the provided string (e.g. python3)
+    mandatory: false
+
 init:
   scriptSh : |
     #!/bin/sh
@@ -38,13 +48,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Generates a pyoaf script to execute python scripts with OpenAF.
-    expects: 
-    - name: example
-      desc: If defined it will write an python example script on the filename provided (e.g. example.py)
-    - name: python
-      desc: If defined it will set the python interpreter to the provided string (e.g. python3)
+  help: *HELP
 
 # --------------------
 - name: Generate pyOAF

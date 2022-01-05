@@ -49,18 +49,20 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
+help: &HELP
+  text   : Generates a javascript library file.
+  expects: 
+  - name: name
+    desc: The name of the javascript library.
+  - name: classic
+    desc: If classic=false (default) generates an encapsulated javascript library file or a classic javascript library otherwise.
+  - name: functions
+    desc: A comma delimited list of functions (defaults to "example")
+
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Generates a javascript library file.
-    expects: 
-    - name: name
-      desc: The name of the javascript library.
-    - name: classic
-      desc: If classic=false (default) generates an encapsulated javascript library file or a classic javascript library otherwise.
-    - name: functions
-      desc: A comma delimited list of functions (defaults to "example")
+  help: *HELP
 
 # -----------------
 - name: Generate JS

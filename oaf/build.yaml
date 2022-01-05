@@ -1,4 +1,9 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Tries to build a openaf branch.
+  expects: 
+  - name: branch
+    desc: The branch to build (e.g. master)
 
 todo:
 - Verifications
@@ -15,11 +20,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Tries to build a openaf branch.
-    expects: 
-    - name: branch
-      desc: The branch to build (e.g. master)
+  help: *HELP
 
 # -------------------
 - name: Verifications

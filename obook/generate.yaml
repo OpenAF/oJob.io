@@ -70,7 +70,7 @@ jobs:
   help: *HELP
 
 
-# -----ç----------------------
+# ----------------------------
 - name : Generate sample oBook
   exec : |
     print(args.init.md)

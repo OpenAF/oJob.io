@@ -1,4 +1,19 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Setups unix symlinks for OpenAF unix commands (e.g. oaf, oafc, ojob, opack, etc...)
+  expects: 
+  - name     : UNINSTALL
+    desc     : If equals 'true' it will just remove the symlinks (defaults to 'false')
+    example  : "false"
+    mandatory: false
+  - name     : TARGET
+    desc     : Where the symlinks should be placed (defaults to '/usr/bin')
+    example  : "/usr/bin"
+    mandatory: false
+  - name     : OPENAF_PATH
+    desc     : An alternative path to an openaf installation folder (defaults to the current openaf folder)
+    example  : /oaf
+    mandatory: false
 
 todo:
 - name: Init
@@ -22,18 +37,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Setups unix symlinks for OpenAF unix commands (e.g. oaf, oafc, ojob, opack, etc...)
-    expects: 
-    - name   : UNINSTALL
-      desc   : If equals 'true' it will just remove the symlinks (defaults to 'false')
-      example: "false"
-    - name   : TARGET
-      desc   : Where the symlinks should be placed (defaults to '/usr/bin')
-      example: "/usr/bin"
-    - name   : OPENAF_PATH
-      desc   : An alternative path to an openaf installation folder (defaults to the current openaf folder)
-      example: /oaf
+  help: *HELP
 
 # ----------
 - name: Init
