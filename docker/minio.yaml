@@ -1,0 +1,111 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Generates a quick docker-compose with minio
+  expects: 
+  - name     : cluster
+    desc     : If defined will add the number of minio nodes specified.
+    mandatory: false
+    example  : 2
+
+init:
+  help: *HELP
+  dc  : |
+    version : '3'
+
+    networks:
+      minio:
+        driver: bridge
+
+    services:{{#if single}}
+      minio:
+        image         : minio/minio
+        container_name: minio
+        environment   :
+          MINIO_ROOT_USER: 'minio'
+          MINIO_ROOT_PASSWORD: 'minio123'
+        command       : server --console-address ":9001" /data
+        healthcheck   :
+          test    : [ "CMD-SHELL", "curl --silent --fail http://minio:9000/minio/health/live || exit 1" ]
+          interval: 30s
+          timeout : 20s    
+          retries : 3  
+        ports         :
+        - "9000:9000"
+        - "9001:9001"
+        volumes :
+        - dataminio:/data
+        networks:
+        - minio{{else}}{{#each nodes}}
+      minio{{name}}:
+        image         : minio/minio
+        container_name: minio{{name}}
+        command       : server {{#if first}}--console-address ":9001"{{/if}} http://minio{{{../count}}}/data{1...2}
+        environment   :
+          MINIO_ROOT_USER: 'minio'
+          MINIO_ROOT_PASSWORD: 'minio123'
+          MINIO_DISTRIBUTED_MODE_ENABLED: 'yes'
+          MINIO_DISTRIBUTED_NODES: '{{../nodesList}}'{{#if first}}
+        ports         :
+        - "9000:9000"
+        - "9001:9001"{{else}}
+          MINIO_SKIP_CLIENT: 'yes'{{/if}}
+        healthcheck   :
+          test    : [ "CMD-SHELL", "curl --silent --fail http://minio{{name}}:9000/minio/health/live || exit 1" ]
+          interval: 30s
+          timeout : 20s    
+          retries : 3          
+        volumes :
+        - dataminio{{name}}-1:/data1
+        - dataminio{{name}}-2:/data2
+        networks:
+        - minio
+      {{/each}}{{/if}}
+
+    volumes:{{#if single}}
+      dataminio:{{else}}{{#each nodes}}
+      dataminio{{name}}-1:
+      dataminio{{name}}-2:{{/each}}{{/if}}
+
+todo:
+- Check for docker
+- Generate docker-compose
+
+include:
+- ojob.io/docker/_common.yaml
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : "logErr(exception);"
+  logToConsole: false   # to change when finished
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# -----------------------------
+- name : Generate docker-compose 
+  check:
+    in:
+      cluster: default(__)
+  exec : |   
+    var data = { 
+       single    : isUnDef(args.cluster),
+    }
+
+    if (isDef(args.cluster) && isNumber(args.cluster)) {
+      data.nodes = []
+      
+      for(var ii = 1; ii <= args.cluster; ii++) {
+        data.nodes.push({
+          name: ii,
+          first: ii == 1
+        })
+      }
+
+      data.nodesList = data.nodes.map(r => "minio" + r.name).join(",")
+      data.count = "{1..." + data.nodes.length + "}"
+    }
+
+    tprint(args.init.dc, data);

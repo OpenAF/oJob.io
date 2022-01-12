@@ -42,7 +42,7 @@ init:
         ports         :
         - "9200:9200"
         volumes :
-        - data:/usr/share/elasticsearch/data
+        - esdata:/usr/share/elasticsearch/data
         networks:
         - elastic{{else}}{{#each nodes}}
       es{{name}}:
@@ -56,7 +56,7 @@ init:
         - bootstrap.memory_lock=true
         - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
         healthcheck   :
-          test    : [ "CMD-SHELL", "curl --silent --fail http://elastic:9200/_cluster/health || exit 1" ]
+          test    : [ "CMD-SHELL", "curl --silent --fail http://es{{name}}:9200/_cluster/health || exit 1" ]
           interval: 30s
           timeout : 30s    
           retries : 3          
@@ -67,7 +67,7 @@ init:
         ports         :
         - "9200:9200"{{/if}}
         volumes :
-        - data{{name}}:/usr/share/elasticsearch/data
+        - esdata{{name}}:/usr/share/elasticsearch/data
         networks:
         - elastic
       {{/each}}{{/if}}{{#if kibana}}
@@ -75,12 +75,12 @@ init:
         image         : docker.elastic.co/kibana/kibana:{{version}}
         container_name: kibana
         depends_on    :
-          elastic:
+          {{#if nodes}}es1:{{else}}elastic:{{/if}}
             condition: service_healthy
         ports         :
         - 5601:5601
         environment   :
-          ELASTICSEARCH_URL  : {{#if single}}http://elastic:9200{{else}}http://es01:9200{{/if}}
+          ELASTICSEARCH_URL  : {{#if single}}http://elastic:9200{{else}}http://es1:9200{{/if}}
           ELASTICSEARCH_HOSTS: '[{{#if single}}"http://elastic:9200"{{else}}{{{nodesList}}}{{/if}}]'
         healthcheck:
           test: ["CMD-SHELL", "curl --silent --fail http://kibana:5601/status || exit 1"]
@@ -93,8 +93,8 @@ init:
       {{/if}}
 
     volumes:{{#if single}}
-      data:{{else}}{{#each nodes}}
-      data{{name}}:{{/each}}{{/if}}
+      esdata:{{else}}{{#each nodes}}
+      esdata{{name}}:{{/each}}{{/if}}
 
 todo:
 - Check for docker
