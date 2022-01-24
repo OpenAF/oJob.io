@@ -1,0 +1,165 @@
+# Author: Nuno Aguiar
+init:
+  tmpfolder: .mvnTemp 
+  pomxml   : |
+    <project>
+      <modelVersion>4.0.0</modelVersion>
+      <groupId>com.mycompany.app</groupId>
+      <artifactId>my-app</artifactId>
+      <version>1.0-SNAPSHOT</version>
+      <name>my-app</name>
+      <url>http://www.example.com</url>
+      <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.7</maven.compiler.source>
+        <maven.compiler.target>1.7</maven.compiler.target>
+      </properties>
+      <dependencies>
+        {{#each deps}}<dependency>
+          <groupId>{{group}}</groupId>
+          <artifactId>{{id}}</artifactId>
+          <version>{{version}}</version>
+        </dependency>{{/each}}
+      </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <artifactId>maven-clean-plugin</artifactId>
+              <version>3.1.0</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-resources-plugin</artifactId>
+              <version>3.0.2</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-compiler-plugin</artifactId>
+              <version>3.8.0</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-surefire-plugin</artifactId>
+              <version>2.22.1</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-jar-plugin</artifactId>
+              <version>3.0.2</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-install-plugin</artifactId>
+              <version>2.5.2</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-deploy-plugin</artifactId>
+              <version>2.8.2</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-site-plugin</artifactId>
+              <version>3.7.1</version>
+            </plugin>
+            <plugin>
+              <artifactId>maven-project-info-reports-plugin</artifactId>
+              <version>3.0.0</version>
+            </plugin>
+            <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-dependency-plugin</artifactId>
+              <configuration>
+                <outputDirectory>${project.build.directory}</outputDirectory>
+              </configuration>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </project>
+
+help:
+  text   : Given a maven dependency list file (.maven.yaml) will download all the corresponding JAR files (REQUIRES mvn to be installed)
+  expects: 
+  - name     : folder
+    desc     : The output folder where the JAR files will be placed
+    example  : .
+    mandatory: false
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished 
+
+todo:
+- Process maven file
+
+jobs:
+# ------------------------
+- name: Process maven file
+  to  :
+  - Write pom.xml file and process templates
+  - Use maven to get JAR files
+  - Move and clean-up
+
+# -----------------------------------------------
+- name : Write pom.xml file and process templates
+  exec : |
+    args.folder = _$(args.folder, "folder").default(".")
+
+    var fdata
+    if (io.fileExists(args.folder + "/.maven.yaml")) {
+      fdata = io.readFileYAML(args.folder + "/.maven.yaml")
+    } else {
+      if (io.fileExists(args.folder + "/.maven.json")) {
+        fdata = io. readFileJSON(args.folder + "/.maven.json")
+      } else {
+        throw "no .maven.yaml or .maven.json found in '" + args.folder + "'"
+      }
+    }
+
+    ow.loadJava()
+    var data = { deps: [] }
+
+    io.rm(args.init.tmpfolder)
+    io.mkdir(args.init.tmpfolder)
+    io.mkdir(args.init.tmpfolder + "/target")
+
+    if (isArray(fdata.artifacts)) {
+      data.deps = fdata.artifacts.map(r => {
+        if (isDef(r.id) && isDef(r.group)) {
+            if (isUnDef(r.version)) r.version = (new ow.java.maven()).getLatestVersion((r.group + "." + r.id).replace(/\./g, "/"))
+            if (isDef(r.template)) {
+              io.writeFileYAML(args.init.tmpfolder + "/.maven.yaml", { artifacts: [ { id: r.id, group: r.group, version: r.version, template: r.template } ]})
+              var m = new ow.java.maven()
+              m.processMavenFile(args.init.tmpfolder + "/")
+              io.rm(args.init.tmpfolder + "/.maven.yaml")
+              return null
+            }
+            return r
+        } else {
+          throw "artifact id or group not defined " + af.toSLON(r)
+        }
+      })
+
+      data.deps = data.deps.filter(r => !isNull(r))
+    }
+
+    io.writeFileString(args.init.tmpfolder + "/pom.xml", templify(args.init.pomxml, data))
+
+# --------------------------------
+- name: Use maven to get JAR files
+  exec: |
+    $sh("mvn clean dependency:copy-dependencies")
+    .pwd(args.init.tmpfolder)
+    .prefix("mvn")
+    .get()
+
+# -----------------------
+- name: Move and clean-up
+  exec: |
+    io.mkdir(args.folder)
+    if (io.fileExists(args.init.tmpfolder + "/target")) {
+      io.listFiles(args.init.tmpfolder + "/target").files.forEach(r => {
+        io.mv(r.canonicalPath, args.folder + "/" + r.filename)
+      })
+    }
+    $from(io.listFiles(args.init.tmpfolder).files).ends("filename", ".jar").select(r => {
+      io.mv(r.canonicalPath, args.folder + "/" + r.filename)
+    })
+    io.rm(args.init.tmpfolder)
