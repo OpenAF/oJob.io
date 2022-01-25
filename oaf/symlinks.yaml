@@ -1,13 +1,13 @@
 # Author: Nuno Aguiar
 help: &HELP
-  text   : Setups unix symlinks for OpenAF unix commands (e.g. oaf, oafc, ojob, opack, etc...)
+  text   : Setups scripts to call OpenAF unix commands (e.g. oaf, oafc, ojob, opack, etc...)
   expects: 
   - name     : UNINSTALL
     desc     : If equals 'true' it will just remove the symlinks (defaults to 'false')
     example  : "false"
     mandatory: false
   - name     : TARGET
-    desc     : Where the symlinks should be placed (defaults to '/usr/bin')
+    desc     : Where the scripts should be placed (defaults to '/usr/bin')
     example  : "/usr/bin"
     mandatory: false
   - name     : OPENAF_PATH
@@ -17,7 +17,7 @@ help: &HELP
 
 todo:
 - name: Init
-- name: Setup symlinks for openaf
+- name: Setup scripts for openaf
   args:
   - BIN: oaf
   - BIN: oaf-sb
@@ -57,7 +57,7 @@ jobs:
     if (args.OPENAF_PATH.endsWith("/")) args.OPENAF_PATH = args.OPENAF_PATH.substr(0, args.OPENAF_PATH.length - 1); 
 
 # -------------------------------
-- name: Setup symlinks for openaf
+- name: Setup scripts for openaf
   from: Get variables
   lang: shell
   exec: |
@@ -65,6 +65,8 @@ jobs:
     rm $TARGET/$BIN 2> /dev/null
     if [ "$UNINSTALL" = "false" ]; then
        echo Setup $TARGET/$BIN...
-       ln -s $OPENAF_PATH/$BIN $TARGET/$BIN
-       chmod a+x $OPENAF_PATH/$BIN
+       echo '#!/bin/sh' > $TARGET/$BIN
+       echo "" >> $TARGET/$BIN
+       echo "$OPENAF_PATH/$BIN \"\$@\"" >> $TARGET/$BIN
+       chmod a+x $TARGET/$BIN
     fi
