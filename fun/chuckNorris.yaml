@@ -1,4 +1,6 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text: Gets a random Chuck Norris joke.  
 
 todo:
 - Tell a Chuck Norris joke
@@ -13,8 +15,7 @@ ojob:
 
 jobs:
 - name: Help
-  help: |
-    Gets a random Chuck Norris joke.   
+  help: *HELP 
 
 # ------------------------------
 - name: Tell a Chuck Norris joke
