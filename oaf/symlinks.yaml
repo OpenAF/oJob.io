@@ -67,6 +67,6 @@ jobs:
        echo Setup $TARGET/$BIN...
        echo '#!/bin/sh' > $TARGET/$BIN
        echo "" >> $TARGET/$BIN
-       echo "$OPENAF_PATH/$BIN \"\$@\"" >> $TARGET/$BIN
+       echo "/bin/sh $OPENAF_PATH/$BIN \"\$@\"" >> $TARGET/$BIN
        chmod a+x $TARGET/$BIN
     fi
