@@ -24,9 +24,9 @@ init:
  
   sh_server: |
     #!/usr/bin/env sh
-    nohup {{#if nosub}}/home/openvscode-server/server0.sh{{else}}/home/openvscode-server-*/server0.sh{{/if}} > /tmp/server0.log 2>&1 &
+    nohup /home/openvscode-server/server0.sh > /tmp/server0.log 2>&1 &
     cd /home/workspace
-    {{#if nosub}}/home/openvscode-server/server2.sh{{else}}/home/openvscode-server-*/server2.sh{{/if}} $*
+    exec ${OPENVSCODE_SERVER_ROOT}/bin/openvscode-server --host 0.0.0.0 --without-connection-token -- $*
 
   sh_server0: |
     #!/usr/bin/env sh
@@ -44,8 +44,7 @@ init:
 
     RUN chsh --shell /bin/bash openvscode-server\
      && chsh --shell /bin/bash openvscode-server\
-     {{#if nosub}}&& cd /home/openvscode-server{{else}}&& cd /home/openvscode-server-*{{/if}}\
-     && mv server.sh server2.sh\
+     && cd /home/openvscode-server\
      && mv /tmp/server.sh server.sh\
      && mv /tmp/server0.sh server0.sh\
      && chmod a+x server0.sh\
@@ -53,7 +52,8 @@ init:
      && chown openvscode-server: server0.sh\
      && chown openvscode-server: server.sh
 
-    USER openvscode-server    
+    USER openvscode-server  
+    ENTRYPOINT /home/openvscode-server/server.sh  
 
 todo:
 - Check for docker
@@ -80,6 +80,8 @@ jobs:
   exec: |
     ow.loadFormat()
 
+    args.extra = String( _$(args.extra, "extra").default("python3 openjdk-11-jdk") )
+
     var shServer   = "ojob_gitpod_" + genUUID() + ".sh"
     var shServer0  = "ojob_gitpod0_" + genUUID() + ".sh"
     var dockerfile = "ojob_gitpod1_" + genUUID()
@@ -91,19 +93,17 @@ jobs:
     }
 
     io.writeFileString(shServer, templify(args.init.sh_server, {
-       nosub  : (ow.format.getOSArch() != "x86_64"),
        nightly: (toBoolean(args.nightly))
     }))
     io.writeFileString(shServer0, templify(args.init.sh_server0, {
-       extra: "python3 openjdk-11-jdk",
+       extra: args.extra,
        nightly: (toBoolean(args.nightly))
     }))
     io.writeFileString(dockerfile, templify(args.init.dockerfile, { 
        server : shServer, 
        server0: shServer0,
-       tag    : (ow.format.getOSArch() == "x86_64" && toBoolean(args.nightly) ? ":nightly" : ""),
-       nosub  : (ow.format.getOSArch() != "x86_64"),
-       image  : (ow.format.getOSArch() != "x86_64") ? "dictcp/openvscode-server" : "gitpod/openvscode-server"
+       tag    : (toBoolean(args.nightly) ? ":nightly" : ""),
+       image  : "gitpod/openvscode-server"
     }))
 
     $sh("docker build --pull --no-cache -t openaf/gitpod -f " + dockerfile + " .")
@@ -135,16 +135,17 @@ jobs:
     } while(dlog.indexOf("Web UI available at") < 0)
 
     var url = dlog.match(/Web UI available at (.+)/)[1]
+    //var is64 = (ow.format.getOSArch() == "x86_64" || ow.format.getOSArch() == "amd64")
 
     url =  url.replace(":3000", ":" + args.port)
-    url += (ow.format.getOSArch() == "x86_64" ? "&" : "?") + "folder=vscode-remote://localhost:" + args.port + "/workspace"
+    url += "?" + "folder=vscode-remote://localhost:" + args.port + "/workspace"
 
     if (!openInBrowser(url)) 
        log("Open in a browser " + url.replace(/localhost/g, ow.format.getHostName()))
     else
        log("Available in " + url)
 
-    print("Attaching...")
+    print("Attaching...")  
     $sh("docker attach " + output).exec()
 
     log("Deleting image openaf/gitpod...")
