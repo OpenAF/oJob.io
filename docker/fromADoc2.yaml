@@ -1,0 +1,67 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Converts an existing Asciidoc into other formats
+  expects: 
+  - name     : file
+    desc     : The existing Asciidoc 
+    example  : somefile.adoc
+    mandatory: true
+  - name     : format
+    desc     : The output format (e.g. pdf, epub3)
+    example  : pdf
+    mandatory: false
+
+init:
+  help: *HELP
+
+todo:
+- Check for docker
+- Convert adoc in another format
+
+include:
+- ojob.io/docker/_common.yaml
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# -------------------------------------
+- name : Convert adoc in another format
+  check: 
+    in:
+      file  : isString
+      format: isString.oneOf['pdf', 'epub3'].default('pdf')
+  exec : |
+    var finfo = io.fileInfo(args.file)
+    var path  = ""
+
+    if (finfo.isFile) {
+      path = finfo.canonicalPath.replace(new RegExp(finfo.filename + "$"), "")
+      log("Launching docker container in '" + path + "'...")
+
+      $sh(["docker", "run", "--rm", "-i", "-v", path + ":/documents/", "asciidoctor/docker-asciidoctor", "/bin/sh", "-c", "asciidoctor-" + args.format + " " + finfo.filename])
+      .prefix("asciidoctor")
+      .get()
+
+      log("Converted to '" + args.file.replace(/.md$/i, ".adoc") + "'")
+    } else {
+      path = finfo.canonicalPath
+      log("Launching docker container in folder '" + path + "'...")
+
+      $sh(["docker", "run", "--rm", "-i", "-v", path + ":/documents/", "asciidoctor/docker-asciidoctor", "/bin/sh", "-c", 'find . -type f -name "*.adoc" -exec asciidoctor-' + args.format + ' {} \\;'])
+      .prefix("asciidoctor")
+      .get()
+
+      log("Converted folder '" + path + "'")
+    }
+
+    

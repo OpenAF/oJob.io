@@ -1,0 +1,62 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : Converts an existing markdown document into an Asciidoc
+  expects: 
+  - name     : file
+    desc     : The existing markdown file
+    example  : somefile.md
+    mandatory: true
+
+init:
+  help: *HELP
+
+todo:
+- Check for docker
+- Convert markdown into adoc
+
+include:
+- ojob.io/docker/_common.yaml
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+
+# ---------------------------------
+- name : Convert markdown into adoc
+  check: 
+    in:
+      file: isString()
+  exec : |
+    var finfo = io.fileInfo(args.file)
+    var path  = ""
+
+    if (finfo.isFile) {
+      path = finfo.canonicalPath.replace(new RegExp(finfo.filename + "$"), "")
+      log("Launching docker container in '" + path + "'...")
+
+      $sh(["docker", "run", "--rm", "-i", "-v", path + ":/documents/", "asciidoctor/docker-asciidoctor", "/bin/sh", "-c", "gem install kramdown-asciidoc && kramdoc " + finfo.filename])
+      .prefix("kramdown")
+      .get()
+
+      log("Converted to '" + args.file.replace(/.md$/i, ".adoc") + "'")
+    } else {
+      path = finfo.canonicalPath
+      log("Launching docker container in folder '" + path + "'...")
+
+      $sh(["docker", "run", "--rm", "-i", "-v", path + ":/documents/", "asciidoctor/docker-asciidoctor", "/bin/sh", "-c", 'gem install kramdown-asciidoc && find . -type f -name "*.md" -exec kramdoc {} \\;'])
+      .prefix("kramdown")
+      .get()
+
+      log("Converted folder '" + path + "'")
+    }
+
+    
