@@ -1,0 +1,98 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a nginx and a docker-compose configuration to use nginx as a reverse proxy.
+  expects: 
+  - name     : url
+    desc     : The URL to which the reverse proxy should point (e.g. http://host:1234)
+    example  : http://host:1234
+    mandatory: true
+  - name     : path
+    desc     : The path where the nginx configuration should be placed (default ".")
+    example  : "."
+    mandatory: false
+  - name     : port
+    desc     : The port to access the nginx reverse proxy (default 8080)
+    example  : 8080
+    mandatory: false
+
+init:
+  nginxConf: |
+    events {
+      worker_connections 1024;
+    }
+    http {
+      index   index.html index.htm;
+
+      server {
+        listen      80;
+        server_name nginx;
+        ignore_invalid_headers off;
+        proxy_buffering off;
+        client_max_body_size 0;
+        
+        location / {
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_set_header Host $host;
+
+          proxy_connect_timeout 300;
+          proxy_http_version 1.1;
+          proxy_set_header Connection "";
+          chunked_transfer_encoding off;
+
+          proxy_pass {{url}};
+        }
+      }
+    }
+  dc       : |
+    version : '3'
+
+    networks:
+      nginx:
+        driver: bridge
+
+    services:
+      nginx:
+        image         : nginx
+        container_name: nginx
+        ports         :
+        - {{port}}:80
+        volumes       :
+        - {{file}}:/etc/nginx/nginx.conf:ro
+        healthcheck   :
+          test    : [ "CMD", "service", "nginx", "status" ]
+          interval: 30s
+          timeout : 20s    
+          retries : 3  
+        networks      :
+        - nginx
+
+todo:
+- Generate a nginx and docker-compose
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------------------------------
+- name : Generate a nginx and docker-compose
+  check:
+    in:
+      url : isString
+      path: isString.default(".")
+      port: toNumber.isNumber.default(8080)
+  exec : |
+    var file = io.fileInfo(args.path).canonicalPath + "/nginx.conf"
+    io.writeFileString(file, templify(args.init.nginxConf, {
+      url: args.url
+    }))
+
+    tprint(args.init.dc, {
+      port: args.port,
+      file: file
+    })
