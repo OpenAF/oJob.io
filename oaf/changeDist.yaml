@@ -1,0 +1,67 @@
+# Author: Nuno Aguiar
+help:
+  text   : Changes the current OpenAF distribution
+  expects: 
+  - name     : dist
+    desc     : The distribution to change to (e.g. stable; nightly; t8)
+    example  : t8
+    mandatory: true
+
+todo:
+- Download distribution
+- Preparing to replace
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  depsTimeout : 1500
+  logToConsole: true   # to change when finished
+  log         :
+    async: false
+
+jobs:
+# ----------------------------
+- name : Download distribution
+  check:
+    in:
+      dist: isString
+  exec : |
+    var path = getOpenAFPath()
+    ow.loadFormat()
+
+    log("Current path        : " + path)
+    log("Current distribution: " + getDistribution())
+ 
+    var distPath
+    if (args.dist.toLowerCase() == "stable") distPath = ""; else distPath = args.dist.toLowerCase() + "/"
+  
+    var url1 = "https://openaf.io/" + distPath + "openaf.jar"
+    var url2 = "https://openaf.io/" + distPath + "openaf.jar.repacked"
+
+    tlog("Getting info from '{{url}}'...", { url: url1 })
+    var url1Info = $rest().head(url1)
+    tlog("Getting info from '{{url}}'...", { url: url2 })
+    var url2Info = $rest().head(url2)
+
+    if (isDef(url1Info.error) || isDef(url2Info.error)) throw "Problem with remote distribution: " + af.toSLON(url1Info) + " || " + af.toSLON(url2Info) 
+
+    tlog("Downloading {{dist}} openaf.jar ({{size}})...", { dist: getDistribution(), size: ow.format.toBytesAbbreviation(url1Info.response["Content-Length"] || url1Info.response["content-length"]) })
+    $rest().get2File(path + "/tmp_openaf.jar.orig", url1)
+    tlog("Downloading {{dist}} openaf.jar.repacked ({{size}})...", { dist: getDistribution(), size: ow.format.toBytesAbbreviation(url2Info.response["Content-Length"] || url2Info.response["content-length"]) })
+    $rest().get2File(path + "/tmp_openaf.jar", url2)
+
+# --------------------------
+- name: Preparing to replace
+  deps: Download distribution
+  exec: |
+    addOnOpenAFShutdown(() => {
+      log("Backup openaf.jar...")
+      io.mv(getOpenAFPath() + "/openaf.jar", getOpenAFPath() + "/openaf.jar.old")
+      log("Backup openaf.jar.orig...")
+      io.mv(getOpenAFPath() + "/openaf.jar.orig", getOpenAFPath() + "/openaf.jar.orig.old")
+      log("Replacing openaf.jar.orig...")
+      io.mv(getOpenAFPath() + "/tmp_openaf.jar.orig", getOpenAFPath() + "/openaf.jar.orig")
+      log("Replacing openaf.jar...")
+      io.mv(getOpenAFPath() + "/tmp_openaf.jar", getOpenAFPath() + "/openaf.jar")
+    })
