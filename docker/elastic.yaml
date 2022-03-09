@@ -84,6 +84,7 @@ init:
         environment   :
           ELASTICSEARCH_URL  : {{#if single}}http://elastic:9200{{else}}http://es1:9200{{/if}}
           ELASTICSEARCH_HOSTS: '[{{#if single}}"http://elastic:9200"{{else}}{{{nodesList}}}{{/if}}]'
+          CSP_STRICT         : "false"
         healthcheck:
           test: ["CMD-SHELL", "curl --silent --fail http://kibana:5601/status || exit 1"]
           interval: 30s
