@@ -1,0 +1,39 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Produces a ow.debug example
+  # expects: 
+  # - name     : something
+  #   desc     : To do stuff
+  #   example  : aValueExample
+  #   mandatory: false
+
+init:
+  example: |
+    //@ Start
+
+    //[ check
+    //# isDef(ow.debug)
+    //] check
+
+    //[ info
+    //? getVersion()
+    //? getDistribution() 
+    //] info
+
+    //@ End
+
+todo:
+- Generate example
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name: Generate example
+  exec: |
+    print(args.init.example)
