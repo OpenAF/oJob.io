@@ -1,0 +1,179 @@
+# Author: Nuno Aguiar
+help:
+  text   : Download a portable Java JRE/JDK package  
+  expects: 
+  - name     : list
+    desc     : If list=true will list of options by version and type
+    example  : true
+    mandatory: false
+  - name     : os
+    desc     : The operating system (e.g. linux, mac, windows, ...)
+    example  : linux
+    mandatory: false
+  - name     : arch
+    desc     : The architecture (e.g. x64, aarch64, arm, ...)
+    example  : x64
+    mandatory: false
+  - name     : version 
+    desc     : The java version (e.g. 8, 11, 17, ...)
+    example  : 11
+    mandatory: false
+  - name     : type 
+    desc     : The java type (e.g. jre, jdk)
+    example  : jre
+    mandatory: false
+  - name     : output
+    desc     : The output file package (e.g. jre.tgz)
+    example  : jre.tgz
+    mandatory: false 
+  - name     : jvm
+    desc     : The type of JVM (e.g. hotspot, openj9)
+    example  : hotspot
+    mandatory: false
+  - name     : heap
+    desc     : The JVM heap size (e.g. normal, large)
+    example  : normal
+    mandatory: false
+  - name     : repack
+    desc     : If repack==false no folder repacking will be performed (only supported in linux)
+    example  : true
+    mandatory: false
+
+todo:
+- name: Check arguments
+  when: init
+- name: List options
+  when: list
+- name: Download package
+  when: download
+
+ojob:
+  opacks      :
+  - openaf: 20220312
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+jobs:
+# ----------------------
+- name : Check arguments 
+  check:
+    in:
+      list: toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.list) ow.oJob.setState("list"); else ow.oJob.setState("download")
+
+# -------------------
+- name : List options
+  check:
+    in:
+      list   : toBoolean.isBoolean.default(false)
+      jvm    : oneOf(["hotspot","openj9"]).default("hotspot")
+      version: default("8")
+      heap   : oneOf(["normal","large"]).default(__)
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix"]).default(__)
+      arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"]).default(__)
+  exec : |
+    if (args.list) {
+      var lst = $rest().get("https://api.adoptium.net/v3/assets/latest/" + args.version + "/" + args.jvm + "?vendor=eclipse")
+      if (isArray(lst)) {
+        lst = lst.map(r=>({
+          arch   : r.binary.architecture,
+          os     : r.binary.os,
+          heap   : r.binary.heap_size,
+          type   : r.binary.image_type,
+          jvm    : r.binary.jvm_impl,
+          version: r.version.major,
+          release: r.release_name
+        }))
+      
+        if (isDef(args.heap)) lst = $from(lst).equals("heap", args.heap).select()
+        if (isDef(args.os)) lst = $from(lst).equals("os", args.os).select()
+        if (isDef(args.arch)) lst = $from(lst).equals("arch", args.arch).select()
+        if (isUnDef(args.__format)) args.__format = "table"
+        ow.oJob.output($from(lst).sort("arch", "os", "heap", "type").select(), args)
+      } else {
+        logWarn("No package combination found.")
+      }
+    }
+
+# -----------------------
+- name : Download package
+  check:
+    in:
+      jvm    : oneOf(["hotspot","openj9"]).default("hotspot")
+      version: default("8")
+      list   : toBoolean.isBoolean.default(false)
+  to   :
+  - Download
+  - Package
+
+# --------------
+- name : Package
+  check:
+    in:
+      repack: toBoolean.isBoolean.default(true)
+  exec : |
+    ow.loadFormat()
+
+    if (args.repack) {
+      if (!ow.format.isWindows()) {
+        tlog("Repacking {{output}}...", args)
+        var uuid = genUUID()
+        io.mkdir(uuid)
+        io.mv(args.output, uuid + "/" + args.output)
+
+        $sh()
+        .pwd(uuid)
+        .sh(args.output.endsWith(".zip") ? "unzip " + args.output : "tar xzf " + args.output)
+        .sh("rm " + args.output)
+        .sh("mv *" + args.type + "* " + args.type)
+        .sh(args.output.endsWith(".zip") ? "zip -9r " + args.output + " " + args.type : "tar czf " + args.output + " " + args.type)
+        .prefix("pack")
+        .get()
+
+        io.mv(uuid + "/" + args.output, args.output)
+        io.rm(uuid)
+      } else {
+        logWarn("Can't repack in Windows")
+      }
+    }
+
+    args.size = ow.format.toBytesAbbreviation(io.fileInfo(args.output).size)
+    tlog("Package {{output}} ({{size}}) ready.", args)
+
+# ---------------
+- name : Download
+  check:
+    in:
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix"]).default("linux")
+      arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"]).default("x64")
+      heap   : oneOf(["normal","large"]).default("normal")
+      type   : oneOf(["jdk","jre"]).default("jre")
+      jvm    : oneOf(["hotspot","openj9"]).default("hotspot")
+      version: default("8")
+  exec : |
+    ow.loadObj()
+    ow.loadFormat()
+
+    if (isUnDef(args.output)) args.output = (args.os == "windows" ? args.type + ".zip" : args.type + ".tgz")
+
+    tlog("Download parameters: arch={{arch}} os={{os}} version={{version}} type={{type}} jvm={{jvm}} heap={{heap}}", args)
+
+    var url
+    if (args.os == "mac" && args.arch == "aarch64" && Number(args.version) < 17) {
+      var pack = $from( javaRegExp( $rest().get("https://cdn.azul.com/zulu/bin/") )
+                 .match("(?<=href=\")(.+?)(?=\.tar.gz\")", "g")
+                 .filter(r => r.indexOf("-fx-") < 0 && r.indexOf("-jre" + args.version) > 0 && r.indexOf("-macosx_aarch64") > 0) )
+      .sort()
+      .at(0)
+
+      url = "https://cdn.azul.com/zulu/bin/" + pack + ".tar.gz"
+
+    } else {
+      url = "https://api.adoptium.net/v3/binary/latest/" + args.version + "/ga/" + args.os + "/" + args.arch + "/" + args.type + "/" + args.jvm + "/" + args.heap + "/eclipse"
+    }
+
+    args.size = ow.format.toBytesAbbreviation(ow.obj.rest.getContentLength(url))
+    tlog("Downloading to {{output}} ({{size}})...", args)
+    $rest({ uriQuery: true })
+    .get2File(args.output, url);
