@@ -1,0 +1,32 @@
+# Author: Anonymous
+help:
+  text   : Retrieves a list of public holidays for a given country
+  expects: 
+  - name     : country
+    desc     : The 2-letter country code
+    example  : US
+    mandatory: true
+
+todo:
+- Retrive public holidays
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  - APIs  : 20220226
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js
+        
+
+jobs:
+# ------------------------------
+- name : Retrive public holidays
+  check:
+    in:
+      country: isString
+  exec : |
+    var out = apis.PublicHolidays.get(args.country)
+
+    ow.oJob.output(out, args)
