@@ -6,6 +6,10 @@ help:
     desc     : The 2-letter country code
     example  : US
     mandatory: true
+  - name     : year
+    desc     : The year from which ot list the public holidays (default to current year)
+    example  : 2020
+    mandatory: false 
 
 todo:
 - Retrive public holidays
