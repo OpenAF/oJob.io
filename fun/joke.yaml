@@ -1,0 +1,26 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrives a joke from an external service
+  # expects: 
+  # - name     : something
+  #   desc     : To do stuff
+  #   example  : aValueExample
+  #   mandatory: true
+
+todo:
+- Joke
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  - APIs  : 20220226
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js
+
+jobs:
+# -----------
+- name : Joke
+  exec : |
+    ow.oJob.output(apis.Joke.getJson(), args)
