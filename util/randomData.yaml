@@ -1,0 +1,97 @@
+# Author: Nuno Aguiar
+help:
+  text   : Uses an external service to generate random data.
+  expects: 
+  - name     : type
+    desc     : The type of data to generate (use list=true to get options)
+    example  : address
+    mandatory: false
+  - name     : number
+    desc     : Number of elements of random data to generate
+    example  : 5
+    mandatory: false
+  - name     : list
+    desc     : The list of type of data available
+    example  : true
+    mandatory: false
+
+init:
+  list:
+  - address
+  - appliance
+  - app
+  - bank
+  - beer
+  - blood
+  - business_credit_card
+  - cannabis
+  - code
+  - coffee
+  - commerce
+  - company
+  - computer
+  - crypto
+  - cryptocoin
+  - color
+  - dessert
+  - device
+  - food
+  - name
+  - hipster
+  - invoice
+  - users
+  - stripe
+  - subscription
+  - vehicle
+  - id_number
+  - internet_stuff
+  - lorem_ipsum
+  - lorem_flickr
+  - lorem_pixel
+  - nation
+  - number
+  - phone_number
+  - placeholdit
+  - restaurant
+
+todo:
+- name: Check arguments
+  when: init
+- name: List
+  when: list
+- name: Get random data
+  when: data
+
+ojob:
+  opacks      :
+  - openaf     : 20220301
+  - APIs       : 20220226
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js 
+
+jobs:
+# ----------------------
+- name : Check arguments
+  exec : |
+    if (toBoolean(args.list)) {
+      ow.oJob.setState("list")
+    } else {
+      ow.oJob.setState("data")
+    }
+
+# ----------------------
+- name : Get random data
+  check:
+    in:
+      type  : isString
+      number: toNumber.isNumber.default(__)
+  exec : |
+    var out = apis.RandomData.get(args.type, args.number)
+    ow.oJob.output(out, args)
+
+# -----------
+- name : List
+  exec : |
+    ow.oJob.output(args.init.list, args)

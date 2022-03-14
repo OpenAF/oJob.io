@@ -1,4 +1,4 @@
-# Author: Anonymous
+# Author: Nuno Aguiar
 help:
   text   : Retrieves a list of public holidays for a given country
   expects: 
