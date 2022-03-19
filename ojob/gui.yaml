@@ -1,4 +1,16 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Provides a browser-based form to execute the provided oJob.
+  expects: 
+  - name     : job
+    desc     : The job you want to execute
+    example  : ojob.io/echo
+    mandatory: true
+  - name     : port
+    desc     : The port where the web server will be launched (defaults to 8888)
+    example  : 8888
+    mandatory: false
+
 init:
   port: &PORT 8888
   host: &HOST 127.0.0.1
@@ -19,14 +31,14 @@ init:
 
     {{#each expects}}
     <label for="__{{name}}"><b>{{name}}</b><br>{{desc}}</label>
-    {{#is type 'file'}}
+    {{#$is type 'file'}}
     <div class="file-field input-field">
     <div class="btn"><span>Browse</span><input type="file"></div>
     <div class="file-path-wrapper"><input class="file-path validate" type="text" id="__{{name}}"></div>
     </div>
     {{else}}
     <input placeholder="{{example}}" id="__{{name}}" type="{{type}}" class="validate">
-    {{/is}}
+    {{/$is}}
     {{/each}}
 
     <div align="right"><button class="btn waves-effect waves-light" type="submit" onclick="clickIt()" id="btn" name="action">Execute<i class="material-icons right">send</i></button></div>
@@ -59,17 +71,6 @@ init:
       delete e['returnValue'];
     }
     </script>
-
-
-  help: &HELP
-    text   : Provides a browser-based form to execute the provided oJob.
-    expects: 
-    - name   : job
-      desc   : The job you want to execute
-      example: ojob.io/echo
-    - name   : port
-      desc   : The port where the web server will be launched (defaults to 8888)
-      example: 8888
 
 todo:
 - name: Prepare data
@@ -123,22 +124,18 @@ ojob:
   unique      :
     pidFile     : *PID
     killPrevious: false
-  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  catch       : logErr(exception)
   logToConsole: false   # to change when finished
         
 include:
 - oJobHTTPd.yaml
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------------------
 - name: Show instructions
   exec: |
     print(repeat(80, '='));
-    print("If the browser doesn't open try opening your browse to http://" + args.host + ":" + args.port + "/job.");
+    print("If the browser doesn't open try opening your browse to http://" + args.host + ":" + args.port + "/job");
     print("\nTo end this just hit Ctrl-C or close this window.");
     print(repeat(80, '='));
     print("");
@@ -158,6 +155,7 @@ jobs:
   args:
     execURI: |
       try {
+        if (isDef(request.params.j)) $job("Prepare data", { job: request.params.j })
         var r = ow.server.httpd.reply(String(ow.template.parseMD2HTML(global.content, true)), "200", "text/html");
         return r;
       } catch(e){sprintErr(e)}
@@ -176,7 +174,8 @@ jobs:
       delete ar["__job"];
 
       oJobRunFile(j, merge(ar, { __format: "pm" }), genUUID(), __, true);
-      var res = clone(__pm);
+      var res = clone(__pm); 
+      __pm = {}
       if (isDef(res._map)) res = res._map;
       if (isDef(res._list)) res = res._list;
       if (isDef(res.result)) res = { result: res.result };
@@ -212,10 +211,13 @@ jobs:
       }
       cjob = $rest({ uriQuery: true }).get(args.job);
     }
-
     var tmpl = args.init.template;
     var data = $from(cjob.jobs).equals("name", "Help")
-    if (data.any() && isMap(data.at(0).help)) data = data.at(0).help; else throw "No Help job found in '" + args.job + "'.";
+    if (data.any()) {
+      if (isMap(data.at(0).help)) data = data.at(0).help; else throw "No Help job found in '" + args.job + "'.";
+    } else {
+      data = _$(cjob.help).isMap().default({})
+    }
     
     data.title = args.job.replace(/^https?:\/\//, "");
     data.job = args.job;
@@ -231,5 +233,5 @@ jobs:
         if (test.indexOf("pass") >= 0)  entry.type = "password";
       });
     }
- 
-    global.content = templify(tmpl, data);
+
+    global.content = templify(tmpl, data)
