@@ -70,7 +70,7 @@ jobs:
       jvm    : oneOf(["hotspot","openj9"]).default("hotspot")
       version: default("8")
       heap   : oneOf(["normal","large"]).default(__)
-      os     : oneOf(["windows", "linux", "mac", "solaris", "aix"]).default(__)
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix", "alpine-linux"]).default(__)
       arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"]).default(__)
   exec : |
     if (args.list) {
@@ -145,7 +145,7 @@ jobs:
 - name : Download
   check:
     in:
-      os     : oneOf(["windows", "linux", "mac", "solaris", "aix"]).default("linux")
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix", "alpine-linux"]).default("linux")
       arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"]).default("x64")
       heap   : oneOf(["normal","large"]).default("normal")
       type   : oneOf(["jdk","jre"]).default("jre")
