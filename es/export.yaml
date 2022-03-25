@@ -50,6 +50,7 @@ jobs:
       user: isString.default(__)
       pass: isString.default(__)
   exec : |
+    args.url = args.url.replace(/\/+$/, "")
     global.es = new ElasticSearch(args.url, args.user, args.pass)
 
 # -------------
@@ -85,6 +86,7 @@ jobs:
       var stream = io.writeFileGzipStream(args.output + "/" + args.index + ".ndjson.gz")
       ioStreamCopy(stream, io.readFileStream(args.output + "/" + args.index + ".ndjson"))
       stream.close()
+      io.rm(args.output + "/" + args.index + ".ndjson")
       tlog("{{index}} | Exported", args)
     } catch(e) {
       tlogErr("{{index}} | " + e)
