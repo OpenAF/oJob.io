@@ -1,0 +1,91 @@
+# Author: Nuno Aguiar
+help:
+  text   : Export all (or selected) indices from an ElasticSearch/OpenSearch instance to ndjson files
+  expects: 
+  - name     : url
+    desc     : The ElasticSearch/OpenSearch instance URL
+    example  : http://some.url:12345
+    mandatory: true
+  - name     : output
+    desc     : The output folder where the ndjson files will be created
+    example  : export
+    mandatory: false    
+  - name     : user
+    desc     : The user credential, if necessary, to access the cluster
+    example  : user
+    mandatory: false
+  - name     : pass
+    desc     : The password credential, if necessary, to access the cluster
+    example  : mypass
+    mandatory: false
+  - name     : filter
+    desc     : A regular expression filter for the indices to export (otherwise all will be exported)
+    example  : "^myindex-"
+    mandatory: false
+  - name     : force
+    desc     : If force=true it will not check if there is a previous ndjson file for each index
+    example  : true
+    mandatory: false
+
+todo:
+- Connect to ES
+- Export
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  - ElasticSearch
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - elasticsearch.js
+        
+
+jobs:
+# --------------------
+- name : Connect to ES
+  check:
+    in:
+      url : isString
+      user: isString.default(__)
+      pass: isString.default(__)
+  exec : |
+    global.es = new ElasticSearch(args.url, args.user, args.pass)
+
+# -------------
+- name : Export
+  each : Export index
+  check:
+    in:
+      output: isString.default("export")
+      filter: isString.default(__)
+      force : toBoolean.isBoolean.default(false)
+  exec : |
+    log("Retrieving list of indexes...")
+    var lst = $from(global.es.getIndices(true))
+
+    io.mkdir(args.output)
+    if (!args.force) lst = lst.filter(r => !io.fileExists(args.output + "/" + r.index + ".ndjson.gz"))
+
+    if (isDef(args.filter)) lst = lst.match("index", args.filter)
+
+    lst = lst.select()
+    log("Found #" + lst.length + " indexes to export")
+
+    lst.forEach(r => each(merge(r, args)))
+
+# -------------------
+- name : Export index
+  exec : |
+    try {
+      tlog("{{index}} | Exporting...", args)
+      io.rm(args.index + ".ndjson")
+      es.exportIndex2File(args.index, args.output + "/" + args.index + ".ndjson")
+      tlog("{{index}} | Compressing...", args)
+      var stream = io.writeFileGzipStream(args.output + "/" + args.index + ".ndjson.gz")
+      ioStreamCopy(stream, io.readFileStream(args.output + "/" + args.index + ".ndjson"))
+      stream.close()
+      tlog("{{index}} | Exported", args)
+    } catch(e) {
+      tlogErr("{{index}} | " + e)
+    } 
