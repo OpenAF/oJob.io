@@ -1,0 +1,239 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a standalone OpenAF package suitable for a zip file distribution
+  expects: 
+  - name     : os
+    desc     : JRE operating system (e.g. windows, linux, mac, solaris, aix, alpine-linux)
+    example  : linux
+    mandatory: true
+  - name     : arch
+    desc     : operating system architecture (e.g. x64, x32, ppc64, s390x, ppc64le, aarch64, arm)
+    example  : x64
+    mandatory: true
+  - name     : version
+    desc     : java version to use (e.g. 11, 17)
+    example  : 17
+    mandatory: false
+  - name     : dist
+    desc     : openaf distribution (e.g. nightly, t8, stable)
+    example  : nightly
+    mandatory: false
+  - name     : source
+    desc     : A source folder with opacks
+    example  : myopacks
+    mandatory: false
+  - name     : output
+    desc     : the output folder for the package
+    example  : pack
+    mandatory: false
+
+todo:
+- Prepare output folder
+- Download Java
+- Download OpenAF
+- Copy opacks
+- Installing OpenAF
+- Build scripts
+- Cleaning up
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+  async       : true
+  log         :
+    async: false
+
+jobs:
+# ============================
+- name : Prepare output folder
+  check:
+    in: &ARGS_OUTPUT
+      output: isString.default("output")
+  exec : |
+    io.mkdir(args.output)
+    io.mkdir(args.output + "/lib")
+
+# ====================
+- name : Download Java
+  deps : Prepare output folder
+  check:
+    in:
+      <<     : *ARGS_OUTPUT
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix", "alpine-linux"])
+      arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"])
+      version: toNumber.isNumber.greater(10).default(17)
+  exec : |
+    oJobRunFile("ojob.io/java/download", {
+      os     : args.os,
+      arch   : args.arch,
+      version: args.version,
+      type   : "jdk",
+      output : args.output + "/jdk" + (args.os.toLowerCase() == "windows" ? ".zip" : ".tgz"),
+      repack : (args.os.toLowerCase() == "windows" ? false : true)
+    }, genUUID())
+
+    if (args.os.toLowerCase() == "windows") {
+      throw "To be implemented"
+    } else {
+      $sh()
+      .pwd(args.output)
+      .sh("tar xzf jdk.tgz")
+      .prefix("untar")
+      .get()
+
+      io.rm(args.output + "/jdk.tgz")
+      io.rm(args.output + "/lib/jre")
+
+      $sh()
+      .pwd(args.output)
+      .sh("jdk/bin/jlink --add-modules ALL-MODULE-PATH --output lib/jre --strip-debug --no-man-pages --no-header-files --compress=2")
+      .prefix("jlink")
+      .get()
+
+      io.rm(args.output + "/jdk")
+    }
+
+# ======================
+- name : Download OpenAF
+  deps : Prepare output folder
+  check:
+    in:
+      <<     : *ARGS_OUTPUT
+      dist   : isString.default("nightly")
+  exec : |
+    args.dist = args.dist.toLowerCase()
+    ow.loadObj()
+
+    if (args.dist == "stable") args.dist = ""
+    if (args.dist != "") args.dist += "/"
+
+    var ooaf = "https://openaf.io/" + args.dist + "openaf.jar"
+    //var roaf = "https://openaf.io/" + args.dist + "openaf.jar.repacked"
+    var l_ooaf = ow.format.toBytesAbbreviation(ow.obj.rest.getContentLength(ooaf))
+    //var l_roaf = ow.format.toBytesAbbreviation(ow.obj.rest.getContentLength(roaf))
+    log("Download OpenAF '" + ooaf + "' (" + l_ooaf + ")...")
+    $rest().get2File(args.output + "/lib/openaf.jar", ooaf)
+    //log("Download OpenAF '" + roaf + "' (" + l_roaf + ")...")
+    //$rest().get2File(args.output + "/lib/openaf.jar", roaf)
+
+# ==================
+- name : Copy opacks
+  deps : Prepare output folder
+  check:
+    in:
+      <<     : *ARGS_OUTPUT
+      source : isString.default(__)
+  exec : |
+    global.listOPacks = []
+    if (isDef(args.source)) {
+      if (io.fileExists(args.source) && io.fileInfo(args.source).isDirectory) {
+        $from(io.listFiles(args.source).files)
+        .ends("filename", ".opack")
+        .select(r => {
+          log("Copying " + r.canonicalPath + " to " + r.filename + "...")
+          io.cp(r.canonicalPath, args.output + "/lib/" + r.filename)
+          global.listOPacks.push(r.filename.replace(".opack", ""))
+        })
+      } else {
+        logErr("Source '" + args.source + "' not found or not a directory")
+      }
+    }
+
+# ========================
+- name : Installing OpenAF
+  check:
+    in:
+      <<     : *ARGS_OUTPUT
+  deps : 
+  - Download Java
+  - Download OpenAF
+  - Copy opacks
+  exec : |
+    var javab = $from(listFilesRecursive(args.output + "/lib/jre"))
+                .ends("filepath", "/bin/java")
+                .at(0)
+
+    if (isUnDef(javab)) throw "No java binary found!"
+    
+    /*$sh()
+    .pwd(args.output + "/lib")
+    .sh([javab.filepath.replace(args.output + "/lib/", ""), "-jar", "openaf.jar", "--install"])
+    .prefix("oaf")
+    .get()*/
+
+    $sh()
+    .pwd(args.output + "/lib")
+    .sh("tar czf jre.tgz jre")
+    .sh("rm -rf jre")
+    .prefix("tar")
+    .get()
+
+    io.writeFileString(args.output + "/lib/.jre", javab.filepath.replace(args.output + "/lib/", ""))
+
+# ====================
+- name : Build scripts
+  check:
+    in:
+      <<     : *ARGS_OUTPUT
+  deps :
+  - Copy opacks
+  args :
+    unix: |
+      #!/bin/sh
+      cd `dirname $0`
+      DIR=`pwd`
+      cd $DIR/lib
+
+      if [ ! -d jre ]; then
+        echo Preparing Java runtime...
+        tar xzf jre.tgz
+        rm jre.tgz
+        `cat .jre` -jar openaf.jar --repack
+        sleep 2
+        echo Creating scripts...
+        `cat .jre` -jar openaf.jar --install
+        rm -f *.opack
+        rm -f openaf.jar.orig
+      fi
+      ./ojob main.yaml
+  exec : |
+    ow.loadFormat()
+
+    io.writeFileYAML(args.output + "/lib/main.yaml", {
+      ojob: {
+        opacks: global.listOPacks,
+        catch: "logErr(exception)",
+        logToConsole: true 
+      }
+    })
+
+    if (ow.format.isWindows()) {
+      throw "Not implemented yet"
+    } else {
+      io.writeFileString(args.output + "/runme.sh", args.unix)
+      $sh("chmod a+x " + args.output + "/runme.sh").exec()
+    }
+
+# ==================
+- name : Cleaning up
+  check:
+    in:
+      <<     : *ARGS_OUTPUT
+  deps :
+  - Download Java
+  - Download OpenAF
+  - Installing OpenAF
+  exec : |
+    log("Removing created opack local db...")
+    io.rm(args.output + "/lib/.opack.db")
+    log("Removing openaf.jar.orig...")
+    io.rm(args.output + "/lib/openaf.jar.orig")
+
+    /*$from( io.listFiles(args.output + "/lib").files )
+    .ends("filename", ".opack")
+    .select(r => {
+      log("Removing " + r.filepath + "...")
+      io.rm(r.filepath) 
+    })*/
