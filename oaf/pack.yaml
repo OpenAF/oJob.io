@@ -63,21 +63,21 @@ jobs:
       <<     : *ARGS_OUTPUT
       os     : oneOf(["windows", "linux", "mac", "solaris", "aix", "alpine-linux"])
       arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"])
-      version: toNumber.isNumber.greater(10).default(17)
+      version: toNumber.isNumber.greater(7).default(17)
   exec : |
     oJobRunFile("ojob.io/java/download", {
       os     : args.os,
       arch   : args.arch,
       version: args.version,
-      type   : "jdk",
-      output : args.output + "/jdk" + (args.os.toLowerCase() == "windows" ? ".zip" : ".tgz"),
+      type   : "jre",
+      output : args.output + "/lib/jre" + (args.os.toLowerCase() == "windows" ? ".zip" : ".tgz"),
       repack : (args.os.toLowerCase() == "windows" ? false : true)
     }, genUUID())
 
     if (args.os.toLowerCase() == "windows") {
       throw "To be implemented"
     } else {
-      $sh()
+      /*$sh()
       .pwd(args.output)
       .sh("tar xzf jdk.tgz")
       .prefix("untar")
@@ -92,7 +92,13 @@ jobs:
       .prefix("jlink")
       .get()
 
-      io.rm(args.output + "/jdk")
+      io.rm(args.output + "/jdk")*/
+      
+      $sh()
+      .pwd(args.output + "/lib")
+      .sh("tar xzf jre.tgz")
+      .prefix("untar")
+      .get()
     }
 
 # ======================
@@ -165,8 +171,8 @@ jobs:
 
     $sh()
     .pwd(args.output + "/lib")
-    .sh("tar czf jre.tgz jre")
-    .sh("rm -rf jre")
+    .sh("tar xzf jre.tgz jre")
+    .sh("rm -rf jre.tgz")
     .prefix("tar")
     .get()
 
@@ -186,10 +192,7 @@ jobs:
       DIR=`pwd`
       cd $DIR/lib
 
-      if [ ! -d jre ]; then
-        echo Preparing Java runtime...
-        tar xzf jre.tgz
-        rm jre.tgz
+      if [ ! -f ojob ]; then
         `cat .jre` -jar openaf.jar --repack
         sleep 2
         echo Creating scripts...
