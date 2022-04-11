@@ -1,6 +1,6 @@
 // Author: Nuno Aguiar
 help:
-  text   : Given a recorded HAR RAID browsing session will try to conver 
+  text   : Given a recorded HAR RAID browsing session will try to convert to a yaml with the corresponding RAID DataModel queries. Optionally it can also generate an nAttrMon input to monitor those queries
   expects:
   - name     : har
     desc     : HAR file from a session browsing through a RAID web-browser session
@@ -40,7 +40,8 @@ jobs:
     in:
       har: isString
   exec : |
-    log("Reading " + args.har + "...")
+    var info = io.fileInfo(args.har)
+    log("Reading and parsing " + args.har + " (" + ow.format.toBytesAbbreviation(info.size) + ") (this can take some time)...")
     //args.origData = io.readFileJSON(args.har)
     args.origData = global.readFileJSONStream(args.har, path => (/^\$\.log\.entries\[\d+\]\.(request|_resourceType|time)/).test(path) )
     args.data     = args.origData
@@ -103,33 +104,34 @@ jobs:
     })
 
     args.dataD.forEach((r, i) => {
-      if (isArray(r.in.opList) && $from(r.in.opList).equals("method", "DATAVIS.GetIndicatorsData").count() > 0) {
-        var dataVisName
-        if (isDef(r.in.context)) {
-          dataVisName = r.in.context
-        } else {
-          dataVisName = "DataVis " + i
-        }
-
-        if (isDef(datavis[dataVisName])) dataVisName = dataVisName + " " + Number($from(Object.keys(datavis)).starts(dataVisName).count() + 1)
-        datavis[dataVisName] = r.in
-        datavis[dataVisName].time = r.time
+      var dataVisName
+      if (isDef(r.in.context)) {
+        dataVisName = r.in.context
+      } else {
+        dataVisName = "DataVis " + i
       }
+
+      if (isDef(datavis[dataVisName])) dataVisName = dataVisName + " " + Number($from(Object.keys(datavis)).starts(dataVisName).count() + 1)
+      datavis[dataVisName] = r.in
+      datavis[dataVisName].time = r.time
     })
 
     args.dataB.forEach((r, i) => {
-      var bulkVisName
-      if (isDef(r.in.context)) {
-        bulkVisName = r.in.context
-      } else {
-        bulkVisName = "BulkDataVis " + i
-      }
+      if (isArray(r.in.opList) && $from(r.in.opList).equals("method", "DATAVIS.GetIndicatorsData").count() > 0) {
+        var bulkVisName
+        if (isDef(r.in.context)) {
+          bulkVisName = r.in.context
+        } else {
+          bulkVisName = "BulkDataVis " + i
+        }
 
-      if (isDef(bulkvis[bulkVisName])) bulkVisName = bulkVisName + " " + Number($from(Object.keys(bulkvis)).starts(bulkVisName).count() + 1)
-      bulkvis[bulkVisName] = r.in
-      bulkvis[bulkVisName].time = r.time
+        if (isDef(bulkvis[bulkVisName])) bulkVisName = bulkVisName + " " + Number($from(Object.keys(bulkvis)).starts(bulkVisName).count() + 1)
+        bulkvis[bulkVisName] = r.in
+        bulkvis[bulkVisName].time = r.time
+      }
     })
 
+    tlog("Writing to {{output}}", args)
     if (args.nattrmon) {
       io.writeFileYAML(args.output, {
         input: {

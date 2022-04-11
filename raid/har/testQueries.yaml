@@ -1,0 +1,159 @@
+// Author: Nuno Aguiar
+help:
+  text   : Given a YAML list of RAID DataModel queries (probably generated from a har2queries) will try to execute them and output the results
+  expects:
+  - name     : file
+    desc     : The YAML input file with the filtered queries
+    example  : myhar.yaml
+    mandatory: true
+  - name     : url
+    desc     : The RAID OpenCli URL to access the RAID instance
+    example  : https://aUser:anEncryptedPass@some.server:12345/#/web/guest/home
+    mandatory: false
+  - name     : output
+    desc     : Output results to a NDJSON file
+    example  : results.ndjson
+    mandatory: false
+
+ojob:
+  opacks      :
+  - openaf : 20220317
+  - OpenCli: 20220317
+  catch       : logErr(exception)
+  logToConsole: true
+  log         :
+    async: false
+  channels    :
+    create:
+    - name: tests
+
+todo:
+- Connect to RAID
+- Test operations
+- Show results
+
+jobs:
+# ----------------------
+- name : Connect to RAID
+  check:
+    in:
+      url    : isString.default(__)
+      fromNAM: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadObj()
+    args.url = askDef(args.url, "RAID URL (https://user:password@a.server:aport/xdt): ")
+    global.pool = ow.obj.pool.AF(args.url, __, __, true)
+    log("Trying to connect to RAID...")
+    global.pool.use(aAF => aAF.exec("Ping") )
+
+# ----------------------
+- name : Test operations
+  deps : Connect to RAID
+  check:
+    in: 
+      file: isString
+  exec : |
+    var q = io.readFileYAML(args.file)
+
+    ow.loadObj()
+    ow.loadWAF()
+    
+    var ts = []
+    var data = (args.fromNAM ? q.input.execArgs : q)
+    if (isUnDef(global.scopes)) {
+      log("Data Model - getting scopes...")
+      global.pool.use(aAF => {
+        global.scopes = aAF.exec("DM.GetAllScopes").Scopes
+      })
+    }
+    if (isDef(data.queries)) Object.keys(data.queries).forEach(r => {
+      ts.push($do(() => {
+        global.pool.use(aAF => {
+          try {
+            var test = { date: new Date().toISOString(), name: "Query: " + r }
+            tlog("{{name}} | Executing...", test)
+
+            var ini = now()
+            if (isDef(data.queries[r].Options) && isDef(data.queries[r].Options.Domain)) {
+              var sid = $from(global.scopes).equals("Name", data.queries[r].Options.Domain).at(0)
+              if (isDef(sid)) {
+                data.queries[r].Options.ScopeId = sid.ScopeId
+                delete data.queries[r].Options.Domain
+              } 
+            }
+            var qId = ow.waf.datamodel.getQueryId(aAF, data.queries[r])
+            ow.waf.datamodel.getRowsFromQueryId(aAF, qId)
+            ow.waf.datamodel.closeQueryId(aAF, qId)
+            //aAF.exec("Ping", data.queries[r])
+            test.result = (now() - ini)
+
+            tlog("{{name}} | Results in {{result}}", test)
+            $ch("tests").set({ name: test.name }, test)
+          } catch(e) {
+            tlogErr("{{name}} | Error " + e)
+            return true
+          }
+        })
+      }))
+    })    
+    if (isDef(data.datavis)) Object.keys(data.datavis).forEach(r => {
+      ts.push($do(() => {
+        global.pool.use(aAF => {
+          try {
+            var test = { date: new Date().toISOString(), name: "DataVis: " + r }
+            tlog("{{name}} | Executing...", test)
+
+            var ini = now()
+            aAF.exec("DATAVIS.GetData", data.datavis[r])
+            //aAF.exec("Ping", data.datavis[r])
+            test.result = (now() - ini)
+
+            tlog("{{name}} | Results in {{result}}", test)
+            $ch("tests").set({ name: test.name }, test)
+          } catch(e) {
+            tlogErr("{{name}} | Error " + e)
+            return true
+          }
+        })
+      }))
+    })    
+    if (isDef(data.bulkvis)) Object.keys(data.bulkvis).forEach(r => {
+      ts.push($do(() => {
+        global.pool.use(aAF => {
+          try {
+            var test = { date: new Date().toISOString(), name: "BulkVis: " + r }
+            tlog("{{name}} | Executing...", test)
+
+            var ini = now()
+            aAF.exec("BulkOperationExecution", data.bulkvis[r])
+            //aAF.exec("Ping", data.bulkvis[r])
+            test.result = (now() - ini)
+
+            tlog("{{name}} | Results in {{result}}", test)
+            $ch("tests").set({ name: test.name }, test)
+          } catch(e) {
+            tlogErr("{{name}} | Error " + e)
+            return true
+          }
+        })
+      }))
+    })
+
+    $doWait($doAll(ts))
+
+# -------------------
+- name : Show results
+  check:
+    in:
+      output: isString.default(__)
+  exec : | 
+    var res = $from($ch("tests").getAll())
+                   .attach("elapsedTime", r => (isNumber(r.result) ? ow.format.elapsedTime4ms(r.result,{abrev:true}) : ""))
+                   .select()
+
+    args.__format = _$(args.__format, "__format").isString().default("table")
+    if (isDef(args.output)) {
+      res.forEach(r => io.writeLineNDJSON(args.output, r))
+    } else {
+      ow.oJob.output(res, args) 
+    }
