@@ -1,0 +1,202 @@
+// Author: Nuno Aguiar
+help:
+  text   : Given a recorded HAR RAID browsing session will try to conver 
+  expects:
+  - name     : har
+    desc     : HAR file from a session browsing through a RAID web-browser session
+    example  : myhar.har
+    mandatory: true
+  - name     : output
+    desc     : The YAML output file with the filtered queries
+    example  : myhar.yaml
+    mandatory: false
+  - name     : nattrmon
+    desc     : If nattrmon=true the output yaml will be formatted to be used by nAttrMon's nInput_DMPerformance
+    example  : true
+    mandatory: false
+
+ojob:
+  opacks      :
+  - openaf: 20220317
+  catch       : logErr(exception)
+  logToConsole: true
+
+todo:
+- Init
+- Queries from HAR
+
+jobs:
+#-----------------------
+- name: Queries from HAR
+  from: Read HAR
+  to  : 
+  - Write YAML
+
+#----------------
+- name : Read HAR
+  to   :
+  - Filter HAR for DM prepare queries
+  check:
+    in:
+      har: isString
+  exec : |
+    log("Reading " + args.har + "...")
+    //args.origData = io.readFileJSON(args.har)
+    args.origData = global.readFileJSONStream(args.har, path => (/^\$\.log\.entries\[\d+\]\.(request|_resourceType|time)/).test(path) )
+    args.data     = args.origData
+
+#----------------------------------------
+- name: Filter HAR for DM prepare queries
+  exec: |
+    args.data = $from(args.origData.log.entries)
+                .equals("_resourceType", "XHR")
+                .contains("request.url", "JSONRPC")
+                .select(r => {
+                  if (isUnDef(r.request.postData)) sprintErr(r.request)
+                  try {
+                    var _in  = jsonParse(r.request.postData.text, true)
+                    return {
+                        op  : _in.method,
+                        in  : (isDef(_in.params)  ? _in.params  : _in),
+                        time: r.time
+                    }
+                  } catch(e) {
+                    sprintErr(e)
+                  }
+                })
+
+    args.dataQ = $from(args.data)
+                 .equals("op", "DM.PrepareQuery")
+                 .select()
+    args.dataD = $from(args.data)
+                 .equals("op", "DATAVIS.GetData")
+                 .select()
+    args.dataB = $from(args.data)
+                 .equals("op", "BulkOperationExecution")
+                 .select()
+
+    log("Retrieved #" + args.dataQ.length + " queries and #" + args.dataD.length + " datavis and #" + args.dataB.length + " bulk datavis...")
+
+# -----------------
+- name : Write YAML
+  check:
+    in:
+      data    : isArray
+      output  : isString.default(__)
+      nattrmon: toBoolean.isBoolean.default(false)
+  exec : |
+    var queries = { }, datavis = { }, bulkvis = { }
+
+    if (isUnDef(args.output)) args.output = args.har.replace(/\.har$/, ".yaml")
+
+    args.dataQ.forEach((r, i) => {
+      var queryName
+      if (isDef(r.in.Options) && isDef(r.in.Options.Context)) {
+        queryName = r.in.Options.Context
+      } else {
+        queryName = "Query " + i
+      }
+
+      if (isDef(queries[queryName])) queryName = queryName + " " + Number($from(Object.keys(queries)).starts(queryName).count() + 1)
+      queries[queryName] = r.in
+      queries[queryName].time = r.time
+    })
+
+    args.dataD.forEach((r, i) => {
+      if (isArray(r.in.opList) && $from(r.in.opList).equals("method", "DATAVIS.GetIndicatorsData").count() > 0) {
+        var dataVisName
+        if (isDef(r.in.context)) {
+          dataVisName = r.in.context
+        } else {
+          dataVisName = "DataVis " + i
+        }
+
+        if (isDef(datavis[dataVisName])) dataVisName = dataVisName + " " + Number($from(Object.keys(datavis)).starts(dataVisName).count() + 1)
+        datavis[dataVisName] = r.in
+        datavis[dataVisName].time = r.time
+      }
+    })
+
+    args.dataB.forEach((r, i) => {
+      var bulkVisName
+      if (isDef(r.in.context)) {
+        bulkVisName = r.in.context
+      } else {
+        bulkVisName = "BulkDataVis " + i
+      }
+
+      if (isDef(bulkvis[bulkVisName])) bulkVisName = bulkVisName + " " + Number($from(Object.keys(bulkvis)).starts(bulkVisName).count() + 1)
+      bulkvis[bulkVisName] = r.in
+      bulkvis[bulkVisName].time = r.time
+    })
+
+    if (args.nattrmon) {
+      io.writeFileYAML(args.output, {
+        input: {
+          name: "DM performance",
+          cron: "0 */1 * * *",
+          execFrom: "nInput_DMPerformance",
+          execArgs: {
+            attrTemplate: "RAID/Data Model performance",
+            keys   : [ "raidServers" ],
+            bestOf : 1,
+            withAssociatedDB: false,
+            queries: queries,
+            datavis: datavis,
+            bulkvis: bulkvis
+          }
+        }
+      })
+    } else {
+      io.writeFileYAML(args.output, { queries: queries, datavis: datavis, bulkvis: bulkvis })
+    }
+
+# ----------
+- name: Init
+  exec: |
+    global.readFileJSONStream = function(aFile, aValFunc) {
+      aValFunc = _$(aValFunc).isFunction().default(() => true)
+
+      var is = java.io.FileReader(aFile)
+      var jr = Packages.com.google.gson.stream.JsonReader(is)
+      
+      try {
+          var pending = 0, nam, res = {}, tmp = []
+
+          do {
+              var val = __, hasVal = false, path = String(jr.getPath())
+              var next = String(jr.peek().toString())
+
+              switch(next) {
+              case "BEGIN_OBJECT": jr.beginObject(); pending++; break
+              case "BEGIN_ARRAY" : jr.beginArray();  pending++; break
+              case "END_OBJECT"  : jr.endObject();   pending--; break
+              case "END_ARRAY"   : jr.endArray();    pending--; break
+              case "STRING"      : hasVal = true; val = String(jr.nextString())   ; break
+              case "BOOLEAN"     : hasVal = true; val = Boolean(jr.nextBoolean()) ; break
+              case "DOUBLE"      : hasVal = true; val = Number(jr.nextDouble())   ; break
+              case "NUMBER"      : hasVal = true; val = Number(jr.nextDouble())   ; break
+              case "INT"         : hasVal = true; val = Number(jr.nextInt())      ; break
+              case "LONG"        : hasVal = true; val = Number(jr.nextLong())     ; break
+              case "NULL"        : hasVal = true; val = jr.nextNull()             ; break
+              case "NAME"        : nam = String(jr.nextName()); break
+              case "END_DOCUMENT": pending = 0; break
+              default            : if (!jr.hasNext()) pending = 0
+              }
+          
+              if (hasVal && aValFunc(path) > 0) {
+                  tmp.push({ k: path, v: val })
+              }
+          } while(pending > 0)
+      } catch(e) {
+          throw e
+      } finally {
+          jr.close()
+          is.close()
+      }
+
+      tmp.forEach(r => $$(res).set(r.k.substring(2), r.v))
+      
+      return res
+    }
+    
