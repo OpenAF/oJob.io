@@ -1,0 +1,24 @@
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+- name: Show grid
+  exec: |
+    ow.loadFormat()
+    var results = []
+    global.fn = () => global.args.init.elems.map(l => l.map((c,i) => {
+      var rr = clone(c)
+      var r = $tb(() => {
+                try { rr.obj = af.eval(rr.obj) } catch(e) { rr.obj = e }
+              })
+              .timeout(args.init.interval)
+              .exec()
+      if (r != "timeout") results[i] = rr
+      return results[i]
+    }))
+    cls()
+    watch(args.init.interval, 'ow.format.string.grid(global.fn(), __, __, " ", false)', false, false)
+    cls()

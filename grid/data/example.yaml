@@ -1,0 +1,31 @@
+init:
+  interval: 1000
+  elems:
+  - - title: Cell 1x1
+      type : string
+      yspan: 2
+      obj  : |
+        "This is the first cell spanning through 2 rows"
+    - title: Cell 1x2
+      type : map
+      obj  : |
+        ({ currentTime: new Date(), text: "This is the second cell on the second column on a map" } )
+  - - title: Cell 2x1
+      type : map
+      #obj  : This shouldn't be shown and can be commented
+    - title: Cell 2x2
+      type : table
+      obj: |
+        ([ { line: 1, text: "This is the third cell" }, { line: 2, text: "on the second column on an array"} ])
+
+todo:
+- Show grid
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false
+
+jobsInclude:
+- https://ojob.io/grid/show

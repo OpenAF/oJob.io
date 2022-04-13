@@ -1,4 +1,20 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Generates a basic ojob, for customization, to display a grid given an interval to be interrupted by hitting 'q'.
+  expects: 
+  - name     : grid
+    desc     : A string with [X]x[Y] (e.g. 4x2) to generate the appropriate place holders for each grid cell (defaults to 2x2) 
+    example  : 2x2
+    mandatory: false
+  - name     : data
+    desc     : Uses a pre-built grid json/yaml file or URL
+    example  : https://ojob.io/grid/data/example
+    mandatory: false
+  - name     : offline
+    desc     : If offline=true the generated ojob will include all dependencies (defaults to false)
+    example  : true
+    mandatory: false
+
 init:
   j:
     init:
@@ -17,61 +33,95 @@ init:
     - Show grid
 
     ojob:
+      opacks      :
+      - openaf: 20211229
+      catch       : logErr(exception)
       logToConsole: false
+  
+    jobsInclude:
+    - show.yaml
 
     jobs:
     - name: Init
       exec: |
         ;
-    - name: Show grid
-      exec: |
-        ow.loadFormat();
-        global.fn = () => global.args.init.elems.map(l => l.map(c => {
-            var rr = clone(c);
-            rr.obj = af.eval(rr.obj);
-            return rr;
-        }));
-        cls();
-        watch(args.init.interval, 'ow.format.string.grid(global.fn(), void 0, void 0, " ", false)', false, false);
-        cls();
 
 todo:
 - Generate grid ojob
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20211229
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Generates a basic ojob, for customization, to display a grid given an interval to be interrupted by hitting 'q'.
-    expects: 
-    - name: grid
-      desc: A string with [X]x[Y] (e.g. 4x2) to generate the appropriate place holders for each grid cell (defaults to 2x2) 
-
-# ------------------------
-- name: Generate grid ojob
-  exec: |
-    args.grid = _$(args.grid, "grid").default("2x2");
-    
-    var ar = args.grid.split("x");
-    var x = Number(ar[0]);
-    var y = Number(ar[1]);
+# -------------------------
+- name : Generate grid ojob
+  check:
+    in:
+      grid   : isString.default("2x2")
+      offline: toBoolean.isBoolean.default(false)
+      data   : isString.default(__)
+  exec : |
+    var ar = args.grid.split("x")
+    var x = Number(ar[0])
+    var y = Number(ar[1])
   
-    for(var ix = 0; ix < x; ix++) {
-      for(var iy = 0; iy < y; iy++) {
-        if (!(ix == 0 && iy == 0)) {
-          if (isUnDef(args.init.j.init.elems[ix])) args.init.j.init.elems[ix] = [];
-          args.init.j.init.elems[ix][iy] = clone(args.init.j.init.elems[0][0]);
-          args.init.j.init.elems[ix][iy].title = "Cell " + String(ix + 1) + "x" + String(iy + 1);
+    var data = args.init.j
+    if (isDef(args.data)) {
+      var _d
+      if (args.data.startsWith("https://") || args.data.startsWith("http://")) {
+        _d = $rest().get(args.data) 
+      } else {
+        if (args.data.match(/\.ya?ml$/)) {
+          _d = io.readFileYAML(args.data)
+        } else {
+          _d = io.readFileJSON(args.data)
+        }
+      }
+
+      if (!isMap(_d) && !isMap(_d.init) && !isArray(_d.init.elems)) {
+        throw "No valid data found at '" + args.data + "'"
+      } else {
+        data.init = clone(_d.init)
+        delete _d.init
+
+        data = merge(data, _d)
+
+        data.todo        = uniqArray(data.todo)
+        data.jobsInclude = uniqArray(data.jobsInclude)
+        data.jobs        = uniqArray(data.jobs)
+      }
+    } else {
+      for(var ix = 0; ix < x; ix++) {
+        for(var iy = 0; iy < y; iy++) {
+          if (!(ix == 0 && iy == 0)) {
+            if (isUnDef(data.init.elems[ix])) data.init.elems[ix] = []
+            data.init.elems[ix][iy] = clone(data.init.elems[0][0])
+            data.init.elems[ix][iy].title = "Cell " + String(ix + 1) + "x" + String(iy + 1)
+          }
         }
       }
     }
 
-    if (isUnDef(args.__format)) args.__format = "yaml"; 
-    ow.oJob.output(args.init.j, args);
+    if (isUnDef(args.__format)) args.__format = "yaml"
+
+    if (args.offline) {
+      data.jobsInclude.forEach(inc => {
+        var extInc
+        if (inc.startsWith("https://") || inc.startsWith("http://")) {
+          extInc = $rest().get(inc) 
+        } else {
+          if (inc.match(/\.ya?ml$/)) {
+            extInc = io.readFileYAML(inc)
+          } else {
+            extInc = io.readFileJSON(inc)
+          }
+        }
+        if (isArray(extInc.jobs)) data.jobs = data.jobs.concat(extInc.jobs)
+      })
+      delete data.jobsInclude
+    }
+
+    ow.oJob.output(data, args)
