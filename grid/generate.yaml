@@ -39,7 +39,7 @@ init:
       logToConsole: false
   
     jobsInclude:
-    - show.yaml
+    - https://ojob.io/grid/show
 
     jobs:
     - name: Init

@@ -1,0 +1,50 @@
+init:
+  interval: 1000
+  elems:
+  - - title: Memory
+      obj: |
+        $cache("data").get().mem
+    - title: CPU
+      obj: |
+        $cache("data").get().cpu
+    - title: Threads
+      type : map
+      obj  : |
+        (() => {
+          var o = $cache("data").get().threads
+          delete o.list
+          return o
+        })()
+
+todo:
+- Init
+- Show grid
+
+help:
+  text   : Shows basic OpenAF metrics in a grid
+  expects:
+  - name     : url
+    desc     : The OpenAF /metrics URL in JSON
+    example  : http://something:1234/metrics
+    mandatory: true
+
+ojob:
+  opacks:
+  - openaf: 20211229
+  catch: logErr(exception)
+  logToConsole: false
+
+jobsInclude:
+- https://ojob.io/grid/show
+
+jobs:
+- name: Init
+  check:
+    in:
+      url     : isString
+      vertical: toBoolean.isBoolean.default(false)
+  exec: |
+    $cache("data")
+    .ttl(args.init.interval)
+    .fn(() => $rest().get(args.url))
+    .create()
