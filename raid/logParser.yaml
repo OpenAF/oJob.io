@@ -1,0 +1,95 @@
+# Author: Nuno Aguiar
+help:
+  text   : Reads a ndjson logs file and converts it to readable human logs
+  expects:
+  - name     : file
+    desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
+    example  : logs_12345.ndjson.gz
+    mandatory: true
+  - name     : filter
+    desc     : "Comma separated pairs of field value filters (for example: \"field1:abc,field2:xyz\")"
+    example  : field1:abc,field2:xyz
+    mandatory: false
+  - name     : type
+    desc     : "If you want to specify any longer not included by default (for example: AuditLogger)"
+    example  : AuditLogger
+    mandatory: false
+
+init:
+  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{activityDescr}}, {{result}}, {{errorCode}}, {{failureDescr}}, {{operationTime}} {{stack_trace}}"
+  templateRegular: "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{{message}}} {{{stack_trace}}}"
+  templateDefault: "{{_time}} | {{level }} | {{{message}}}"
+
+todo:
+- Read ndjson log file
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20211229
+  catch       : |
+    printErr("ERROR: " + exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------------------
+- name : Read ndjson log file
+  check:
+    in:
+      file  : isString
+      filter: isString.default("")
+      type  : isString.default(__)
+  exec : |
+    var is
+    ow.loadTemplate()
+    ow.template.addFormatHelpers()
+    ow.template.addOpenAFHelpers()
+    ow.template.addConditionalHelpers()
+
+    if (args.file.endsWith(".ndjson"))    is = io.readFileStream(args.file)
+    if (args.file.endsWith(".ndjson.gz")) is = io.readFileGzipStream(args.file)
+
+    if (isUnDef(is)) throw "Can't recognize file '" + args.file + "' as a ndjson or ndjson.gz"
+
+    // Compile templates
+    var tmplAudit   = ow.template.execCompiled(ow.template.compile(args.init.templateAudit))
+    var tmplRegular = ow.template.execCompiled(ow.template.compile(args.init.templateRegular))
+    var tmplDefault = ow.template.execCompiled(ow.template.compile(args.init.templateDefault))
+
+    ioStreamReadLines(is, line => {
+      var data, go = true
+      try { data = jsonParse(line, true) } catch(e) { sprintErr(e) }
+      if (isDef(args.filter)) {
+        args.filter.split(",").forEach(f => {
+          var ar = f.split(":")
+          if (String(data[ar[0]]) != String(ar[1])) go = false
+        })
+      }
+
+      if (isUnDef(args.type) && data.logger_name == "AuditLogger") go = false
+
+      if (go) {
+        switch(data.logger_name) {
+        case "AuditLogger":
+          data._time = ow.format.fromDate(new Date(data.parse_timestamp), "yyyy-MM-dd HH:mm:ss,SSS")
+          data.thread_name = data.thread_name.substr(-20)
+          print(tmplAudit(data))
+          break;
+        default           :
+          try {
+            if (isUnDef(data.code)) {
+              data._time = ow.format.fromDate(new Date(data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS")
+              print(tmplDefault(data))
+            } else {
+              data._time = ow.format.fromDate(new Date(data.parse_timestamp), "yyyy-MM-dd HH:mm:ss,SSS")
+              data.thread_name = data.thread_name.substr(-20)
+              print(tmplRegular(data))
+            }
+          } catch(e) {
+            printErr("ERROR | " + e + " | record = " + af.toSLON(data))
+          }
+        }
+      }
+    }, "\n")
+
+    is.close()
