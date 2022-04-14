@@ -1,0 +1,54 @@
+# Author: Nuno Aguiar
+help: &HELP
+  text   : |
+    Download and install K3D (Rancher's K3S for Docker) in a Linux system
+  # expects: 
+  # - name     : ""
+  #   desc     : ""
+  #   example  : ""
+  #   mandatory: false
+
+todo:
+- Check for docker
+- Install Rancher K3D
+- Next instructions
+
+ojob:
+  opacks      :
+  - openaf: 20210515
+  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/docker/_common.yaml 
+
+jobs:
+# -------------------------
+- name: Install Rancher K3D
+  exec: |
+    log("Downloading K3D install script...")
+    var tmp = io.createTempFile("install.", ".sh")
+    $rest().get2File(tmp, "https://raw.githubusercontent.com/rancher/k3d/main/install.sh")
+    
+    var cmd = []
+    if (io.fileExists("/usr/bin/sudo")) {
+      cmd.push("sudo")
+    }
+
+    if (!io.fileExists("/bin/bash")) throw "Bash is necessary ot install"
+
+    cmd.push("/bin/bash")
+    cmd.push(tmp)
+
+    $sh(cmd)
+    .prefix("k3d")
+    .get()
+
+# -----------------------
+- name: Next instructions
+  exec: |
+    print("To create a new cluster         : 'sudo k3d cluster create newcluster'")
+    print("To configure kubectl            : 'sudo k3d kubeconfig merge newcluster -d'")
+    print("")
+    print("To delete a cluster             : 'sudo k3d cluster delete newcluster'")
+    print("To uninstall: k3s-uninstall.sh")
