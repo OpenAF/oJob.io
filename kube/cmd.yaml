@@ -1,0 +1,108 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a shell script to execute a command as a job in K8S
+  expects: 
+  - name     : image
+    desc     : The container image to use (defaults to ojobrt)
+    example  : openaf/ojobrt:nightly
+    mandatory: false
+  - name     : prefix
+    desc     : The K8S job name prefix (defaults to ojob-cmd)
+    example  : ojob-cmd
+    mandatory: false
+  - name     : ns
+    desc     : The K8S namespace to use
+    example  : default
+    mandatory: false
+  - name     : cmd
+    desc     : The container image command, separated by commas, to execute (defaults to /openaf/ojob,/config/main.yaml)
+    example  : /openaf/ojob,/config/main.yaml
+    mandatory: false
+  - name     : envs
+    desc     : The environment variables separated by commas (e.g. ABC:123,XYZ=oOo)
+    example  : ABC:123,XYZ=oOo
+    mandatory: false
+  - name     : vmounts
+    desc     : The K8S volume mounts separated by semi-colons with each map entries separated by commas (e.g. name:secret,mountPath:/secrets;name:config,mountPath:/ojob)
+    example  : name:secret,mountPath:/secrets;name:config,mountPath:/ojob
+    mandatory: false
+  - name     : volumes
+    desc     : The K8S volumes separated by semi-colons with each map entries separated by commas (e.g. name:secret,secret.secretName:nattrmon;name:config,configMap.name:my-config)
+    example  : name:secret,secret.secretName:nattrmon;name:config,configMap.name:my-config
+    mandatory: false
+
+init:
+  script: |
+    #!/bin/sh
+
+    IMAGE="{{IMAGE}}"
+    NAME={{PREFIX}}-`date +%s`
+
+    # vmounts=name:secret,mountPath:/secrets;name:config,mountPath:/ojob
+    K8S_VMOUNTS="{{{VMOUNTS}}}"
+    # volumes=name:secret,secret.secretName:nattrmon;name:config,configMap.name:my-config
+    K8S_VOLUMES="{{{VOLUMES}}}"
+
+    # command=/openaf/ojob
+    COMMAND="{{{CMD}}}\","
+    for var in "$@"
+    do
+      COMMAND="$COMMAND\"$var\"",
+    done
+    COMMAND=$(echo $COMMAND | sed "s/,$//")
+    COMMAND="$COMMAND]"
+
+    # envs=name:ABC,value:123\;name:XYZ,value:oOo
+    ENV="{{{ENVS}}}"
+
+    JSON="{\"apiVersion\":\"v1\",\"spec\":{\"containers\":[{\"name\":\"$NAME\",\"image\":\"$IMAGE\",\"command\":$COMMAND,\"env\":$ENV,\"volumeMounts\":$K8S_VMOUNTS}],\"volumes\":$K8S_VOLUMES}}"
+    kubectl run -q {{#if NAMESPACE}}-n {{NAMESPACE}}{{/if}} $NAME --rm -ti --image $IMAGE --overrides="$JSON"
+
+todo:
+- Prepare script
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ---------------------
+- name : Prepare script
+  check:
+    in:
+      image  : isString.default("openaf/ojobrt:nightly")
+      prefix : isString.default("ojob-cmd")
+      cmd    : isString.default("/openaf/ojob,/ojob/main.yaml")
+      envs   : isString.default("")
+      vmounts: isString.default("")
+      volumes: isString.default("")
+      ns     : isString.default(__)
+  exec : |
+    var buildMap = (s, onlyOne) => {
+      var arr = []
+      splitBySeparator(s, ";").forEach(elem => {
+        var m = {}
+        splitBySeparator(elem, ",").forEach(pair => {
+          var ar = splitBySeparator(pair, ":")
+          if (isArray(ar) && ar.length == 2) $$(m).set(ar[0], ar[1])
+        })
+        if (Object.keys(m).length > 0) arr.push(m)
+      })
+      if (onlyOne && arr.length == 1) arr = arr[0]
+      return arr
+    }
+    var data = {
+      IMAGE : args.image,
+      PREFIX: args.prefix,
+    }
+
+    data.CMD       = stringify( splitBySeparator(args.cmd, ","), __, "" ).replace(/\"/g, "\\\"").replace(/\\"\]$/, "")
+    data.ENVS      = stringify( buildMap(args.envs, true), __, "" ).replace(/\"/g, "\\\"")
+    data.VMOUNTS   = stringify( buildMap(args.vmounts), __, "" ).replace(/\"/g, "\\\"")
+    data.VOLUMES   = stringify( buildMap(args.volumes), __, "" ).replace(/\"/g, "\\\"")
+    data.NAMESPACE = args.ns
+
+    tprint(args.init.script, data)
