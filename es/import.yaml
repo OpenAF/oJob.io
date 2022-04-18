@@ -1,0 +1,92 @@
+# Author: Nuno Aguiar
+help:
+  text   : Import a ndjson file into an ElasticSearch/OpenSearch instance index
+  expects: 
+  - name     : url
+    desc     : The ElasticSearch/OpenSearch instance URL
+    example  : http://some.url:12345
+    mandatory: true
+  - name     : file
+    desc     : The ndjson file to load data from
+    example  : import.ndjson.gz
+    mandatory: false    
+  - name     : user
+    desc     : The user credential, if necessary, to access the cluster
+    example  : user
+    mandatory: false
+  - name     : pass
+    desc     : The password credential, if necessary, to access the cluster
+    example  : mypass
+    mandatory: false
+  - name     : index
+    desc     : The index where to import data
+    example  : "myindex"
+    mandatory: true
+
+todo:
+- Connect to ES
+- Import
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  - ElasticSearch
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - elasticsearch.js
+        
+
+jobs:
+# --------------------
+- name : Connect to ES
+  check:
+    in:
+      url : isString
+      user: isString.default(__)
+      pass: isString.default(__)
+  exec : |
+    args.url = args.url.replace(/\/+$/, "")
+    global.es = new ElasticSearch(args.url, args.user, args.pass)
+
+# -------------
+- name : Import
+  check:
+    in:
+      file : isString
+      index: isString
+  exec : |
+    var is
+
+    ow.loadFormat()
+    if (args.file.endsWith(".ndjson.gz")) {
+      is = io.readFileGzipStream(args.file)
+    } else {
+      is = io.readFileStream(args.file)
+    }
+    tlog("{{index}} | Preparing to import from '{{file}}'...", args)
+    var cRec = $atomic(0, "long")
+    var lFn = aM => {
+      switch(aM.op) {
+      case "start": tlog("{{index}} | Sending " + ow.format.toBytesAbbreviation(aM.size) + " of data...", args); break;
+      case "done" : 
+        cRec.getAdd(aM.result.items.length)
+        tlog("{{index}} | Imported #" + aM.result.items.length + " with no errors...", args)
+        break
+      case "error": 
+        var _c = 0
+        var _m = jsonParse(aM.response.response)
+        tlogWarn("{{index}} | Imported #" + _m.items.length + " with errors...", args)
+        $from(_m.items)
+        .notEmpty("index.error")
+        .select(r => {
+          tlogErr("{{index}} | " + af.toSLON(r.index.error), args)
+          _c++
+        })
+        cRec.getAdd(_m.items.length - _c)
+        break
+      }
+    }
+    global.es.importStream2Index(args.index, is, { noType: true, logFunc: lFn })
+    tlog("{{index}} | Finishing trying to import #" + cRec.get() + " records.", args)
+    is.close()
