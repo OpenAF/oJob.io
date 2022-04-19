@@ -18,13 +18,29 @@ help:
     desc     : The password credential, if necessary, to access the cluster
     example  : mypass
     mandatory: false
-  - name     : filter
+  - name     : idx
     desc     : A regular expression filter for the indices to export (otherwise all will be exported)
     example  : "^myindex-"
     mandatory: false
   - name     : force
     desc     : If force=true it will not check if there is a previous ndjson file for each index
     example  : true
+    mandatory: false
+  - name     : filter
+    desc     : "Comma separated pairs of field value filters (for example: \"field1:abc,field2:xyz\")"
+    example  : field1:abc,field2:xyz
+    mandatory: false
+  - name     : notfilter
+    desc     : "Comma separated pairs of field value not filters (for example: \"field1:abc,field2:xyz\")"
+    example  : field1:abc,field2:xyz
+    mandatory: false
+  - name     : from
+    desc     : Date greater-than or equal
+    example  : 2022-03-04T01:02:03
+    mandatory: false
+  - name     : to
+    desc     : Date lower-than or equal
+    example  : 2022-03-02T02:03:04
     mandatory: false
 
 todo:
@@ -59,7 +75,7 @@ jobs:
   check:
     in:
       output: isString.default("export")
-      filter: isString.default(__)
+      idx   : isString.default(__)
       force : toBoolean.isBoolean.default(false)
   exec : |
     log("Retrieving list of indexes...")
@@ -68,10 +84,28 @@ jobs:
     io.mkdir(args.output)
     if (!args.force) lst = lst.filter(r => !io.fileExists(args.output + "/" + r.index + ".ndjson.gz"))
 
-    if (isDef(args.filter)) lst = lst.match("index", args.filter)
+    if (isDef(args.idx)) lst = lst.match("index", args.idx)
 
     lst = lst.select()
     log("Found #" + lst.length + " indexes to export")
+
+    // Build query
+    var qry = []
+    if (isString(args.from) && isString(args.to)) ["(@timestamp: [\"" + args.from + "\" TO \"" + args.to + "\"])"]
+    if (isString(args.filter)) {
+      args.filter.split(",").forEach(f => {
+        var ar = f.split(":")
+        qry.push("(" + String(ar[0]) + ".keyword:\"" + String(ar[1]) + "\")")
+      })
+    }
+    if (isString(args.notfilter)) {
+      args.notfilter.split(",").forEach(f => {
+        var ar = f.split(":")
+        qry.push("(NOT " + String(ar[0]) + ".keyword:\"" + String(ar[1]) + "\")")
+      })
+    }
+
+    global.search = (qry.length > 0 ? ow.ch.utils.getElasticQuery(qry.join(" AND ")) : __)
 
     lst.forEach(r => each(merge(r, args)))
 
@@ -81,7 +115,9 @@ jobs:
     try {
       tlog("{{index}} | Exporting...", args)
       io.rm(args.index + ".ndjson")
-      es.exportIndex2File(args.index, args.output + "/" + args.index + ".ndjson")
+      es.exportIndex2File(args.index, args.output + "/" + args.index + ".ndjson", {
+        search: global.search
+      })
       tlog("{{index}} | Compressing...", args)
       var stream = io.writeFileGzipStream(args.output + "/" + args.index + ".ndjson.gz")
       ioStreamCopy(stream, io.readFileStream(args.output + "/" + args.index + ".ndjson"))
