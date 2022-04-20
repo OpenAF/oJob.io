@@ -1,0 +1,151 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a host and a port will try to verify if the TLS certificate is already trusted or not. If not, it will retrieve the corresponding TLS certificate and add it to the current Java jssecacerts. If there isn't permissions to change the current Java jssecacerts it will create the jssecacerts files in the current folder.
+  expects: 
+  - name     : host
+    desc     : The host or IP address from which to retrieve the TLS certificates
+    example  : a.sample.host
+    mandatory: true
+  - name     : port
+    desc     : The port of the host/IP address from which to retrieve the TLS certificates
+    example  : 443
+    mandatory: true
+  - name     : add
+    desc     : The number (starting in 0) of the certificate sent by the host to add to the jssecacerts
+    example  : 0
+    mandatory: false
+
+todo:
+- name: Checking for certificates
+- name: Adding certificate
+  when: add
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+  log         :
+    async: false
+        
+
+jobs:
+# --------------------------------
+- name : Checking for certificates
+  check:
+    in:
+      host: isString
+      port: toNumber.isNumber
+      pass: isString.default("changeit")
+  exec : |
+    ow.loadFormat()
+
+    // Find java certs
+    var fcerts = "jssecacerts"
+    if (!io.fileExists(fcerts)) {
+      var _f = ow.format.getJavaHome() + "/lib/security"
+      if (io.fileExists(_f + "/" + fcerts)) {
+        fcerts = _f + "/" + fcerts
+      } else {
+        fcerts = _f + "/cacerts"
+      }
+    }
+
+    log("Loading KeyStore " + fcerts + "...")
+    var is = io.readFileStream(fcerts)
+    global.ks = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+    global.ks.load(is, (new java.lang.String(args.pass)).toCharArray())
+    is.close()
+
+    var context = javax.net.ssl.SSLContext.getInstance("TLS")
+    var tmf = javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
+    tmf.init(global.ks)
+
+    var defaultTrustManager = tmf.getTrustManagers()[0]
+
+    var tm = new JavaAdapter(javax.net.ssl.X509TrustManager, {
+      getAcceptedIssuers: function() {
+        return [ new JavaAdapter(java.security.cert.X509Certificate, {}) ]
+      },
+      checkClientTrusted: function(chain, authType) {
+        throw new javax.net.ssl.UnsupportedOperationException()
+      },
+      checkServerTrusted: function(chain, authType) {
+        this.chain = chain
+        defaultTrustManager.checkServerTrusted(chain, authType)
+      }
+    })
+    context.init(null, [ tm ], null)
+    var factory = context.getSocketFactory()
+
+    tlog("Opening connection to {{host}}:{{port}}...", args)
+    var socket = factory.createSocket(args.host, args.port)
+    socket.setSoTimeout(10000)
+
+    try {
+      log("Starting SSL handshake...")
+      socket.startHandshake()
+      socket.close()
+      log("Certificate is already trusted.")
+      return
+    } catch(e) {
+      logWarn("Certificate seems not to be trusted yet...")
+    }
+
+    global.chain = tm.chain
+    if (global.chain == null) {
+      logErr("Could not obtain server certificate chain")
+      return
+    }
+
+    log("Server sent " + global.chain.length + " certificate(s):")
+    var sha1 = java.security.MessageDigest.getInstance("SHA1")
+    var md5  = java.security.MessageDigest.getInstance("MD5")
+
+    ow.oJob.output(global.chain.map(cert => {
+      var mcert = {
+        subject  : String(cert.getSubjectDN()),
+        issuer   : String(cert.getIssuerDN()),
+        notBefore: new Date( cert.getNotBefore().toGMTString() ),
+        notAfter : new Date( cert.getNotAfter().toGMTString() )
+      }
+      if (!isNull(cert.getSubjectAlternativeNames())) mcert.alternatives = af.fromJavaArray( cert.getSubjectAlternativeNames().toArray() ).map(af.fromJavaArray).map(r=>r[1]).join(", ")
+
+      return mcert
+    }))
+
+    if (isNumber(args.add)) {
+      ow.oJob.setState("add")
+    } else {
+      log("To add one of the certificates re-run the same command adding ' add=0' to the end (or replace 0 with the number of another certificate to add)")
+      log("Example: '" + getOpenAFPath() + "ojob " + __expr + " add=0'")
+    }
+
+
+# -------------------------
+- name : Adding certificate
+  check:
+    in:
+      host: isString
+      port: toNumber.isNumber
+      pass: isString.default("changeit")
+      add : toNumber.isNumber
+  exec : |
+    var cert  = global.chain[args.add]
+    var alias = args.host + "-" + args.port + "-" + (args.add)
+    global.ks.setCertificateEntry(alias, cert)
+
+    var javaTarget = ow.format.getJavaHome() + "/lib/security/jssecacerts"
+    try {
+      var os = io.writeFileStream(javaTarget)
+      global.ks.store(os, (new java.lang.String(args.pass)).toCharArray())
+      os.close()
+    } catch(e) {
+      logWarn("No permissions to create/update " + javaTarget + ". Creating on the current folder.")
+      javaTarget = "jssecacerts"
+      var os = io.writeFileStream(javaTarget)
+      global.ks.store(os, (new java.lang.String(args.pass)).toCharArray())
+      os.close()
+    }
+
+    tlog("Added certificate from {{host}}:{{port}} to keystore '" + io.fileInfo(javaTarget).canonicalPath + "' using alias '" + alias + "'", args)
