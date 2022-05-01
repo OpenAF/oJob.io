@@ -9,6 +9,7 @@ help:
 
 init: 
   code: |
+    ow.loadCh()
     // {{name}} implementation
     //
     /**
