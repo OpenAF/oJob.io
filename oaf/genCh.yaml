@@ -1,0 +1,105 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates OpenAF code to implement an OpenAF channel
+  expects: 
+  - name     : name
+    desc     : The name of the OpenAF channel type
+    example  : test
+    mandatory: false
+
+init: 
+  code: |
+    // {{name}} implementation
+    //
+    /**
+    * <odoc>
+    * <key>ow.ch.types.{{name}}</key>
+    * The {{name}} channel OpenAF implementation does something. The creation options are:\
+    * \
+    *    - aFirstParam  (Type1)  Some description 1.\
+    *    - aSecondParam (Type2)  Some description 2.\
+    * \
+    * </odoc>
+    */
+    ow.ch.__types.{{name}} = {
+        __channels: {},
+        create       : function(aName, shouldCompress, options) {
+          // this.__channels[aName] = options;
+          // TODO:
+        },
+        destroy      : function(aName) {
+          //delete this.__channels[aName];
+          // TODO:
+        },
+        size         : function(aName) {
+          // return this.getKeys(aName).length;
+          // TODO: 
+          return 0;
+        },
+        forEach      : function(aName, aFunction) {
+          // TODO: 
+        },
+        getAll       : function(aName, full) {
+          // TODO: 
+          return [];
+        },
+        getKeys      : function(aName, full) {
+          // TODO: 
+          return [];
+        },
+        getSortedKeys: function(aName, full) {
+          // TODO: 
+          return [];
+        },
+        getSet       : function getSet(aName, aMatch, aK, aV, aTimestamp)  {
+          // TODO: 
+          return {};
+        },
+        set          : function(aName, aK, aV, aTimestamp) {
+          // TODO: 
+          return {};
+        },
+        setAll       : function(aName, aKs, aVs, aTimestamp) {
+          // TODO: 
+          return {};
+        },
+        unsetAll     : function(aName, aKs, aVs, aTimestamp) {
+          // TODO: 
+          return {};
+        },
+        get          : function(aName, aK) {
+          // TODO: 
+          return {};
+        },
+        pop          : function(aName) {
+          // TODO: 
+          return {};
+        },
+        shift        : function(aName) {
+          // TODO: 
+          return {};
+        },
+        unset        : function(aName, aK, aTimestamp) {
+          // TODO: 
+          return {};
+        }
+    }
+
+todo:
+- Generate ch code
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : Generate ch code
+  check:
+    in:
+      name: isString.default("test")
+  exec : |
+    tprint(args.init.code, { name: args.name })
