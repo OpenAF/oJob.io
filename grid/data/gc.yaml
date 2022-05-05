@@ -1,0 +1,154 @@
+init:
+  interval: 1000
+  elems:
+  - - title: Java info
+      type : map
+      obj  : |
+        (() => {
+          var o = $cache("data").get()
+          return {
+            updated    : (new Date()).toISOString(),
+            cmd        : o.sun.rt.javaCommand,
+            started    : o.sun.rt.__createVmBeginDate.toISOString(),
+            timeAgo    : ow.format.timeago(o.sun.rt.__createVmBeginDate),
+            jvmName    : o.java.property.java.vm.name,
+            jvmVersion : o.java.property.java.vm.version,
+            jvmVendor  : o.java.property.java.vm.vendor,
+            gcCause    : o.sun.gc.cause,
+            gcLastCause: o.sun.gc.lastCause
+          }
+        })()
+    - title: GC generations
+      type : table
+      obj  : |
+        (() => {
+          var o = $cache("data").get().sun.gc.generation
+          var res = []
+          $from(o).select(gen => {
+            res.push({
+              gen  : gen.name,
+              used : gen.__totalUsed > 0 ? ow.format.toBytesAbbreviation(gen.__totalUsed) : gen.__totalUsed,
+              total: ow.format.toBytesAbbreviation(gen.capacity),
+              max  : ow.format.toBytesAbbreviation(gen.maxCapacity)
+            })
+          })
+          return res
+        })()
+  - - title: GC Collectors
+      type : table
+      obj  : |
+        (() => {
+          var o = $cache("data").get().sun.gc.collector
+          return o.map(r => ({
+            name : r.name,
+            count: r.invocations,
+            avgTime: ow.format.elapsedTime4ms(r.__avgExecTime, {abrev:true}),
+            lastTime: ow.format.elapsedTime4ms(r.__lastExecTime, {abrev:true}),
+            lastAgo : ow.format.timeago(r.__lastEntryDate)
+          }))
+        })()
+    - title: GC spaces
+      type : table
+      obj  : |
+        (() => {
+          var o = $cache("data").get().sun.gc.generation
+          var res = []
+          $from(o).select(gen => {
+            $from(gen.space).select(space => {
+              res.push({
+                gen  : gen.name,
+                space: space.name,
+                used : space.used > 0 ? ow.format.toBytesAbbreviation(space.used) : 0,
+                total: space.capacity > 0 ? ow.format.toBytesAbbreviation(space.capacity) : 0,
+                max  : space.maxCapacity > 0 ? ow.format.toBytesAbbreviation(space.maxCapacity) : 0
+              })
+            })
+          })
+          return res
+        })()
+  - - title: Threads
+      type : map
+      obj  : |
+        (() => {
+          var o = $cache("data").get().java.threads
+          return {
+             live: o.live,
+             started : o.started,
+             livePeak: o.livePeak,
+             daemon  : o.daemon
+          }
+        })()
+    - title: Memory
+      type : table
+      obj  : |
+        (() => {
+          var o = $cache("data").get().sun.gc
+          var r = { max: 0, total: 0, used: 0, free: 0 }
+          $from(o.generation).select(gen => {
+            $from(gen.space).select(space => {
+              r.max   = (r.max < Number(space.maxCapacity)) ? Number(space.maxCapacity) : r.max
+              r.used  = r.used + Number(space.used)
+              r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
+            })
+          })
+
+          return [ { item: "max",   value: ow.format.toBytesAbbreviation(r.max),            perc: "" }, 
+                   { item: "total", value: ow.format.toBytesAbbreviation(r.total),          perc: Math.floor((r.total/r.max)*100) + "%" }, 
+                   { item: "used",  value: ow.format.toBytesAbbreviation(r.used),           perc: Math.floor((r.used/r.total)*100) + "%" }, 
+                   { item: "free",  value: ow.format.toBytesAbbreviation(r.total - r.used), perc: Math.floor(100 - ((r.used/r.total)*100)) + "%" },
+                   { item: "meta max",   value: ow.format.toBytesAbbreviation(o.metaspace.maxCapacity),                 perc: "" },
+                   { item: "meta total", value: ow.format.toBytesAbbreviation(o.metaspace.capacity),                    perc: Math.floor((o.metaspace.capacity/o.metaspace.maxCapacity)*100) + "%" },
+                   { item: "meta used",  value: ow.format.toBytesAbbreviation(o.metaspace.used),                        perc: Math.floor((o.metaspace.used/o.metaspace.capacity)*100) + "%" },
+                   { item: "meta free",  value: ow.format.toBytesAbbreviation(o.metaspace.capacity - o.metaspace.used), perc: Math.floor(100 - ((o.metaspace.used/o.metaspace.capacity)*100)) + "%" }]
+        })()
+    - title: Memory chart
+      type : func
+      obj  : |
+        var o = $cache("data").get().sun.gc.generation;
+        var r = { max: 0, total: 0, used: 0, free: 0 };
+        $from(o).select(gen => {
+            $from(gen.space).select(space => {
+            r.max   = (r.max < Number(space.maxCapacity)) ? Number(space.maxCapacity) : r.max
+            r.used  = r.used + Number(space.used)
+            r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
+          })
+        })
+        return ow.format.string.chart("heap_used", r.used, my-2, 9)
+        
+todo:
+- Init
+- Show grid
+
+help:
+  text   : Shows basic Java GC information
+  expects:
+  - name     : pid
+    desc     : The PID of the Java process
+    example  : 12345
+    mandatory: true
+
+ojob:
+  opacks:
+  - openaf: 20220505
+  catch: logErr(exception)
+  logToConsole: false
+
+jobsInclude:
+- ../show.yaml
+
+jobs:
+- name : Init
+  check:
+    in:
+      pid: isNumber
+  exec : |
+    ow.loadJava()
+    ow.loadFormat()
+    var d = $from(ow.java.getLocalJavaPIDs()).equals("pid", args.pid)
+
+    if (d.none()) throw "Can't use pid " + args.pid
+
+    $cache("data")
+    .ttl(1000)
+    .fn(() => ow.java.parseHSPerf( d.at(0).path ) )
+    .create()
