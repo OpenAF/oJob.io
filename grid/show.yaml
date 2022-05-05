@@ -12,7 +12,7 @@ jobs:
     global.fn = () => global.args.init.elems.map(l => l.map((c,i) => {
       var rr = clone(c)
       var r = $tb(() => {
-                try { rr.obj = af.eval(rr.obj) } catch(e) { rr.obj = e }
+                if (rr.type != "func") try { rr.obj = af.eval(rr.obj) } catch(e) { rr.obj = e }
               })
               .timeout(args.init.interval)
               .exec()
