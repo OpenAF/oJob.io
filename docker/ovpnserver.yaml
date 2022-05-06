@@ -242,9 +242,11 @@ jobs:
     text: |
       #!/bin/sh
       docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
+      #oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}})))'
     winText: |
       @echo off
       docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
+      #oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}})))'
 
 # -----------------------------
 - name: Generate destroy script
