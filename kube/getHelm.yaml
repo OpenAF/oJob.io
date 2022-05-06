@@ -1,0 +1,77 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the HELM utility
+  expects: 
+  - name     : path
+    desc     : If provided instead of running the helm automated installation script it will try to download the helm binary to the provided path
+    example  : .
+    mandatory: false
+
+init:
+  url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
+todo:
+- Get HELM
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name : Get HELM binary
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    // Check OS and arch
+    var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
+    var arch = $sh("uname -m").get(0).stdout.trim()
+
+    if (arch.startsWith("armv5")) arch = "armv5"
+    if (arch.startsWith("armv6")) arch = "armv6"
+    if (arch.startsWith("armv7")) arch = "arm"
+    if (arch == "aarch64") arch = "arm64"
+    if (arch == "x86") arch = "386"
+    if (arch == "x86_64") arch = "amd64"
+    if (arch == "i686") arch = "386"
+    if (arch == "i386") arch = "386"
+
+    // Get the tgz
+    var rels = $rest().get("https://api.github.com/repos/helm/helm/releases")
+    var version = $from(rels).equals("draft", false).equals("prerelease", false).sort("-published_at").at(0).tag_name
+    var tmp = io.createTempFile("helm_", ".tgz")
+    var url = "https://get.helm.sh/helm-" + version + "-" + os + "-" + arch + ".tar.gz"
+    log("Downloading " + url + "...")
+    $rest().get2File(tmp, url)
+
+    var is = Packages.org.apache.commons.compress.archivers.tar.TarArchiveInputStream(io.readFileGzipStream(tmp))
+    var _e = is.getNextTarEntry()
+    while(_e != null && String(_e.getName()).replace(/^.+\//, "") != "helm") _e = is.getNextTarEntry()
+    if (_e != null) {
+      log("Writing " + args.path + "/helm...")
+      ioStreamCopy(io.writeFileStream(args.path + "/helm"), is)
+      $sh("chmod u+x " + args.path + "/helm").exec()
+    } else
+      throw("Can't find 'helm' utility in downloaded version")
+
+# ---------------
+- name : Get HELM
+  exec : |
+    if (isDef(args.path)) {
+      $job("Get HELM binary", args)
+    } else {
+      var tmp = io.createTempFile("helm_", ".sh")
+
+      // Get helm install script
+      $rest().get2File(tmp, args.init.url)
+      
+      // Determine if bash is available else fallback to sh
+      var shell = (io.fileExists("/bin/bash") ? "/bin/bash" : "/bin/sh")
+      $sh([shell, tmp])
+      .prefix("helm")
+      .get(0)
+    }
