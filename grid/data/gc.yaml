@@ -113,7 +113,7 @@ init:
             r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
           })
         })
-        return ow.format.string.chart("heap_used", r.used, my-2, 9)
+        return ow.format.string.chart("heap_used", r.used, my-1, mx-3)
         
 todo:
 - Init
