@@ -9,13 +9,13 @@ init:
           return {
             updated    : (new Date()).toISOString(),
             cmd        : o.sun.rt.javaCommand,
-            started    : o.sun.rt.__createVmBeginDate.toISOString(),
-            timeAgo    : ow.format.timeago(o.sun.rt.__createVmBeginDate),
+            started    : o.sun.rt.__createVmBeginDate.toISOString() + " (" + ow.format.timeago(o.sun.rt.__createVmBeginDate, true) + ")",
             jvmName    : o.java.property.java.vm.name,
             jvmVersion : o.java.property.java.vm.version,
             jvmVendor  : o.java.property.java.vm.vendor,
             gcCause    : o.sun.gc.cause,
-            gcLastCause: o.sun.gc.lastCause
+            gcLastCause: o.sun.gc.lastCause,
+            appTime    : ow.format.round(o.sun.rt.__percAppTime, 2)+"%"
           }
         })()
     - title: GC generations
@@ -39,13 +39,26 @@ init:
       obj  : |
         (() => {
           var o = $cache("data").get().sun.gc.collector
-          return o.map(r => ({
-            name : r.name,
-            count: r.invocations,
-            avgTime: ow.format.elapsedTime4ms(r.__avgExecTime, {abrev:true}),
-            lastTime: ow.format.elapsedTime4ms(r.__lastExecTime, {abrev:true}),
-            lastAgo : ow.format.timeago(r.__lastEntryDate)
-          }))
+          o.forEach(r => {
+            var _r = $ch("gcLoad").get({ n: r.name })
+            if (isUnDef(_r)) _r = { n: r.name, inv: [] }
+            _r.inv.push(r.invocations)
+            while(_r.inv.length > 15) { _r.inv.shift() }
+            $ch("gcLoad").set({ n: r.name }, _r)
+          })
+          return o.map(r => {
+            var gcLoad = $ch("gcLoad").get({ n: r.name })
+            return {
+              name : r.name,
+              count: r.invocations,
+              avg  : ow.format.elapsedTime4ms(r.__avgExecTime, {abrev:true}),
+              last : ow.format.elapsedTime4ms(r.__lastExecTime, {abrev:true}),
+              ago  : ow.format.timeago(r.__lastEntryDate, true),
+              c1      : (gcLoad.inv.length > 1) ? gcLoad.inv.reverse()[0] - Math.floor($from(gcLoad.inv.reverse()).limit(1).average()) : "",
+              c5      : (gcLoad.inv.length > 4) ? gcLoad.inv.reverse()[0] - Math.floor($from(gcLoad.inv.reverse()).limit(5).average()) : "",
+              c15     : (gcLoad.inv.length > 14) ? gcLoad.inv.reverse()[0] - Math.floor($from(gcLoad.inv.reverse()).limit(15).average()) : ""
+            }
+          })
         })()
     - title: GC spaces
       type : table
@@ -152,3 +165,5 @@ jobs:
     .ttl(1000)
     .fn(() => ow.java.parseHSPerf( d.at(0).path ) )
     .create()
+
+    $ch("gcLoad").create()
