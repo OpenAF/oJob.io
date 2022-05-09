@@ -1,0 +1,46 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts an existing MD file into a HTML file
+  expects: 
+  - name     : md
+    desc     : The MD file to convert
+    example  : README.md
+    mandatory: true
+  - name     : html
+    desc     : The HTML file to output
+    example  : README.html
+    mandatory: false
+  - name     : compact
+    desc     : If compact=true the html width will be compacted
+    example  : true
+    mandatory: false
+
+todo:
+- Convert
+
+ojob:
+  opacks      :
+  - openaf: 20220416
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# --------------
+- name : Convert
+  check:
+    in:
+      md     : isString
+      html   : isString.default(__)
+      compact: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadTemplate()
+
+    if (args.compact) __flags.MD_NOMAXWIDTH = false
+
+    var html = ow.template.html.genStaticVersion4MDFile(args.md)
+    if (isDef(args.html)) {
+      io.writeFileString(args.html, html)
+    } else {
+      print(html)
+    }
