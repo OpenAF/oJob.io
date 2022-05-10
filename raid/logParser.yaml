@@ -5,7 +5,7 @@ help:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
     example  : logs_12345.ndjson.gz
-    mandatory: true
+    mandatory: false
   - name     : filter
     desc     : "Comma separated pairs of field value filters (for example: \"field1:abc,field2:xyz\")"
     example  : field1:abc,field2:xyz
@@ -30,7 +30,7 @@ todo:
 ojob:
   sequential  : true
   opacks      :
-  - openaf: 20211229
+  - openaf: 20220510
   catch       : |
     printErr("ERROR: " + exception)
   logToConsole: false   # to change when finished
@@ -40,7 +40,7 @@ jobs:
 - name : Read ndjson log file
   check:
     in:
-      file     : isString
+      file     : isString.default(__)
       filter   : isString.default(__)
       notfilter: isString.default(__)
       type     : isString.default(__)
@@ -51,17 +51,19 @@ jobs:
     ow.template.addOpenAFHelpers()
     ow.template.addConditionalHelpers()
 
-    if (args.file.endsWith(".ndjson"))    is = io.readFileStream(args.file)
-    if (args.file.endsWith(".ndjson.gz")) is = io.readFileGzipStream(args.file)
+    if (isDef(args.file)) {
+      if (args.file.endsWith(".ndjson"))    is = io.readFileStream(args.file)
+      if (args.file.endsWith(".ndjson.gz")) is = io.readFileGzipStream(args.file)
 
-    if (isUnDef(is)) throw "Can't recognize file '" + args.file + "' as a ndjson or ndjson.gz"
+      if (isUnDef(is)) throw "Can't recognize file '" + args.file + "' as a ndjson or ndjson.gz"
+    }
 
     // Compile templates
     var tmplAudit   = ow.template.execCompiled(ow.template.compile(args.init.templateAudit))
     var tmplRegular = ow.template.execCompiled(ow.template.compile(args.init.templateRegular))
     var tmplDefault = ow.template.execCompiled(ow.template.compile(args.init.templateDefault))
 
-    ioStreamReadLines(is, line => {
+    global.parseLine = line => {
       var data, go = true
       try { data = jsonParse(line) } catch(e) { sprintErr(e) }
       if (isString(args.filter)) {
@@ -102,6 +104,11 @@ jobs:
           }
         }
       }
-    }, "\n")
+    }
 
-    is.close()
+    if (isDef(args.file)) {
+      ioStreamReadLines(is, global.parseLine, "\n")
+      is.close()
+    } else {
+      io.pipeLn(global.parseLine)
+    }
