@@ -85,17 +85,17 @@ jobs:
       if (go) {
         switch(data.logger_name) {
         case "AuditLogger":
-          data._time = ow.format.fromDate(new Date(data.parse_timestamp), "yyyy-MM-dd HH:mm:ss,SSS")
+          data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS")
           data.thread_name = data.thread_name.substr(-20)
           print(tmplAudit(data))
           break;
         default           :
           try {
             if (isUnDef(data.code)) {
-              data._time = ow.format.fromDate(new Date(data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS")
+              data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS")
               print(tmplDefault(data))
             } else {
-              data._time = ow.format.fromDate(new Date(data.parse_timestamp), "yyyy-MM-dd HH:mm:ss,SSS")
+              data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS")
               data.thread_name = data.thread_name.substr(-20)
               print(tmplRegular(data))
             }
