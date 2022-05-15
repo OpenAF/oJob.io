@@ -1,4 +1,11 @@
 # Author            : Nuno Aguiar
+help: &HELP
+  text   : | 
+    Launches a simple service to execute a job with the provided arguments where __ojob is the job to execute.
+    Example: 'curl -XPOST http://my.service:8787 -H "Content-Type: application/json" -d "{ \"__ojob\": \"ojob.io/hello/world\" }"'
+  expects:
+  - name: port
+    desc: The port on which to launch the service (defaults to 8787)
 
 init:
   # The port where the rest services will be available
@@ -31,13 +38,7 @@ todo:
 jobs:
 # ----------
 - name: Help
-  help:
-    text   : | 
-      Launches a simple service to execute a job with the provided arguments where __ojob is the job to execute.
-      Example: 'curl -XPOST http://my.service:8787 -H "Content-Type: application/json" -d "{ \"__ojob\": \"ojob.io/hello/world\" }"'
-    expects:
-    - name: port
-      desc: The port on which to launch the service (defaults to 8787)
+  help: *HELP
 
 # ---------------------
 - name: Prepare Healthz
@@ -67,7 +68,8 @@ jobs:
     execPUT   : "return { }"
     execDELETE: "return { }"
   exec: |
-    args.port = Number( _$(args.port, "port").default(global.args.init.port) );
+    if (isDef(args.PORT)) args.port = args.PORT
+    args.port = Number( _$(args.port, "port").default(global.args.init.port) )
 
 
 # ---------------------
