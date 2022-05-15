@@ -1,0 +1,221 @@
+# Author: Nuno Aguiar
+
+init:
+  regions:
+  - name: global
+    host: global.gcping.com
+    region: Global
+  - name: asia-east1
+    host: asia-east1-5tkroniexa-de.a.run.app
+    region: Taiwan
+  - name: asia-east2
+    host: asia-east2-5tkroniexa-df.a.run.app
+    region: Hong Kong
+  - name: asia-northeast1
+    host: asia-northeast1-5tkroniexa-an.a.run.app
+    region: Tokyo
+  - name: asia-northeast2
+    host: asia-northeast2-5tkroniexa-dt.a.run.app
+    region: Osaka
+  - name: asia-northeast3
+    host: asia-northeast3-5tkroniexa-du.a.run.app
+    region: Seoul
+  - name: asia-south1
+    host: asia-south1-5tkroniexa-el.a.run.app
+    region: Mumbai
+  - name: asia-south2
+    host: asia-south2-5tkroniexa-em.a.run.app
+    region: Delhi
+  - name: asia-southeast1
+    host: asia-southeast1-5tkroniexa-as.a.run.app
+    region: Singapore
+  - name: asia-southeast2
+    host: asia-southeast2-5tkroniexa-et.a.run.app
+    region: Jakarta
+  - name: australia-southeast1
+    host: australia-southeast1-5tkroniexa-ts.a.run.app
+    region: Sydney
+  - name: australia-southeast2
+    host: australia-southeast2-5tkroniexa-km.a.run.app
+    region: Melbourne
+  - name: europe-central2
+    host: europe-central2-5tkroniexa-lm.a.run.app
+    region: Warsaw
+  - name: europe-north1
+    host: europe-north1-5tkroniexa-lz.a.run.app
+    region: Finland
+  - name: europe-west1
+    host: europe-west1-5tkroniexa-ew.a.run.app
+    region: Belgium
+  - name: europe-west2
+    host: europe-west2-5tkroniexa-nw.a.run.app
+    region: London
+  - name: europe-west3
+    host: europe-west3-5tkroniexa-ey.a.run.app
+    region: Frankfurt
+  - name: europe-west4
+    host: europe-west4-5tkroniexa-ez.a.run.app
+    region: Netherlands
+  - name: europe-west6
+    host: europe-west6-5tkroniexa-oa.a.run.app
+    region: Zurich
+  - name: europe-west8
+    host: europe-west8-5tkroniexa-oc.a.run.app
+    region: Milan
+  - name: europe-southwest1
+    host: europe-southwest1-5tkroniexa-no.a.run.app
+    region: Madrid
+  - name: northamerica-northeast1
+    host: northamerica-northeast1-5tkroniexa-nn.a.run.app
+    region: Montréal
+  - name: northamerica-northeast2
+    host: northamerica-northeast2-5tkroniexa-pd.a.run.app
+    region: Toronto
+  - name: southamerica-east1
+    host: southamerica-east1-5tkroniexa-rj.a.run.app
+    region: São Paulo
+  - name: southamerica-west1
+    host: southamerica-west1-5tkroniexa-tl.a.run.app
+    region: Santiago
+  - name: us-central1
+    host: us-central1-5tkroniexa-uc.a.run.app
+    region: Iowa
+  - name: us-east1
+    host: us-east1-5tkroniexa-ue.a.run.app
+    region: South Carolina
+  - name: us-east4
+    host: us-east4-5tkroniexa-uk.a.run.app
+    region: North Virginia
+  - name: us-west1
+    host: us-west1-5tkroniexa-uw.a.run.app
+    region: Oregon
+  - name: us-west2
+    host: us-west2-5tkroniexa-wl.a.run.app
+    region: Los Angeles
+  - name: us-west3
+    host: us-west3-5tkroniexa-wm.a.run.app
+    region: Salt Lake City
+  - name: us-west4
+    host: us-west4-5tkroniexa-wn.a.run.app
+    region: Las Vegas
+
+todo:
+- Test regions
+- Display results
+
+ojob:
+  sequential  : true
+  catch       : logErr(exception)
+  logToConsole: false
+
+help: &HELP
+   text: Tests HTTPs latency to each of the known GCP regions from the point of execution.
+
+jobs:
+# ----------
+- name: Help
+  help: *HELP
+
+# ------------------
+- name: Test regions
+  exec: |
+    global.regions = args.init.regions
+
+    ow.loadFormat()
+    ow.loadObj()
+    ow.loadNet()
+
+    // Harming up, testing against it self.
+    function init() {
+       $ch("results").create();
+       var port = findRandomOpenPort();
+       $ch("results").expose(port);
+       ow.net.testLatency("127.0.0.1", port);
+       ow.net.testURLLatency("http://127.0.0.1:" + port);
+    }
+
+    printnl("Starting test...\r");
+    var maxSpace = 0;
+    for(var region in global.regions) {
+       var s = "Testing " + global.regions[region].region + "..."; 
+       if (s.length > maxSpace) 
+          maxSpace = s.length; 
+    }
+
+    var testGCPSocketLatency = region => ow.net.testPort(region.host, 443)
+    var testGCPHTTPSLatency  = region => ow.net.testURLLatency("https://" + region.host)
+
+    global.results = parallel4Array(global.regions, (region) => {
+       var result = { region: region.region, regionCode: region.name };
+
+       try {
+          printnl(repeat(maxSpace, ' ') + "\rTesting " + region.region + "...\r");
+
+          // Test socket latency
+          result.socketLatency = testGCPSocketLatency(region);
+          if (isUnDef(result.socketLatency)) result.reachable = false; else result.reachable = true;
+
+          if (result.reachable) {
+             // Test https latency
+             result.httpLatency = testGCPHTTPSLatency(region); 
+
+             var tries = 3, sumSocket = -1, sumHTTP = -1, minSocket = -1, minHTTP = -1, maxSocket = -1, maxHTTP = -1, cSocket = 0, cHTTP = 0;
+             for(var ii = 0; ii < tries; ii++) {
+                var s = testGCPSocketLatency(region);
+                var h = testGCPHTTPSLatency(region);
+                if (s >= 0) {
+                    sumSocket += s;
+                    cSocket++;
+                }
+                if (h >= 0) {
+                    sumHTTP += h;
+                    cHTTP++;
+                }
+
+                if (minSocket < 0 || minSocket > s) minSocket = s;
+                if (minHTTP < 0 || minHTTP > s) minHTTP = s;
+                if (maxSocket < 0 || maxSocket < s) maxSocket = s;
+                if (maxHTTP < 0 || maxHTTP < s) maxHTTP = s;
+             }
+
+             result.socketLatency3 = Math.round(sumSocket / cSocket);
+             result.httpLatency3 = Math.round(sumHTTP / cHTTP);
+             result.socketLatMax3 = maxSocket;
+             result.httpLatMax3 = maxHTTP;
+             result.socketLatMin3 = minSocket;
+             result.httpLatMin3 = minHTTP;
+          }
+       } catch(e) { 
+         sprintErr(e); 
+       } 
+
+       return result;
+    });
+
+# ---------------------
+- name: Display results
+  exec: |
+    var sortedResults = $from(global.results)
+                       .sort("httpLatency3", "reachable")
+                       .select((r) => {
+                          if (isDef(r.socketLatency))  r.socketLatency += "ms";
+                          if (isDef(r.httpLatency))    r.httpLatency   += "ms";
+                          if (isDef(r.socketLatency3)) r.socketLatency3 += "ms";
+                          if (isDef(r.httpLatency3))   r.httpLatency3   += "ms";
+
+                          if (isDef(r.socketLatMin3))  r.socketLatMin3   += "ms";
+                          if (isDef(r.socketLatMax3))  r.socketLatMax3   += "ms";
+
+                          if (isDef(r.httpLatMin3))  r.httpLatMin3   += "ms";
+                          if (isDef(r.httpLatMax3))  r.httpLatMax3   += "ms";
+
+                          return {
+                             Region         : r.region,
+                             "Region code"  : r.regionCode,
+                             "Reachable?"   : r.reachable,
+                             //"Socket avg #3": r.socketLatency3,
+                             "HTTPS avg #3" : r.httpLatency3
+                          };
+                       });
+    
+    ow.oJob.output(sortedResults, args, o => print(printTable(o, void 0, void 0, true, "utf")));

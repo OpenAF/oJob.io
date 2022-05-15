@@ -1,4 +1,11 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Get a recursive list of files 
+  expects: 
+  - name: path  
+    desc: The path from where to get the list (defaults to '.')
+  - name: filter
+    desc: Optional filter based on $path 
 
 todo:
 - List files
@@ -13,13 +20,7 @@ ojob:
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Get a recursive list of files 
-    expects: 
-    - name: path  
-      desc: The path from where to get the list (defaults to '.')
-    - name: filter
-      desc: Optional filter based on $path 
+  help: *HELP
 
 # ----------------
 - name: List files 
