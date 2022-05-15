@@ -1,0 +1,35 @@
+# Author: Nuno Aguiar
+help:
+  text   : Check a K8S yaml file (using datree.io)
+  expects: 
+  - name     : file
+    desc     : The YAML file to verify
+    example  : aYAMLfile.yaml
+    mandatory: true
+
+todo:
+- Check for docker
+- Check K8S YAML
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/docker/_common.yaml    
+
+jobs:
+# ---------------------
+- name : Check K8S YAML
+  check:
+    in:
+      file: isString
+  exec : |
+    var res = $sh()
+              .sh("docker run -i datree/datree test -", io.readFileString(args.file))
+              .prefix("check")
+              .get(0)
+
+    exit(res.exitcode)
