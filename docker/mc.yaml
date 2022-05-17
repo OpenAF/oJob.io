@@ -39,7 +39,7 @@ jobs:
        names.push("/volumes/" + n);
     });
 
-    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"apk update && apk add perl zip unzip mc && mc /volumes " + names[0] + "\").exec()"]);
+    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"sudo apk update && sudo apk add perl zip unzip mc && sudo mc /volumes " + names[0] + "\").exec()"]);
     $sh(cmds).exec();
 
     ow.oJob.output(args, args);
