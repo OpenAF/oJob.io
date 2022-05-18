@@ -1,0 +1,348 @@
+# Author: Nuno Aguiar
+help:
+  text   : Creates a docker-compose based CEPH mini cluster
+  expects:
+  - name     : cluster
+    desc     : Number of CEPH OSDs to use
+    example  : 1
+    mandatory: false
+  - name     : net
+    desc     : Docker 24-bits network to create (e.g. 192.168.0)
+    example  : 192.168.0
+    mandatory: false
+  - name     : tz
+    desc     : CEPH timezone to use
+    example  : UTC
+    mandatory: false
+  - name     : usequay
+    desc     : In alternative to public repos use the RedHat's quay repository (requires previous login and/or pull)
+    example  : true
+    mandatory: false
+  - name     : tag
+    desc     : Container image tag to use (e.g. latest)
+    example  : latest
+    mandatory: false
+  - name     : portDash
+    desc     : Port to use to expose the Ceph portal (e.g. 8443)
+    example  : "8443"
+    mandatory: false
+  - name     : portRgw
+    desc     : Port to use to rgw (e.g. 7480)
+    example  : "7480"
+    mandatory: false
+
+# Todo actions
+todo:
+- Detect docker-compose
+- Write docker-compose file
+- Start mon and mgr
+- Change generated ceph.conf
+- Restart mon and mgr
+- Start OSDs and rgw
+- Setup dashboard
+- Create rgw user
+
+# Initialization data
+init:
+  # docker compose template
+  dc: |
+    version: "3"
+
+    networks:
+      cluster-net:
+        driver: bridge
+        ipam  :
+          config:
+          - subnet: {{net}}.0/24
+            gateway: {{net}}.1
+
+    services:
+      mon1:
+        image: {{image}}:{{tag}}
+        command: "mon"
+        environment:
+          MON_IP: {{net}}.99
+          CEPH_PUBLIC_NETWORK: {{net}}.0/24
+          LANG: en_US.utf8
+          TZ: {{tz}}
+        volumes:
+        - cephEtc:/etc/ceph
+        - cephLib:/var/lib/ceph
+        networks:
+          cluster-net:
+            ipv4_address: {{net}}.99
+
+      mgr:
+        image: {{image}}:{{tag}}
+        command: "mgr"
+        environment:
+          LANG: en_US.utf8
+          TZ: {{tz}}
+        volumes:
+        - cephEtc:/etc/ceph
+        - cephLib:/var/lib/ceph
+        depends_on:
+        - mon1
+        networks:
+        - cluster-net
+        ports:
+        - {{portDash}}:8443
+
+      {{#each osds}}
+      {{name}}:
+        pid: host
+        privileged: true
+        image: {{../image}}:{{../tag}}
+        {{#if ../usequay}}
+        command: "osd_directory_single"
+        {{else}}
+        command: "osd_directory"
+        {{/if}}
+        environment:
+          LANG: en_US.utf8
+          TZ: {{../tz}}
+        volumes:
+        - cephEtc:/etc/ceph
+        - cephLib:/var/lib/ceph
+        {{#if ../usequay}}
+        {{else}}
+        - {{volume}}:/var/lib/ceph/osd
+        {{/if}}
+        depends_on:
+        - mon1
+        networks:
+        - cluster-net
+      {{/each}}
+
+      rgw1:
+        image: {{image}}:{{tag}}
+        command: "rgw"
+        environment:
+          LANG: en_US.utf8
+          TZ: {{tz}}
+        volumes:
+        - cephEtc:/etc/ceph
+        - cephLib:/var/lib/ceph
+        depends_on:
+        {{#each osds}}
+        - {{name}}
+        {{/each}}
+        networks:
+        - cluster-net
+        ports:
+        - {{portRgw}}:7480
+
+      mds1:
+        image: {{image}}:{{tag}}
+        command: "mds"
+        hostname: "ceph-mds1-host"
+        environment:
+          CEPHFS_CREATE: 1
+          LANG: en_US.utf8
+          TZ: {{tz}}
+        volumes:
+        - cephEtc:/etc/ceph
+        - cephLib:/var/lib/ceph
+        depends_on:
+        {{#each osds}}
+        - {{name}}
+        {{/each}}
+        networks:
+        - cluster-net
+
+    volumes:
+      cephEtc:
+      cephLib:
+      {{#if usequay}}
+      {{else}}
+      {{#each osds}}
+      {{volume}}:
+      {{/each}}
+      {{/if}}
+
+  # ceph configuration
+  cephConf: |
+    osd pool default min size = 1
+    max open files = 655350
+    cephx cluster require signatures = false
+    cephx service require signatures = false
+
+    osd max object name len = 256
+    osd max object namespace len = 64
+
+    auth_cluster_required = none
+    auth_service_required = none
+    auth_client_required = none
+  dcMON: docker-compose exec -T mon1
+  dcRGW: docker-compose exec -T rgw
+
+# ojob settings
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20220515
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+
+
+# jobs definitions
+jobs:
+# ----------------------------
+- name : Detect docker-compose
+  exec : |
+    var res = $sh("docker-compose").get(0)
+    if (res.exitcode != 0) throw "Can execute docker-compose!"
+
+# --------------------------------
+- name : Write docker-compose file
+  check:
+    in:
+      net     : isString.default("192.168.0")
+      tz      : isString.default("UTC")
+      cluster : toNumber.isNumber.default(1)
+      usequay : toBoolean.isBoolean.default(false)
+      tag     : isString.default("latest")
+      portDash: toNumber.isNumber().default(8443)
+      portRgw : toNumber.isNumber().default(7480)
+  exec : |
+    // Prepare template data
+    var data = {
+      image   : (args.usequay ? "quay.io/ceph/daemon" : "ceph/daemon"),
+      tag     : args.tag,
+      net     : args.net,
+      tz      : args.tz,
+      usequay : args.usequay,
+      portDash: args.portDash,
+      portRgw : args.portRgw,
+      osds : range(args.cluster).map(n => ({
+        name  : "osd" + n,
+        volume: "cephOSD" + n
+      }))
+    }
+
+    print("Writing new docker-compose.yml...")
+    io.writeFileString("docker-compose.yml", templify(args.init.dc, data))
+
+# ------------------------
+- name : Start mon and mgr
+  lang : shell
+  exec : |
+    #echo Cleaning unused docker volumes...
+    #docker volume prune -f
+    echo Starting up mon and mgr...
+    docker-compose up -d mon1 mgr
+
+# ---------------------------------
+- name : Change generated ceph.conf
+  exec : |
+    print("Changing existing ceph.conf...")
+    args.init.cephConf.split("\n")
+                      .map(r => "/bin/sh -c \"echo \\\"" + r + "\\\" >> /etc/ceph/ceph.conf\"")
+                      .forEach(c => $sh(args.init.dcMON + " " + c)
+                                    .exec(0) )
+
+    print("Changed ceph.conf:\n")
+    $sh(args.init.dcMON + " cat /etc/ceph/ceph.conf").exec(0)
+
+# --------------------------
+- name : Restart mon and mgr
+  lang : shell
+  exec : |
+    echo Restarting mon and mgr...
+    docker-compose restart mon1 mgr
+
+# -------------------------
+- name : Start OSDs and rgw
+  check:
+    in:
+      cluster: toNumber.isNumber.default(1)
+      usequay: toBoolean.isBoolean.default(false)
+  exec : |
+    print("Setting keyring for RGW...")
+    $sh(args.init.dcMON + " ceph auth get client.bootstrap-rgw -o /var/lib/ceph/bootstrap-rgw/ceph.keyring").exec()
+
+    var osds = ""
+    range(args.cluster).forEach(i => osds += " osd" + i)
+
+    print("Starting " + osds + "...")
+    if (args.usequay) {
+      range(args.cluster).forEach(r => {
+        print("Creating osd " + r + "...")
+        $sh(args.init.dcMON + " ceph osd create")
+        .sh(args.init.dcMON + " mkdir /var/lib/ceph/osd/ceph-" + (r-1))
+        .sh(args.init.dcMON + " ceph-osd -i " + (r-1) + " --mkfs --mkkey --osd-data /var/lib/ceph/osd/ceph-" + (r-1))
+        .exec()
+      })
+      print("Setting osd permissions...")
+      $sh(args.init.dcMON + " chown -R 167:167 /var/lib/ceph/osd/").exec()
+    }
+    $sh("docker-compose up -d " + osds).exec()
+    print("Starting rgw...")
+    $sh("docker-compose up -d rgw1").exec()
+
+    // Wait for rgw
+    printnl("Waiting for rgw1.")
+    var _log = ""
+    do {
+      printnl(".")
+      sleep(5000, true)
+      _log = $sh("docker-compose logs rgw1").get(0).stdout
+    } while(_log.indexOf("mgrc service_daemon_register") < 0)
+    print(" ready")
+
+# ----------------------
+- name : Setup dashboard
+  exec : |
+    print("Creating user 'admin' with password 'Password1' and starting dashboard...")
+    $sh(args.init.dcMON + " ceph mgr module enable dashboard")
+    .sh(args.init.dcMON + " ceph dashboard create-self-signed-cert")
+    .sh(args.init.dcMON + " ceph mgr module disable dashboard")
+    .sh(args.init.dcMON + " ceph mgr module enable dashboard")
+    .sh("echo Password1 | " + args.init.dcMON + " ceph dashboard ac-user-create admin -i - administrator")
+    .exec()
+
+    //.sh(args.init.dcRGW + " ceph dashboard set-rgw-credentials")
+    //.sh(args.init.dcMON + " ceph dashboard set-rgw-api-ssl-verify False")
+
+# ----------------------
+- name : Create rgw user
+  check:
+    in:
+      portDash: toNumber.isNumber().default(8443)
+      portRgw : toNumber.isNumber().default(7480)
+  exec : |
+    print("Creating rdw 'test' user with uid 1000 (this can take some time)...")
+    var res = $sh(args.init.dcMON + " radosgw-admin user create --uid=1000 --display-name=test --system")
+              .getJson(0)
+              .stdout
+
+    if (isUnDef(res)) {
+      throw "Wasn't able to create a radosgw user. Please run 'docker-compose down' and repeat. Error: " + stringify(res)
+    }
+
+    print("S3 access key: " + res.keys[0].access_key)
+    print("S3 secret key: " + res.keys[0].secret_key)
+    print("")
+    print("S3 access: http://127.0.0.1:" + args.portRgw)
+    print("")
+
+    print("Setting dashboard rgw credentials...")
+    $sh()
+    .sh("echo " + res.keys[0].access_key + " | " + args.init.dcMON + " ceph dashboard set-rgw-api-access-key -i -")
+    .sh("echo " + res.keys[0].secret_key + " | " + args.init.dcMON + " ceph dashboard set-rgw-api-secret-key -i -")
+    .exec()
+    print("Dashboard access: https://127.0.0.1:" + args.portDash + "\n")
+
+    print("To uninstall execute:\n")
+    print("  docker-compose down")
+    print("  docker volume prune -f")
+    print("")
+
+    ow.oJob.output({
+      access_key: res.keys[0].access_key,
+      secret_key: res.keys[0].secret_key,
+      port      : args.portRgw,
+      dashLogin : "admin",
+      dashPass  : "Password1",
+      dashPort  : args.portDash
+    }, args)
