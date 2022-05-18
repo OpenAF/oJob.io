@@ -1,4 +1,16 @@
 # Author: Nuno Aguiar
+help: &HELP
+  text   : Downloads docker-compose binary or pulls docker-compose docker image and generates an unix script to run it
+  expects: 
+  - name     : path
+    desc     : Path where the docker-compose script will be stored (default /usr/local/bin)
+    example  : /usr/local/bin
+    mandatory: false
+  - name     : container
+    desc     : If container=true will try to download the binary docker-compose
+    example  : true
+    mandatory: false 
+
 init:
   script: |
     #!/bin/sh
@@ -74,31 +86,77 @@ include:
 
 todo:
 - Check for docker
-- Pull docker-compose
+- Check options
+- name: Download docker-compose
+  when: download
+- name: Pull docker-compose
+  when: pull
 
 ojob:
   opacks      :
-  - openaf: 20200523
+  - openaf: 20211229
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
 jobs:
 # ----------
 - name: Help
-  help: 
-    text   : Pulls docker-compose docker image and generates an unix script to run it.
-    expects: 
-    - name   : path
-      desc   : Path where the docker-compose script will be stored (default /usr/local/bin)
-      example: /usr/local/bin
+  help: *HELP
 
-# -------------------------
-- name: Pull docker-compose
-  deps:
+- name : Check options
+  check:
+    in:
+      container: toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.container) ow.oJob.setState("pull"); else ow.oJob.setState("download")
+
+# -----------------------------
+- name : Download docker-compose
+  check:
+    in:
+       path: isString.default("/usr/local/bin")
+  exec : |
+    var res = $rest().get("https://api.github.com/repos/docker/compose/releases")
+    res = $from(res)
+          .equals("draft", false)
+          .equals("prerelease", false)
+          .sort("-published_at")
+
+    if (res.any()) {        
+        var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
+        var arch = $sh("uname -m").get(0).stdout.trim()
+        
+        if (arch.startsWith("armv6")) arch = "armv6"
+        if (arch.startsWith("armv7")) arch = "armv7"
+        if (arch == "aarch64") arch = "aarch64"
+        if (arch == "ppc64le") arch = "ppc64le"
+        if (arch == "s390x") arch = "s390x"
+        if (arch == "amd64") arch = "x86_64"
+
+        var tagName = res.at(0).tag_name
+        var url = "https://github.com/docker/compose/releases/download/" + tagName + "/docker-compose-" + os + "-" + arch + (os == "windows" ? ".exe" : "")
+        var _head = $rest().head(url)
+        if (isDef(_head) && isDef(_head.responseCode) && _head.responseCode == 200) {
+            log("Downloading " + url + " (" + ow.format.toBytesAbbreviation(_head.response["content-length"]) + ")...")
+            $rest().get2File(args.path + "/docker-compose" + (os == "windows" ? ".exe" : ""), url)
+
+            if (os != "windows") {
+                log("Setting execution permissions to script...");
+                $sh("chmod u+x " + args.path + "/docker-compose").exec();
+            }
+        } else {
+            throw "Can't find '" + url + "'. Alternatively try with the container=true option." 
+        }
+    }
+
+# --------------------------
+- name : Pull docker-compose
+  deps :
   - Check for docker
-  exec: |
-    args.path = _$(args.path, "path").default("/usr/local/bin");
-
+  check:
+    in:
+       path: isString.default("/usr/local/bin")
+  exec : |
     log("Retrieve docker/compose image...");
     $sh("docker pull docker/compose").exec();
 
