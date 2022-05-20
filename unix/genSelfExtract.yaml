@@ -1,0 +1,103 @@
+# Author: Nuno Aguiar
+help:
+  text   : Produces a self-extracting shell script from a folder with a setup script file.
+  expects: 
+  - name     : path
+    desc     : The folder path to include in the self-extracting shell script
+    example  : mypack
+    mandatory: true
+  - name     : file
+    desc     : The self-extracting shell script filename to create
+    example  : setup.sh
+    mandatory: false
+  - name     : setup
+    desc     : The shell script, on the folder path, that should be executed after extraction
+    example  : setup
+    mandatory: false 
+  - name     : message
+    desc     : The message to show will self-extracting
+    example  : extracting...
+    mandatory: false
+
+init:
+  script: |
+    #!/bin/sh
+    echo "{{{message}}}"
+    export TMPDIR=`mktemp -d /tmp/extract.XXXXXX`
+    tail -n+{{nlines}} $0 | tar xz -C $TMPDIR
+    CDIR=`pwd`
+    cd $TMPDIR
+    chmod u+x {{setup}}
+    sh ./{{setup}}
+    cd $CDIR
+    rm -rf $TMPDIR
+    exit 0
+
+todo:
+- Compact folder
+- Write the self-extracting script
+
+ojob:
+  opacks      :
+  - openaf: 20220515
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Sample job
+
+  exec : |
+    ow.oJob.output(args, args)
+
+# ---------------------
+- name : Compact folder
+  check:
+    in:
+      path : isString
+      setup: isString.default("setup")
+  exec : |
+    if (!io.fileExists(args.path)) throw "path '" + args.path + "' doesn't exist"
+    if (!io.fileExists(args.path)) throw "setup script '" + args.path + "/" + args.setup + "' doesn't exist"
+
+    log("Ensuring that '" + args.path + "/" + args.setup + "' is executable...")
+    $sh("chmod u+x " + args.path + "/" + args.setup).exec()
+
+    log("Packing and compressing files...")
+    global.tmp = io.createTempFile("self", "extract.tgz")
+    io.writeFileTARStream(global.tmp, true, fn => {
+      listFilesRecursive(args.path).forEach(f => {
+        var is = io.readFileStream(f.canonicalPath)
+        log(" packing " + f.filepath)
+        fn(f.filepath.replace(args.path, ""), is)
+        is.close()
+      })
+    })
+
+# ---------------------------------------
+- name : Write the self-extracting script
+  deps : Compact folder
+  check:
+    in:
+      path   : isString
+      setup  : isString.default("setup")
+      message: isString.default("extracting...")
+  exec : |
+    var script  = templify(args.init.script, { 
+      setup: args.setup, 
+      nlines: args.init.script.split("\n").length + 1,
+      message: args.message
+    })
+    script += "\n"
+    var fscript = io.fileInfo(args.path).filename + ".sh"
+
+    log("Writing script " + fscript + "...")
+    io.writeFileString(fscript, script)
+    
+    var os = io.writeFileStream(fscript, true)
+    var is = io.readFileStream(global.tmp)
+    ioStreamCopy(os, is)
+
+    $sh("chmod u+x " + fscript).exec()
+    log("Done. To execute './" + fscript + "'.")
