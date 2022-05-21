@@ -1,0 +1,101 @@
+# Author: Nuno Aguiar
+help:
+  text   : Produces a simple pack with a JRE and OpenAF to be customized and later packed using ojob.io/unix/genSelfExtract or similar
+  expects:
+  - name     : arch
+    desc     : operating system architecture (e.g. x64, x32, ppc64, s390x, ppc64le, aarch64, arm)
+    example  : x64
+    mandatory: true
+  - name     : os
+    desc     : JRE operating system (e.g. windows, linux, mac, solaris, aix, alpine-linux)
+    example  : linux
+    mandatory: true
+  - name     : version
+    desc     : java version to use (e.g. 11, 17)
+    example  : 17
+    mandatory: false
+  - name     : dist
+    desc     : openaf distribution (e.g. nightly, t8, stable)
+    example  : nightly
+    mandatory: false
+  - name     : output
+    desc     : the output folder for the package
+    example  : pack
+    mandatory: false
+
+todo:
+- Prepare a pack
+
+init:
+  setup: |
+    #!/bin/sh
+
+    echo Extracting Java runtime...
+    mkdir $CDIR/{{output}}
+    cd $CDIR/{{output}}
+    tar xzf $TMPDIR/jre.tgz
+    mv $TMPDIR/openaf.jar $CDIR/{{output}}/openaf.jar
+
+    echo Setting up...
+    `find $CDIR/{{output}} | egrep /bin/java$` -jar $CDIR/{{output}}/openaf.jar --install
+
+    echo Cleaning up...
+    rm $TMPDIR/jre.tgz
+    rm $TMPDIR/setup.sh
+
+    echo Ready to use on sub-folder {{output}}
+    cd $CDIR
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+
+
+jobs:
+# =====================
+- name : Prepare a pack
+  to   :
+  - Java JRE download
+  - OpenAF download
+  - Write setup script
+
+# -------------------------
+- name : Write setup script
+  check:
+    in:
+      output: isString.default("pack")
+  exec : |
+    log("Writing setup.sh...")
+    io.writeFileString(args.output + "/setup.sh", templify(args.init.setup, args))
+
+    print("\nTo pack it on a self-extracting shell script execute:\n")
+    tprint("   ojob ojob.io/unix/genSelfExtract path={{output}} file={{output}}.sh setup=setup.sh\n", args)
+
+# ------------------------
+- name : Java JRE download
+  check:
+    in:
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix", "alpine-linux"])
+      arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"])
+      version: toNumber.isNumber.greater(7).default(17)
+      output : isString.default("pack")
+  exec : |
+    io.mkdir(args.output)
+    log("Downloading...")
+    oJobRunFile("ojob.io/java/download", { os: args.os, arch: args.arch, version: args.version, type: "jre", output: args.output + "/jre.tgz" }, genUUID())
+    log("Download and jre packing done")
+
+# ----------------------
+- name : OpenAF download
+  check:
+    in:
+      dist  : isString.default("nightly")
+      output: isString.default("pack")
+  exec : |
+    io.mkdir(args.output)
+    tlog("Downloading OpenAF '{{dist}}'...", args)
+    if (args.dist == "stable") args.dist = ""
+    $rest().get2File(args.output + "/openaf.jar", "https://openaf.io/" + (args.dist == "" ? "" : args.dist + "/") + "openaf.jar.repacked")
+    log("Download OpenAF done")
