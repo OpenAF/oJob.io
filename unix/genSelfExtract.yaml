@@ -23,9 +23,10 @@ init:
   script: |
     #!/bin/sh
     echo "{{{message}}}"
+    echo
     export TMPDIR=`mktemp -d /tmp/extract.XXXXXX`
     tail -n+{{nlines}} $0 | tar xz -C $TMPDIR
-    CDIR=`pwd`
+    export CDIR=`pwd`
     cd $TMPDIR
     chmod u+x {{setup}}
     sh ./{{setup}}
@@ -45,12 +46,6 @@ ojob:
         
 
 jobs:
-# -----------------
-- name : Sample job
-
-  exec : |
-    ow.oJob.output(args, args)
-
 # ---------------------
 - name : Compact folder
   check:
@@ -82,7 +77,7 @@ jobs:
     in:
       path   : isString
       setup  : isString.default("setup")
-      message: isString.default("extracting...")
+      message: isString.default("(expanding...)")
   exec : |
     var script  = templify(args.init.script, { 
       setup: args.setup, 
