@@ -1,0 +1,65 @@
+# Author: Nuno Aguiar
+help:
+  text   : Outputs a string to an ascii banner.
+  expects: 
+  - name     : str
+    desc     : The string to output as a banner
+    example  : example
+    mandatory: false
+  - name     : font
+    desc     : The banner font to use (e.g. use list=true for the complete list)
+    example  : banner
+    mandatory: false
+  - name     : list
+    desc     : If list=true will output a list of the available fonts (if str is defined it will use it as examples for each font)
+    example  : "true"
+    mandatory: false
+
+todo:
+- Check options
+- name: List fonts
+  when: list
+- name: Write banner
+  when: write
+
+ojob:
+  opacks      :
+  - openaf : 20211229
+  - AsciiMo
+  catch       : printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - asciimo.js
+
+jobs:
+# --------------------
+- name : Check options
+  check:
+    in:
+      list: toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.list) ow.oJob.setState("list"); else ow.oJob.setState("write")
+
+# -----------------
+- name : List fonts
+  check:
+    in:
+      str : isString.default(__)
+  exec : |
+    var a = new AsciiMo()
+    if (isDef(args.str)) {
+      var lst = a.listFonts().map(f => ({ font: f, text: a.write(args.str, f) }))
+      ow.oJob.output(lst, args)
+    } else {
+      ow.oJob.output(a.listFonts(), args)
+    }
+
+# -------------------
+- name : Write banner
+  check:
+    in:
+      str : isString.default("aBc123")
+      font: isString.default(__)
+  exec : |
+    var a = new AsciiMo()
+    print(a.write(args.str, args.font).replace(/^[ \t]*\n$/mg, ""))
