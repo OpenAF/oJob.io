@@ -1,0 +1,40 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a string will convert into a smaller one-line code to reproduce that string. Usefull for multi-line ascii colored strings.
+  expects: 
+  - name     : str
+    desc     : If defined it will use str instead of stdin
+    example  : example
+    mandatory: false
+
+todo:
+- Sample job
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Sample job
+  check:
+    in:
+      str: isString.default(__)
+  exec : |
+    if (isUnDef(args.str)) {
+      args.str = ""
+      io.pipeCh(c => {
+        if (c == 4 || c < 0) return true
+        args.str += String.fromCharCode(c)
+      })
+    }
+
+    args.code = "af.fromBytes2String(io.gunzip(af.fromBase64(af.fromString2Bytes(\"" + af.fromBytes2String(af.toBase64Bytes(io.gzip(af.fromString2Bytes(args.str)))) + "\"))))"
+
+    if (isDef(args.__format))
+      ow.oJob.output({ code: args.code }, args)
+    else
+      print(args.code)
