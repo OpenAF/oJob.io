@@ -1,0 +1,121 @@
+# Author: Nuno Aguiar
+help:
+  text   : Transforms an image into an ascii representation (using jp2a).
+  expects: 
+  - name     : url
+    desc     : The URL for the PNG to transform to ascii
+    example  : https://raw.githubusercontent.com/OpenAF/openaf/master/fonts/openaf_large.png
+    #https://onlinepngtools.com/images/examples-onlinepngtools/fir-trees.png
+    mandatory: false
+  - name     : file
+    desc     : The local file path for the PNG to transform to ascii
+    example  : /tmp/openaf_large.png
+    mandatory: false
+  - name     : useColors
+    desc     : If useColors=false the output will be monochrome
+    example  : "false"
+    mandatory: false
+  - name     : colorDepth
+    desc     : The colorDepth to use (e.g. 4, 8, 24)
+    example  : "24"
+    mandatory: false
+  - name     : invert
+    desc     : If invert=true the output will be inverted
+    example  : "false"
+    mandatory: false
+  - name     : weight
+    desc     : Establishes the maximum weight to use
+    example  : "35"
+    mandatory: false
+  - name     : width
+    desc     : Establishes the maximum width to use
+    example  : "100"
+    mandatory: false
+  - name     : useFill
+    desc     : If useFile=true the ascii characters will have the background filled
+    example  : "true"
+    mandatory: false
+  - name     : extra
+    desc     : Extra options for jp2a
+    example  : "-html"
+    mandatory: false
+
+todo:
+- Check for docker
+- Build jp2a container
+- Run jp2a container
+
+init:
+  dockerfile: |
+    FROM ubuntu
+
+    RUN apt-get update\
+     && apt-get install -y jp2a
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErr(exception)
+  logToConsole: false   # to change when finished
+        
+include:
+- ojob.io/docker/_common.yaml 
+
+jobs:
+# ---------------------------
+- name : Build jp2a container
+  check: 
+    in:
+      rebuild: toBoolean.isBoolean.default(false)
+  exec : |
+    var tmpBuild = io.createTempFile("jp2a_")
+    io.writeFileString(tmpBuild, args.init.dockerfile)
+    
+    var res = $sh("docker build -q " + (args.rebuild ? "--pull --no-cache" : "") + " -t ojobio/jp2a -f " + tmpBuild + " .")
+              .get(0)
+    if (res.exitcode != 0) printErr(res)
+
+# -------------------------
+- name : Run jp2a container
+  check:
+    in:
+      url       : isString.default(__)
+      file      : isString.default(__)
+      useColors : toBoolean.isBoolean.default(true)
+      colorDepth: toNumber.isNumber.default(__)
+      invert    : toBoolean.isBoolean.default(false)
+      height    : toNumber.isNumber.default(__)
+      width     : toNumber.isNumber.default(__)
+      useFill   : toBoolean.isBoolean.default(false)
+      extra     : isString.default(__)
+  exec : |
+    var cmds = ["docker", "run", "--rm", "-ti"]
+
+    if (isDef(args.file)) {
+      if (io.fileExists(args.file)) {
+        var info = io.fileInfo(args.file)
+        cmds.push("-v")
+        cmds.push(info.canonicalPath + ":/input/" + info.filename)
+      } else {
+        throw("File " + args.file + " not found.")
+      }
+    }
+
+    cmds.push("ojobio/jp2a")
+    cmds.push("/bin/sh")
+    cmds.push("-c")
+
+    var cmd = "jp2a "
+    if (args.useColors)         cmd += " --colors"
+    if (isDef(args.colorDepth)) cmd += " --color-depth=" + args.colorDepth
+    if (args.invert)            cmd += " -i"
+    if (isDef(args.height))     cmd += " --height=" + args.height
+    if (isDef(args.width))      cmd += " --width=" + args.width
+    if (args.useFill)           cmd += " --fill"
+    if (isDef(args.extra))      cmd += " " + args.extra
+    
+    if (isDef(args.url) && isUnDef(args.file)) cmd += " " + args.url
+    if (isDef(args.file))                      cmd += " /input/" + args.file
+
+    cmds.push(cmd)
+    $sh(cmds).exec(0)
