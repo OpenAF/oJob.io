@@ -1,0 +1,78 @@
+# Author: Nuno Aguiar
+help:
+  text   : Get data from an LDAP server 
+  expects: 
+  - name     : url
+    desc     : The LDAP url to use (e.g. ldap://ldap.forumsys.com:389)
+    example  : ldap://ldap.forumsys.com:389
+    mandatory: true
+  - name     : user
+    desc     : The LDAP user id to use (e.g. cn=read-only-admin,dc=example,dc=com)
+    example  : cn=read-only-admin,dc=example,dc=com
+    mandatory: true
+  - name     : pass
+    desc     : The LDAP user password to use
+    example  : password
+    mandatory: true
+  - name     : search
+    desc     : The LDAP search filter (e.g. (uid=*))
+    example  : (uid=*)
+    mandatory: false
+  - name     : base
+    desc     : The LDAP base search (e.g. dc=example,dc=com)
+    example  : dc=example,dc=com
+    mandatory: false
+  - name     : debug
+    desc     : If debug=true all arguments will be output to stderr
+    example  : true
+    mandatory: false
+
+todo:
+- Get data from LDAP
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name : Connect to LDAP
+  check:
+    in:
+      url  : isString
+      user : isString
+      pass : isString
+      debug: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadServer()
+    if (args.debug) tprintErr("URL  = {{{url}}}", args)
+    if (args.debug) tprintErr("User = {{{user}}}", args)
+    if (args.debug) tprintErr("Pass = {{{pass}}}\n", args)
+    args.ldap = new ow.server.ldap(args.url, args.user, args.pass)
+
+# ------------------
+- name : Search LDAP
+  check:
+    in:
+      ldap  : isObject
+      search: isString.default(__)
+      base  : isString.default(__)
+      debug : toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.debug) tprintErr("Search      = {{{search}}}", args)
+    if (args.debug) tprintErr("Base search = {{{base}}}\n", args)
+
+    var result = args.ldap.search(args.base, args.search)
+
+    // remove java objects by string representation
+    traverse(result, (aK, aV, aP, aO) => (isJavaObject(aV) ? aO[aK] = String(aV.toString()) : __))
+
+    ow.oJob.output(result, args)
+
+# =========================
+- name : Get data from LDAP
+  from : Connect to LDAP
+  to   : Search LDAP
