@@ -1,0 +1,31 @@
+# Author: Nuno Aguiar
+help:
+  text   : Flushes the current Mac OS DNS cache
+  # expects: 
+  # - name     : something
+  #   desc     : To do stuff
+  #   example  : aValueExample
+  #   mandatory: true
+
+todo:
+- Flush Mac OS DNS cache
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------------------
+- name : Flush Mac OS DNS cache
+  lang : shell
+  typeArgs:
+    shellPrefix: shell
+  exec : |
+    echo Running DNS cache flush
+    sudo dscacheutil -flushcache
+    echo Restarting all DNS responders
+    sudo killall -HUP mDNSResponder
+    echo Done
