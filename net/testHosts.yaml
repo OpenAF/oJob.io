@@ -1,0 +1,104 @@
+# Author: Nuno Aguiar
+help:
+  text   : Test one or more hosts through ICMP (ping) and/or socket test.
+  expects: 
+  - name     : host
+    desc     : The host to test
+    example  : some.host
+    mandatory: false
+  - name     : port
+    desc     : The host port to test
+    example  : 12345
+    mandatory: false
+  - name     : timeout
+    desc     : The connection time timeout (in ms)
+    example  : 5000
+    mandatory: false
+  - name     : type
+    desc     : The type of test to perform (e.g. ping, socket)
+    example  : socket
+    mandatory: false      
+  - name     : file
+    desc     : A YAML file with host, port and an optional test type
+    example  : afile.yaml
+    mandatory: false
+
+todo:
+- Test host
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------
+- name : Test host
+  check:
+    in:
+      host   : isString.default(__)
+      port   : toNumber.isNumber.default(__)
+      timeout: toNumber.isNumber.default(__)
+      type   : oneOf(["ping", "socket"]).isString.default(__)
+      file   : isString.default(__)
+  exec : |
+    if (isUnDef(global.res)) global.res = []
+
+    ow.loadNet()
+    var targets = [], res = []
+    if (isDef(args.file)) {
+      var _l = io.readFileYAML(args.file)
+      if (!isArray(_l)) throw "No array found in '" + args.file + "'"
+      targets = _l
+    } else {
+      targets = [{ host: args.host, port: args.port, type: args.type, timeout: args.timeout }]
+    }
+
+    var msg = "", max = 0
+    for (var itarget in targets) {
+      var target = targets[itarget]
+
+      if (isDef(target) && isString(target.host)) {
+        if (isUnDef(target.type)) target.type = isDef(target.port) ? "socket" : "ping"
+        target.ip = ow.net.getHost2IP(target.host)
+        switch(target.type) {
+          case "socket": 
+            var r1, r2
+            msg = "Testing " + target.host + ":" + target.port + "..."
+            printnl(repeat(max, " ") + "\r" + msg + "\r")
+
+            r1 = ow.net.testPort(target.ip, target.port, target.timeout)
+            if (r1) r2 = ow.net.testPortLatency(target.ip, target.port, target.timeout)
+            res.push({
+              type  : "socket",
+              host  : target.host,
+              ip    : target.ip,
+              port  : target.port,
+              result: r1,
+              time  : r1 ? r2+"ms" : ""
+            })
+            break
+          case "ping"  :
+            msg = "Testing " + target.host + "..."
+            printnl(repeat(max, " ") + "\r" + msg + "\r")
+
+            var r = ow.net.testHost(target.ip, target.timeout)
+            res.push({
+              type  : "ping",
+              host  : target.host,
+              ip    : target.ip,  
+              port  : "",
+              result: r.reachable,
+              time  : (r.reachable ? r.time+"ms" : "")
+            })
+            break
+        }
+        max = (msg.length > max ? msg.length : max)
+      }
+    }
+    print(repeat(max, " "))
+
+    if (isUnDef(args.__format)) args.__format = "table"
+    ow.oJob.output(res, args)
