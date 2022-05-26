@@ -1,0 +1,36 @@
+# Author: Nuno Aguiar
+help:
+  text   : Create user in unix prepared with an empty ssh authorized_keys file
+  expects: 
+  - name     : user
+    desc     : The user name to create
+    example  : example
+    mandatory: true
+
+todo:
+- Create user
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ------------------
+- name : Create user
+  check:
+    in:
+      user: isString
+  lang : shell
+  exec : |
+    sudo adduser --disabled-password --gecos "" {{user}}
+    sudo mkdir /home/{{user}}/.ssh
+    sudo chmod 700 /home/{{user}}/.ssh
+    sudo touch /home/{{user}}/.ssh/authorized_keys
+    sudo chmod 600 /home/{{user}}/.ssh/authorized_keys
+    sudo chown -R {{user}}: /home/{{user}}/.ssh
+
+    echo
+    echo To delete just execute \"sudo deluser {{user}} \&\& sudo rm -rf /home/example\"
