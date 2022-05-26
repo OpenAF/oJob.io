@@ -67,7 +67,8 @@ jobs:
       .get();
  
       logWarn("Need to build container for arm...");
-      $sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/kylemanna/docker-openvpn.git")
+      //$sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/kylemanna/docker-openvpn.git")
+      $sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/nmaguiar/docker-openvpn.git")
       .prefix("build")
       .get();
     }
