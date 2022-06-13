@@ -5,7 +5,7 @@ init:
       type : map
       obj  : |
         (() => {
-          var o = $cache("data").get()
+          var o = $cache("data").get(0)
           return {
             updated    : (new Date()).toISOString(),
             cmd        : o.sun.rt.javaCommand,
@@ -22,7 +22,7 @@ init:
       type : table
       obj  : |
         (() => {
-          var o = $cache("data").get().sun.gc.generation
+          var o = $cache("data").get(0).sun.gc.generation
           var res = []
           $from(o).select(gen => {
             res.push({
@@ -38,7 +38,7 @@ init:
       type : table
       obj  : |
         (() => {
-          var o = $cache("data").get().sun.gc.collector
+          var o = $cache("data").get(0).sun.gc.collector
           o.forEach(r => {
             var _r = $ch("gcLoad").get({ n: r.name })
             if (isUnDef(_r)) _r = { n: r.name, inv: [] }
@@ -64,7 +64,7 @@ init:
       type : table
       obj  : |
         (() => {
-          var o = $cache("data").get().sun.gc.generation
+          var o = $cache("data").get(0).sun.gc.generation
           var res = []
           $from(o).select(gen => {
             $from(gen.space).select(space => {
@@ -83,7 +83,7 @@ init:
       type : map
       obj  : |
         (() => {
-          var o = $cache("data").get().java.threads
+          var o = $cache("data").get(0).java.threads
           return {
              live: o.live,
              started : o.started,
@@ -95,7 +95,7 @@ init:
       type : table
       obj  : |
         (() => {
-          var o = $cache("data").get().sun.gc
+          var o = $cache("data").get(0).sun.gc
           var r = { max: 0, total: 0, used: 0, free: 0 }
           $from(o.generation).select(gen => {
             $from(gen.space).select(space => {
@@ -117,7 +117,7 @@ init:
     - title: Memory chart
       type : func
       obj  : |
-        var o = $cache("data").get().sun.gc.generation;
+        var o = $cache("data").get(0).sun.gc.generation;
         var r = { max: 0, total: 0, used: 0, free: 0 };
         $from(o).select(gen => {
             $from(gen.space).select(space => {
