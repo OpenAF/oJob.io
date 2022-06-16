@@ -1,0 +1,52 @@
+todo:
+- Check for OpenCli
+- Get URL
+
+ojob:
+  opacks      :
+  - openaf: 20201111
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/raid/_common.yaml
+
+jobs:
+- name: Help
+  help:
+    text   : Generates a WOSS URL to see a PR when you dont belong to that project (requires the OpenCli opack)
+    expects:
+    - name   : af
+      desc   : URL to access the WOSS RAID
+      example: http://user:password@a.server:1234/#/a/path/for/a/mashup
+    - name   : num
+      desc   : PR Number
+      example: 4124
+
+# -------------
+- name: Get URL
+  exec: |
+    var out = {};
+
+    if(isDef(args.af)  && isDef(args.num)) {
+      log("Connecting to WOSS")
+      acon = new AF(args.af)
+
+      // Get db url and connect to DB
+      var dburl = $from(acon.exec("CIR.ConnectorConfiguration.List")).equals("ServerType", "Database").select()[0].Configuration.Url
+      var adb = getRAIDDB(acon, "Dat", dburl)
+
+      log("Extracting PR Details")
+      var prdetails = adb.q("select proc_inst_id, status_id from WOSS_T_PROBLEM_REPORT where ID = " + args.num).results[0]
+      
+      log("Generating PR URL")
+      out.url = "https://wdsup.wedotechnologies.com/c/portal/layout?p_l_id=38136&p_v_l_s_g_id=0&linkUUID=e355ad78-35fb-4e3f-a6a8-26e04d58fe1b&ID=" + args.num + "&printableID=PR_" + args.num +"&procInstID=" + prdetails.PROC_INST_ID +"&statusID=" + prdetails.STATUS_ID + "#/1/default"
+      
+      acon.close()
+      adb.close()
+      
+      ow.oJob.output(out)
+
+    } else {
+      logErr("Please provide an AF URL and a PR number")
+    }
