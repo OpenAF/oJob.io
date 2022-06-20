@@ -62,4 +62,5 @@ jobs:
       font: isString.default(__)
   exec : |
     var a = new AsciiMo()
-    print(a.write(args.str, args.font).replace(/^[ \t]*\n$/mg, ""))
+    var ban = a.write(args.str, args.font)
+    print(ban.replace(/^\s*\n+/m, "").replace(/\n+$/, ""))
