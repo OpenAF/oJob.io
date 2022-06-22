@@ -27,7 +27,7 @@ init:
     Advanced instructions
     ---------------------
 
-    k3d cluster create test -s 3 -a 2 -p "8080:8080@loadbalancer"
+    k3d cluster create test -s 3 -a 2 -p "8080:8080@loadbalancer" -p "8090:8090@server:0" -p "8100:8100@agent:0" -v /tmp/test1:/tmp/test1@server:0,1,2 -v /tmp/test2@agent:0,1 --registry-create myreg:0.0.0.0:5000
     kubectl create deployment test --image=nginx --port=80
     kubectl create service loadbalancer test --tcp=8080:80
     curl http://127.0.0.1:8080
