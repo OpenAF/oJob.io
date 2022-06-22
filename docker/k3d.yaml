@@ -22,6 +22,27 @@ ojob:
 include:
 - ojob.io/docker/_common.yaml 
 
+init:
+  instructions: |
+    Advanced instructions
+    ---------------------
+
+    k3d cluster create test -s 3 -a 2 -p "8080:8080@loadbalancer"
+    kubectl create deployment test --image=nginx --port=80
+    kubectl create service loadbalancer test --tcp=8080:80
+    curl http://127.0.0.1:8080
+
+
+    Quick instructions
+    ------------------
+
+    To create a new cluster : 'k3d cluster create newcluster'
+    To configure kubectl    : 'k3d kubeconfig merge newcluster -d'
+    To delete a cluster     : 'k3d cluster delete newcluster'
+
+    To install kubectl: ojob.io ojob.io/kube/getKubectl
+    To uninstall      : rm /usr/local/bin/k3d
+
 jobs:
 # -------------------------
 - name: Install Rancher K3D
@@ -47,8 +68,4 @@ jobs:
 # -----------------------
 - name: Next instructions
   exec: |
-    print("To create a new cluster         : 'sudo k3d cluster create newcluster'")
-    print("To configure kubectl            : 'sudo k3d kubeconfig merge newcluster -d'")
-    print("")
-    print("To delete a cluster             : 'sudo k3d cluster delete newcluster'")
-    print("To uninstall: k3s-uninstall.sh")
+    print(args.init.instructions)
