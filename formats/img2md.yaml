@@ -1,0 +1,51 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds a base64 embedded image from an image file
+  expects: 
+  - name     : file
+    desc     : The image (png/jpg) to embedded
+    example  : image.png
+    mandatory: true
+  - name     : name
+    desc     : The image name
+    example  : image
+    mandatory: false
+
+todo:
+- MD from image
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# --------------------
+- name : MD from image
+  check:
+    in:
+      file: isString
+      name: isString.default(__)
+  exec : |
+    if (io.fileExists(args.file) || args.file.match(/https?:\/\//)) {
+      var ext = "image/"
+      if (args.file.endsWith(".jpg") || args.file.endsWith(".jpeg")) {
+        ext += "jpeg"
+      } else {
+        ext += "png"
+      }      
+
+      var b64; 
+      if (args.file.match(/https?:\/\//)) {
+        b64 = af.fromBytes2String(af.toBase64Bytes(af.fromInputStream2Bytes( $rest().get2Stream(args.file) )))        
+      } else {
+        b64 = af.fromBytes2String(af.toBase64Bytes(io.readFileBytes(args.file)))
+      }
+
+      if (isUnDef(args.name)) args.name = args.file.substr(0, args.file.lastIndexOf("."))
+      print("![" + args.name + "](data:" + ext + ";base64," + b64 + ")")
+    } else {
+      printErr("File '" + args.file + "' not found!")
+    }
