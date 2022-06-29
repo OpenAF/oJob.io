@@ -48,6 +48,9 @@ jobs:
       print(repeat(s, '-'));
       print(" " + n);
       print(repeat(s, '-'));
+      traverse(request, (aK, aV, aP, aO) => {
+        if (isNull(aV)) delete aO[aK]
+      })
       ow.oJob.output(request, args);
       print(repeat(s, '='));
 
