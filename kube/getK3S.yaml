@@ -1,0 +1,27 @@
+# Author: Nuno Aguiar
+help:
+  text   : Gets and installs K3S
+  # expects: 
+  # - name     : something
+  #   desc     : To do stuff
+  #   example  : aValueExample
+  #   mandatory: true
+
+todo:
+- Gets and installs K3S
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------------------
+- name : Gets and installs K3S
+  typeArgs:
+    shellPrefix: k3s
+  lang : shell
+  exec : |
+    curl -sfL https://get.k3s.io | sh -
