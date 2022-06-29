@@ -1,0 +1,130 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates an YAML Kubernetes template to deploy a HTTP echo service 
+  expects: 
+  - name     : port
+    desc     : Port to use (defaults to 8080)
+    example  : 8080
+    mandatory: false
+  - name     : name
+    desc     : Name to use (defaults to 'test')
+    example  : test
+    mandatory: false
+  - name     : ns
+    desc     : Namespace to use (defaults to 'default')
+    example  : default
+    mandatory: false
+  - name     : sts
+    desc     : If sts=true it will generate a StatefulSet instead of the Deployment default
+    example  : "true"
+    mandatory: false
+  - name     : replicas
+    desc     : Number of replicas to use (defaults to 2)
+    example  : 2
+    mandatory: false
+  - name     : headless
+    desc     : If headless=true it will generate a headless service (default to false)
+    example  : "true"
+    mandatory: false
+
+todo:
+- Generate YAML
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+init:
+  template: |
+    apiVersion: apps/v1
+    {{#if sts}}
+    kind: StatefulSet
+    {{else}}
+    kind: Deployment
+    {{/if}}
+    metadata:
+      name: {{name}}
+      namespace: {{ns}}
+    spec:
+      {{#if sts}}
+      serviceName: {{name}}
+      {{/if}}
+      replicas: {{replicas}}
+      selector:
+        matchLabels:
+          app: {{name}}
+      template:
+        metadata:
+          labels:
+            app: {{name}}
+        spec:
+          containers:
+          - image: openaf/ojobc:nightly
+            env:
+            - name : OJOB
+              value: ojob.io/httpServers/EchoHTTPd
+            - name : port
+              value: "{{port}}"
+            name: {{name}}
+            ports:
+            - containerPort: {{port}}
+              name: {{name}}-{{port}}
+              protocol: TCP
+            imagePullPolicy: IfNotPresent
+            resources:
+              requests:
+                memory: 128Mi
+                cpu: 250m
+              limits:
+                memory: 256Mi
+                cpu: 500m
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: {{port}}
+              failureThreshold: 1
+              periodSeconds: 60
+              terminationGracePeriodSeconds: 60
+            startupProbe:
+              httpGet:
+                path: /
+                port: {{port}}
+              periodSeconds: 5
+          restartPolicy: Always
+
+    ---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: {{name}}
+      namespace: {{ns}}
+    spec:
+      {{#if headless}}
+      clusterIP: None
+      {{else}}
+      type: LoadBalancer
+      {{/if}}
+      selector:
+        app: {{name}}
+      ports:
+        - protocol: TCP
+          name: {{name}}-port
+          port: {{port}}
+          targetPort: {{port}}
+
+jobs:
+# --------------------
+- name : Generate YAML
+  check:
+    in:
+      port    : toNumber.isNumber.default(8080)
+      sts     : toBoolean.isBoolean.default(false)
+      replicas: toNumber.isNumber.default(2)
+      name    : isString.default("test")
+      headless: toBoolean.isBoolean.default(false)
+      ns      : isString.default("default")
+  exec : |
+    tprint(args.init.template, args)
