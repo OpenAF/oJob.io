@@ -18,6 +18,10 @@ help: &HELP
     desc     : Extra packages to install after startup (defaults to "python3 openjdk-11-jdk")
     example  : python3 openjdk-11-jdk
     mandatory: false
+  - name     : privileged
+    desc     : Run the container in privileged mode (default to false)
+    example  : true 
+    mandatory: false
 
 init:
   help: *HELP
@@ -117,6 +121,7 @@ jobs:
   exec: |
     args.port = Number( _$(args.port, "port").default(findRandomOpenPort()) )
     args.path = String( _$(args.path, "path").default(".") )
+    args.privileged = _$(toBoolean(args.privileged), "privileged").isBoolean().default(false)
 
     ow.loadFormat()
 
@@ -126,7 +131,7 @@ jobs:
        throw "Path '" + args.path + "' not found."
     }
 
-    var cmd = templify("docker run --rm -it --init -d -p {{port}}:3000 -v \"{{{path}}}:/workspace:cached\" openaf/gitpod", args)
+    var cmd = templify("docker run {{#if privileged}}--privileged{{/if}} --rm -it --init -d -p {{port}}:3000 -v \"{{{path}}}:/workspace:cached\" openaf/gitpod", args)
 
     var output = $sh(cmd).get(0).stdout, dlog
     do {
