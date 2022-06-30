@@ -1,0 +1,159 @@
+# Author: Nuno Aguiar
+help:
+  text   : Wrapper to build a quick docker in docker (dind) rootless or with k3d
+  expects: 
+  - name     : name
+    desc     : The docker name to use (e.g. defaults to openaf/dind)
+    example  : did
+    mandatory: false
+  - name     : k3d
+    desc     : Install k3d if k3d=true (e.g. defaults to false)
+    example  : "true"
+    mandatory: false
+  - name     : rootless
+    desc     : Install docker with rootless (e.g. defaults to false, k3d not supported)
+    example  : "true"
+    mandatory: false 
+  - name     : path
+    desc     : If defined will just generate the necessary build files (e.g. defaults to false)
+    example  : "true"
+    mandatory: false 
+  - name     : dontrun
+    desc     : If dontrun=true the container build won't be run in the end and won't be deleted
+    example  : "true"
+    mandatory: false
+
+todo:
+- Check for docker
+- DinD
+
+include:
+- ojob.io/docker/_common.yaml
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  docker: |
+    FROM ubuntu
+
+    RUN apt-get update\
+    && apt-get install -q -y curl iproute2 apt-utils uidmap vim sudo fuse-overlayfs\
+    && curl https://openaf.io/nightly/install.sh | sh\
+    && curl https://get.docker.com | sh{{#if k3d}}\
+    && ojob ojob.io/docker/k3d\
+    && ojob ojob.io/kube/getKubectl path=/usr/bin\
+    && chmod u+x /usr/bin/kubectl
+    {{/if}}{{#if rootless}}\
+    && adduser -q --disabled-password --gecos user user\
+    && echo "user ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/user
+    {{/if}}
+
+    {{#if rootless}}
+    COPY --chown=user entrypoint.sh /home/user/.entrypoint.sh
+    {{else}}
+    COPY entrypoint.sh /.entrypoint.sh
+    {{/if}}
+
+    {{#if rootless}}
+    USER user
+    RUN chmod u+x /home/user/.entrypoint.sh
+
+    WORKDIR /home/user
+    ENTRYPOINT ["/bin/sh", "-c", "/home/user/.entrypoint.sh"]
+    {{else}}
+    RUN chmod u+x /.entrypoint.sh
+
+    WORKDIR /root
+    ENTRYPOINT ["/bin/sh", "-c", "/.entrypoint.sh"]
+    {{/if}}
+
+  entry : |
+    #!/bin/sh
+
+    {{#if rootless}}
+    dockerd-rootless-setuptool.sh install
+    echo export XDG_RUNTIME_DIR=/home/user/.docker/run >> /home/user/.profile
+    echo export PATH=/usr/bin:$PATH >> /home/user/.profile
+    echo export DOCKER_HOST=unix:///home/user/.docker/run/docker.sock >> /home/user/.profile
+    . /home/user/.profile
+    nohup dockerd-rootless.sh > /home/user/.docker.log &
+    {{else}}
+    nohup dockerd > /var/log/dockerd.log &
+    {{/if}}
+    {{#if k3d}}
+    until docker version > /dev/null 2>&1
+    do
+    sleep 1
+    done
+    k3d cluster create --k3s-arg "--snapshotter=native@server:*" --registry-create registry:5000
+    {{/if}}
+
+    {{#if rootless}}
+    cd /home/user
+    {{else}}
+    cd /root     
+    {{/if}}
+    /bin/bash
+
+jobs:
+# ===========
+- name : DinD
+  to   :
+  - Generate dockerfile and entrypoint
+  - Build container
+  - Delete generated files if no path
+  - Run container
+  check:
+    in:
+      name    : isString.default("openaf/dind")
+      k3d     : toBoolean.isBoolean.default(false)
+      rootless: toBoolean.isBoolean.default(false)
+      path    : isString.default(__)
+      dontrun : toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.k3d && args.rootless) throw "Installing k3d in rootless is not yet supported"
+
+# ----------------------------------------
+- name: Generate dockerfile and entrypoint
+  exec: |
+    if (isUnDef(args.path)) args.tmpPath = "./" + genUUID(); else args.tmpPath = args.path
+
+    io.writeFileString(args.tmpPath + "/Dockerfile", templify(args.init.docker, args))
+    io.writeFileString(args.tmpPath + "/entrypoint.sh", templify(args.init.entry, args))
+
+# ----------------------
+- name : Build container
+  typeArgs:
+    shellPrefix: build
+  lang : shell
+  check:
+    in:
+      tmpPath: isString
+  exec : |
+    docker build -t {{name}} {{tmpPath}}
+
+# ----------------------------------------
+- name : Delete generated files if no path
+  check:
+    in:
+      tmpPath: isString
+  exec : |
+    if (isUnDef(args.path)) io.rm(args.tmpPath)
+
+# --------------------
+- name : Run container
+  exec : |
+    if (isUnDef(args.path)) {
+      if (args.dontrun) {
+        print("To start execute: docker run --privileged --rm -ti " + args.name)
+      } else {
+        $sh("docker run --privileged --rm -ti " + args.name).exec()
+        log("Deleting image " + args.name + "...")
+        sleep(1000, true)
+        $sh("docker rmi " + args.name).prefix("docker").get(0)
+      }
+    }
