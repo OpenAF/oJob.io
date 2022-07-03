@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Opens a GitPod VS Code server to edit the provided path on the provided door
   expects:
   - name     : path
@@ -22,10 +22,12 @@ help: &HELP
     desc     : Run the container in privileged mode (default to false)
     example  : true 
     mandatory: false
+  - name     : output
+    desc     : If output is defined no container will be launched and just files and instructions will be saved in the provided output
+    example  : gitpod
+    mandatory: false
 
 init:
-  help: *HELP
- 
   sh_server: |
     #!/usr/bin/env sh
     nohup /home/openvscode-server/server0.sh > /tmp/server0.log 2>&1 &
@@ -69,16 +71,12 @@ include:
 
 ojob:
   opacks      :
-  - openaf: 20210515
+  - openaf: 20211229
   catch       : "logErr(exception); return false;"
   logToConsole: true   # to change when finished
 
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------
 - name: Build GitPod
   exec: |
@@ -110,11 +108,19 @@ jobs:
        image  : "gitpod/openvscode-server"
     }))
 
-    $sh("docker build --pull --no-cache -t openaf/gitpod -f " + dockerfile + " .")
-    .prefix("build")
-    .exec()
+    if (isUnDef(args.output)) {
+      $sh("docker build --pull --no-cache -t openaf/gitpod -f " + dockerfile + " .")
+      .prefix("build")
+      .exec()
 
-    clean()
+      clean()
+    } else {
+      io.mkdir(args.output)
+      io.mv(shServer, args.output + "/" + shServer)
+      io.mv(shServer0, args.output + "/" + shServer0)
+      io.mv(dockerfile, args.output + "/Dockerfile")
+      print("To build execute:   docker build -t mygitpod " + args.output)
+    }
 
 # --------------------
 - name: Opens a GitPod
@@ -125,35 +131,44 @@ jobs:
 
     ow.loadFormat()
 
-    if (io.fileExists(args.path)) {
-       args.path = io.fileInfo(args.path).canonicalPath
-    } else {
-       throw "Path '" + args.path + "' not found."
+    if (isUnDef(args.output)) {
+      if (io.fileExists(args.path)) {
+        args.path = io.fileInfo(args.path).canonicalPath
+      } else {
+        throw "Path '" + args.path + "' not found."
+      }
+    } else {
+      args.path = io.fileInfo(args.output).canonicalPath
+      args.port = 3000
     }
 
     var cmd = templify("docker run {{#if privileged}}--privileged{{/if}} --rm -it --init -d -p {{port}}:3000 -v \"{{{path}}}:/workspace:cached\" openaf/gitpod", args)
 
-    var output = $sh(cmd).get(0).stdout, dlog
-    do {
-      dlog = $sh("docker logs " + output).get(0).stdout
-      sleep(500, true)
-    } while(dlog.indexOf("Web UI available at") < 0)
+    if (isUnDef(args.output)) {
+      var output = $sh(cmd).get(0).stdout, dlog
+      do {
+        dlog = $sh("docker logs " + output).get(0).stdout
+        sleep(500, true)
+      } while(dlog.indexOf("Web UI available at") < 0)
 
-    var url = dlog.match(/Web UI available at (.+)/)[1]
-    //var is64 = (ow.format.getOSArch() == "x86_64" || ow.format.getOSArch() == "amd64")
+      var url = dlog.match(/Web UI available at (.+)/)[1]
+      //var is64 = (ow.format.getOSArch() == "x86_64" || ow.format.getOSArch() == "amd64")
 
-    url =  url.replace(":3000", ":" + args.port)
-    url += "?" + "folder=vscode-remote://localhost:" + args.port + "/workspace"
+      url =  url.replace(":3000", ":" + args.port)
+      url += "?" + "folder=vscode-remote://localhost:" + args.port + "/workspace"
 
-    if (!openInBrowser(url)) 
-       log("Open in a browser " + url.replace(/localhost/g, ow.format.getHostName()))
-    else
-       log("Available in " + url)
+      if (!openInBrowser(url)) 
+        log("Open in a browser " + url.replace(/localhost/g, ow.format.getHostName()))
+      else
+        log("Available in " + url)
 
-    print("Attaching...")  
-    $sh("docker attach " + output).exec()
+      print("Attaching...")  
+      $sh("docker attach " + output).exec()
 
-    log("Deleting image openaf/gitpod...")
-    sleep(1000, true)
-    $sh("docker rmi openaf/gitpod").prefix("docker").get(0)
-
+      log("Deleting image openaf/gitpod...")
+      sleep(1000, true)
+      $sh("docker rmi openaf/gitpod").prefix("docker").get(0)
+    } else {
+      print("To start execute:   " + cmd)
+      print("To access use   :   http://localhost:3000/?folder=vscode-remote://localhost:3000/workspace")
+    }
