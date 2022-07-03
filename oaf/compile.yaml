@@ -1,0 +1,52 @@
+# Author: Nuno Aguiar
+help:
+  text   : Compile/Minify any OpenAF javascript file 
+  expects: 
+  - name     : file
+    desc     : The Javascript file to compile/minify
+    example  : mycode.js
+    mandatory: true
+  - name     : output
+    desc     : The output minified javascript file
+    example  : mycode.min.js
+    mandatory: false
+
+todo:
+- Compile javascript
+
+ojob:
+  opacks      :
+  - openaf: 20220701
+  - GoogleCompiler
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+        
+init:
+  params: "--language_out ECMASCRIPT_2019 --env CUSTOM --strict_mode_input false --rewrite_polyfills false"
+
+jobs:
+# -------------------------
+- name : Compile javascript
+  check:
+    in:
+      file  : isString
+      output: isString.default(__)
+  exec : |
+    var classPath = getOPackPath("GoogleCompiler") + "/compiler.jar"
+    classPath = classPath.replace(/\\/g, "/")
+
+    var cmd = []
+    cmd.push(ow.format.getJavaHome() + "/bin/java")
+    cmd.push("-jar")
+    cmd.push(classPath)
+    cmd = cmd.concat(args.init.params.split(/ +/))
+
+    cmd.push("--js")
+    cmd.push(args.file)
+
+    if (isDef(args.output)) {
+      cmd.push("--js_output_file")
+      cmd.push(args.output)
+    }
+
+    $sh(cmd).exec()
