@@ -80,9 +80,9 @@ init:
     echo export PATH=/usr/bin:$PATH >> /home/user/.profile
     echo export DOCKER_HOST=unix:///home/user/.docker/run/docker.sock >> /home/user/.profile
     . /home/user/.profile
-    nohup dockerd-rootless.sh > /home/user/.docker.log &
+    nohup dockerd-rootless.sh > /home/user/.docker.log 2>&1 &
     {{else}}
-    nohup dockerd > /var/log/dockerd.log &
+    nohup dockerd > /var/log/dockerd.log 2>&1 &
     {{/if}}
     {{#if k3d}}
     until docker version > /dev/null 2>&1
