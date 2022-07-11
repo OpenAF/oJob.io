@@ -14,6 +14,10 @@ help:
     desc     : The port to access the nginx reverse proxy (default 8080)
     example  : 8080
     mandatory: false
+  - name     : websocket
+    desc     : If websocket=true nginx reverse proxy websocket support will be included
+    example  : true
+    mandatory: false
   - name     : auth
     desc     : Use a login and password to access the reverse proxy split with ":" (e.g. user:password)
     example  : "user:password"
@@ -60,6 +64,10 @@ init:
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
           proxy_set_header Host $host;
+          {{#if websocket}}
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "Upgrade";
+          {{/if}}
 
           proxy_connect_timeout 300;
           proxy_http_version 1.1;
@@ -90,7 +98,9 @@ init:
         - {{port}}:80
         volumes       :
         - {{file}}:/etc/nginx/nginx.conf:ro
+        {{#if fileAuth}}
         - {{fileAuth}}:/etc/nginx/.htpasswd:ro
+        {{/if}}
         {{#if ssl}}
         - {{filePem}}:/etc/nginx.pem:ro
         - {{fileKey}}:/etc/nginx.key:ro
@@ -118,9 +128,9 @@ jobs:
 - name : Prepare SSL
   check:
     in:
-      ssl     : isString.default("127.0.0.1")
-      sslsize : toNumber.isNumber.default(4096)
-      sslvalid: toNumber.isNumber.default(1440)
+      ssl      : isString.default("127.0.0.1")
+      sslsize  : toNumber.isNumber.default(4096)
+      sslvalid : toNumber.isNumber.default(1440)
   exec : |
       var valid = args.sslvalid * 60 * 1000
       var keys  = args.sslsize
@@ -152,10 +162,11 @@ jobs:
 - name : Generate a nginx and docker-compose
   check:
     in:
-      url : isString
-      path: isString.default(".")
-      port: toNumber.isNumber.default(8080)
-      auth: isString.default(__)
+      url      : isString
+      path     : isString.default(".")
+      port     : toNumber.isNumber.default(8080)
+      auth     : isString.default(__)
+      websocket: toBoolean.isBoolean.default(false)
   exec : |
     // Write nginx conf
     var file = io.fileInfo(args.path).canonicalPath + "/nginx.conf"
@@ -164,6 +175,7 @@ jobs:
       url : args.url,
       auth: args.auth,
       ssl : isDef(args.ssl),
+      websocket: args.websocket
     }))
 
     // Write auth
