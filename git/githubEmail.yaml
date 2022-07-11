@@ -25,7 +25,7 @@ jobs:
 # ------------------------------
 - name: Set GitHub noreply email
   exec: |
-    args.user = _$(args.user, "user")
+    args.user = _$(args.user, "user").$_()
 
     $sh("git config --global user.email \"" + args.user + "@users.noreply.github.com\"")
     .sh("git config --global user.name \"" + args.user + "\"")
