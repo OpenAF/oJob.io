@@ -1,0 +1,51 @@
+# Author: Nuno Aguiar
+help:
+  text   : Squashs the layers of an existing container images
+  expects:
+  - name     : image
+    desc     : The image for which the layers will be squashed
+    example  : mycontainer:latest
+    mandatory: true
+  - name     : layer
+    desc     : Id of the layer until which all previous layers should be kept (defaults to none)
+    example  : 2
+    mandatory: false
+  - name     : tag
+    desc     : The tag for the target image (defaults to "squashed")
+    example  : final
+    mandatory: false
+
+init:
+  image    : openaf/ojob_io_docker_squash
+  precmdSquash:
+  - sudo apk update
+  - sudo apk add docker python3 py3-pip
+  - sudo pip3 install docker-squash
+
+todo:
+- name: Run squash
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Run squash
+  check:
+    in:
+      image: isString()
+      tag  : isString().default(__)
+      layer: isString().default(__)
+  exec : |
+    if (isUnDef(args.tag)) args.tag = "squashed"
+    if (args.image.indexOf(":") < 0) args.image + ":latest"
+    var targetImage = args.image.replace(/(.+):(.+)$/, "$1:" + args.tag)
+
+    $sh([ "docker", "run", "--rm", "-ti", "-v", "/var/run/docker.sock:/var/run/docker.sock", "openaf/openaf:nightly", "-c",
+          "$sh('" + args.init.precmdSquash.join(" && ") + " && sudo docker-squash " + (isDef(args.layer) ? "-f " + args.layer : "") + " -t " + targetImage + " " + args.image + "').exec()"])
+    .exec()
+    
