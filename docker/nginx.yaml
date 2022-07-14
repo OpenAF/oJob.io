@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Generates a nginx and a docker-compose configuration to use nginx as a reverse proxy.
+  text   : Generates a nginx and a docker-compose configuration to use nginx as a reverse proxy or starts a docker-based reverse proxy
   expects: 
   - name     : url
     desc     : The URL to which the reverse proxy should point (e.g. http://host:1234)
@@ -33,6 +33,14 @@ help:
   - name     : sslsize
     desc     : The self-signed certificate key length to use (defaults to 4096)
     example  : 4096
+    mandatory: false
+  - name     : start
+    desc     : If start=true no docker-compose will be generated but a container will be started
+    example  : "true"
+    mandatory: false
+  - name     : docker
+    desc     : If docker=true no docker-compose but the command for start=true will be output
+    example  : "true"
     mandatory: false
 
 init:
@@ -112,6 +120,8 @@ init:
           retries : 3  
         networks      :
         - nginx
+  docker   : |
+    docker run --rm -ti -p {{port}}:80 openaf/oaf:nightly -c '$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx docker=true url={{url}} {{#if port}}port={{port}}{{/if}} {{#if websocket}}websocket={{websocket}}{{/if}} {{#if auth}}auth={{auth}}{{/if}} {{#if ssl}}ssl={{ssl}}{{/if}} {{#if sslvalid}}sslvalid={{sslvalid}}{{/if}} {{#if sslsize}}sslsize={{sslsize}}{{/if}} && sudo mv nginx.conf /etc/nginx/nginx.conf {{#if auth}}&& sudo mv nginx_htpasswd /etc/nginx/.htpasswd{{/if}} {{#if ssl}}&& sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key{{/if}} && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
 
 todo:
 - Generate a nginx and docker-compose
@@ -167,37 +177,50 @@ jobs:
       port     : toNumber.isNumber.default(8080)
       auth     : isString.default(__)
       websocket: toBoolean.isBoolean.default(false)
+      start    : toBoolean.isBoolean.default(false)
+      docker   : toBoolean.isBoolean.default(false)
   exec : |
-    // Write nginx conf
-    var file = io.fileInfo(args.path).canonicalPath + "/nginx.conf"
-    log("Creating nginx configuration '" + file +"'...")
-    io.writeFileString(file, templify(args.init.nginxConf, {
-      url : args.url,
-      auth: args.auth,
-      ssl : isDef(args.ssl),
-      websocket: args.websocket
-    }))
+    if (!(args.start || args.docker)) {
+      // Write nginx conf
+      var file = io.fileInfo(args.path).canonicalPath + "/nginx.conf"
+      log("Creating nginx configuration '" + file +"'...")
+      io.writeFileString(file, templify(args.init.nginxConf, {
+        url : args.url,
+        auth: args.auth,
+        ssl : isDef(args.ssl),
+        websocket: args.websocket
+      }))
 
-    // Write auth
-    var fileAuth
-    if (isDef(args.auth)) {
-      fileAuth = io.fileInfo(args.path).canonicalPath + "/nginx_htpasswd"
-      log("Creating nginx auth '" + file +"'...")
-      io.writeFileString(fileAuth, args.auth.split(":").map((r, i) => i == 1 ? bcrypt(r) : r).join(":"))
+      // Write auth
+      var fileAuth
+      if (isDef(args.auth)) {
+        fileAuth = io.fileInfo(args.path).canonicalPath + "/nginx_htpasswd"
+        log("Creating nginx auth '" + file +"'...")
+        io.writeFileString(fileAuth, args.auth.split(":").map((r, i) => i == 1 ? bcrypt(r) : r).join(":"))
+      }
+
+      if (isDef(args.ssl)) {
+        $job("Prepare SSL", args)
+      }
+  
+      print("\n--- docker-compose.yml ---\n")
+
+      tprint(args.init.dc, {
+        port    : args.port,
+        file    : file,
+        auth    : isDef(args.auth),
+        fileAuth: fileAuth,
+        ssl     : isDef(args.ssl),
+        filePem : io.fileInfo(args.path).canonicalPath + "/nginx.pem",
+        fileKey : io.fileInfo(args.path).canonicalPath + "/nginx.key",
+      })
+    } else {
+      var cmd = templify(args.init.docker, args)
+      if (args.docker) {
+        print(cmd)
+      } else {
+        if (args.start) {
+          $sh(cmd).exec()
+        }
+      }
     }
-
-    if (isDef(args.ssl)) {
-      $job("Prepare SSL", args)
-    }
- 
-    print("\n--- docker-compose.yml ---\n")
-
-    tprint(args.init.dc, {
-      port    : args.port,
-      file    : file,
-      auth    : isDef(args.auth),
-      fileAuth: fileAuth,
-      ssl     : isDef(args.ssl),
-      filePem : io.fileInfo(args.path).canonicalPath + "/nginx.pem",
-      fileKey : io.fileInfo(args.path).canonicalPath + "/nginx.key",
-    })
