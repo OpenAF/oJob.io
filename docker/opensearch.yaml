@@ -91,7 +91,7 @@ todo:
 - Generate docker-compose
 
 include:
-- ojob.io/docker/_common.yaml
+- ojob.io/docker/_common
 
 ojob:
   opacks      :

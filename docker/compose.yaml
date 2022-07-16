@@ -82,7 +82,7 @@ init:
 
 
 include:
-- ojob.io/docker/_common.yaml
+- ojob.io/docker/_common
 
 todo:
 - Check for docker

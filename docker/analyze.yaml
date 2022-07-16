@@ -20,7 +20,7 @@ ojob:
   logToConsole: false   # to change when finished
 
 include:
-- ojob.io/docker/_common.yaml        
+- ojob.io/docker/_common        
 
 jobs:
 # ----------

@@ -10,7 +10,7 @@ init:
     - "$rest().delete(\"http://127.0.0.1:1080/api/emails\")"
 
 include:
-- ojob.io/docker/_common.yaml
+- ojob.io/docker/_common
 
 todo:
 - Check for docker

@@ -2,7 +2,7 @@ init:
   prefix: "openaf/"
 
 include:
-- ojob.io/docker/_common.yaml
+- ojob.io/docker/_common
 
 todo:
 - Get images list
