@@ -7,7 +7,7 @@ help: &HELP
     example  : .
     mandatory: false
   - name     : os
-    desc     : Force the operating system (e.g. Windows, MacOS, MacOSArm, Linux)
+    desc     : Force the operating system (e.g. Windows, MacOS, MacOSArm, Linux, LinuxArm)
     example  : linux
     mandatory: false
 
@@ -18,6 +18,7 @@ init:
     macos   : "https://dl.k8s.io/release/{{version}}/bin/darwin/amd64/kubectl"
     macosarm: "https://dl.k8s.io/release/{{version}}/bin/darwin/arm64/kubectl"
     linux   : "https://dl.k8s.io/release/{{version}}/bin/linux/amd64/kubectl"
+    linuxarm: "https://dl.k8s.io/release/{{version}}/bin/linux/arm64/kubectl"
 
 todo:
 - Download kubectl
@@ -68,6 +69,10 @@ jobs:
       if (args.os == "macos" && 
           (tar == "aarch64_be" || tar == "aarch64" || tar == "armv8b" || tar == "armv81" || tar == "arm64")) {
             args.os = "macosarm"
+      }
+      if (args.os == "linux" && 
+          (tar == "aarch64_be" || tar == "aarch64" || tar == "armv8b" || tar == "armv81" || tar == "arm64")) {
+            args.os = "linuxarm"
       }
     }
 
