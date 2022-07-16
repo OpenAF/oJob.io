@@ -19,7 +19,7 @@ todo:
 - Convert adoc in another format
 
 include:
-- ojob.io/docker/_common.yaml
+- ojob.io/docker/_common
 
 ojob:
   opacks      :

@@ -40,7 +40,7 @@ ojob:
         
 include:
 - ojob.yaml
-- ojob.io/docker/_common.yaml
+- ojob.io/docker/_common
 
 jobs:
 # ----------
