@@ -45,7 +45,7 @@ jobs:
     if (args.image.indexOf(":") < 0) args.image + ":latest"
     var targetImage = args.image.replace(/(.+):(.+)$/, "$1:" + args.tag)
 
-    $sh([ "docker", "run", "--rm", "-ti", "-v", "/var/run/docker.sock:/var/run/docker.sock", "openaf/openaf:nightly", "-c",
+    $sh([ "docker", "run", "--rm", "-v", "/var/run/docker.sock:/var/run/docker.sock", "openaf/openaf:nightly", "-c",
           "$sh('" + args.init.precmdSquash.join(" && ") + " && sudo docker-squash " + (isDef(args.layer) ? "-f " + args.layer : "") + " -t " + targetImage + " " + args.image + "').exec()"])
     .exec()
     
