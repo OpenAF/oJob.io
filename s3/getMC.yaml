@@ -1,0 +1,68 @@
+# Author: Nuno Aguiar
+help:
+  text   : Download and installs the Minio client
+  expects: 
+  - name     : path
+    desc     : The path where to put the downloaded minio client (defaults ".") 
+    example  : /usr/bin
+    mandatory: false
+  - name     : arch
+    desc     : Force the architecture for which to download the minio client
+    example  : linux-amd64
+    mandatory: false
+
+todo:
+- Get MC
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------
+- name : Get MC
+  check:
+    in:
+      path: isString.default(".")
+      arch: isString.default(__)
+  exec : |
+    if (isUnDef(args.arch)) {
+      ow.loadFormat()
+      var tos = String(java.lang.System.getProperty("os.name"))
+      var tar = String(java.lang.System.getProperty("os.arch"))
+
+      if (tos.match(/Windows/)) args.arch = "windows"
+      if (tos.match(/Mac OS/))  args.arch = "macos"
+      if (tos.match(/Linux/))   args.arch = "linux"
+
+      if (args.arch == "macos" && 
+          (tar == "aarch64_be" || tar == "aarch64" || tar == "armv8b" || tar == "armv81" || tar == "arm64")) {
+            args.arch = "macosarm"
+      }
+      if (args.arch == "linux" && 
+          (tar == "aarch64_be" || tar == "aarch64" || tar == "armv8b" || tar == "armv81" || tar == "arm64")) {
+            args.arch = "linuxarm"
+      }
+    }
+
+    var url = ""
+    switch(args.arch) {
+    case "windows" : url = "https://dl.minio.io/client/mc/release/windows-amd64/mc.exe"; break
+    case "macos"   : url = "https://dl.min.io/client/mc/release/darwin-amd64/mc"; break
+    case "macosarm": url = "https://dl.min.io/client/mc/release/darwin-arm64/mc"; break
+    case "linuxarm": url = "https://dl.min.io/client/mc/release/linux-arm64/mc"; break
+    case "linux"   : 
+    default        : url = "https://dl.min.io/client/mc/release/linux-amd64/mc"; break
+    }
+
+    // Download
+    if (args.arch == "windows") args.out = "mc.exe"; else args.out = "mc"
+
+    $rest().get2File(args.path + "/" + args.out, url)
+
+    if (args.arch != "windows") {
+      $sh("chmod a+x " + args.path + "/" + args.out).exec()
+    }
