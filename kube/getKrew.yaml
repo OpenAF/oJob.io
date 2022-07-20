@@ -36,7 +36,7 @@ jobs:
 # ---------------
 - name : Set path
   exec : |
-    var set = false, h = (isUnDef(getEnv("USER")) ? ow.format.getUserHome() : getEnv("USER") )
+    var set = false, h = (isUnDef(getEnv("HOME")) ? ow.format.getUserHome() : getEnv("HOME") )
     if (io.fileExists(h + "/.zshrc")) {
       set = true
       if (io.readFileString(h + "/.zshrc").indexOf("KREW_ROOT") < 0)
