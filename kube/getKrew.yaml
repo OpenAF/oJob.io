@@ -1,0 +1,54 @@
+# Author: Nuno Aguiar
+help:
+  text   : Gets Kubernetes KREW
+  #expects: 
+  # - name     : path
+  #   desc     : The path 
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Get KREW
+- Set path
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------
+- name : Get KREW
+  lang : shell
+  exec : |
+    (
+      set -x; cd "$(mktemp -d)" &&
+      OS="$(uname | tr '[:upper:]' '[:lower:]')" &&
+      ARCH="$(uname -m | sed -e 's/x86_64/amd64/' -e 's/\(arm\)\(64\)\?.*/\1\2/' -e 's/aarch64$/arm64/')" &&
+      KREW="krew-${OS}_${ARCH}" &&
+      curl -fsSLO "https://github.com/kubernetes-sigs/krew/releases/latest/download/${KREW}.tar.gz" &&
+      tar zxvf "${KREW}.tar.gz" &&
+      ./"${KREW}" install krew
+    )
+
+# ---------------
+- name : Set path
+  exec : |
+    var set = false
+    if (io.fileExists(ow.format.getUserHome() + "/.zshrc")) {
+      set = true
+      if (io.readFileString(ow.format.getUserHome() + "/.zshrc").indexOf("KREW_ROOT") < 0)
+        io.writeFileString(ow.format.getUserHome() + "/.zshrc", "\nexport PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"\n", __, true)
+    }
+
+    if (io.fileExists(ow.format.getUserHome() + "/.bashrc")) {
+      set = true
+      if (io.readFileString(ow.format.getUserHome() + "/.bashrc").indexOf("KREW_ROOT") < 0)
+        io.writeFileString(ow.format.getUserHome() + "/.bashrc", "\nexport PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"\n", __, true)
+    } 
+
+    if (!set) {
+      io.writeFileString(ow.format.getUserHome() + "/.bashrc", "export PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"")
+    }
