@@ -36,19 +36,19 @@ jobs:
 # ---------------
 - name : Set path
   exec : |
-    var set = false
-    if (io.fileExists(ow.format.getUserHome() + "/.zshrc")) {
+    var set = false, h = (isUnDef(getEnv("USER")) ? ow.format.getUserHome() : getEnv("USER") )
+    if (io.fileExists(h + "/.zshrc")) {
       set = true
-      if (io.readFileString(ow.format.getUserHome() + "/.zshrc").indexOf("KREW_ROOT") < 0)
-        io.writeFileString(ow.format.getUserHome() + "/.zshrc", "\nexport PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"\n", __, true)
+      if (io.readFileString(h + "/.zshrc").indexOf("KREW_ROOT") < 0)
+        io.writeFileString(h + "/.zshrc", "\nexport PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"\n", __, true)
     }
 
-    if (io.fileExists(ow.format.getUserHome() + "/.bashrc")) {
+    if (io.fileExists(h + "/.bashrc")) {
       set = true
-      if (io.readFileString(ow.format.getUserHome() + "/.bashrc").indexOf("KREW_ROOT") < 0)
-        io.writeFileString(ow.format.getUserHome() + "/.bashrc", "\nexport PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"\n", __, true)
+      if (io.readFileString(h + "/.bashrc").indexOf("KREW_ROOT") < 0)
+        io.writeFileString(h + "/.bashrc", "\nexport PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"\n", __, true)
     } 
 
     if (!set) {
-      io.writeFileString(ow.format.getUserHome() + "/.bashrc", "export PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"")
+      io.writeFileString(h + "/.bashrc", "export PATH=\"${KREW_ROOT:-$HOME/.krew}/bin:$PATH\"")
     }
