@@ -1,0 +1,62 @@
+# Author: Nuno Aguiar
+help:
+  text   : "Generates the deployment YAML for a quick socks server. Example: 'ojob ojob.io/kube/genSocksServer | kubectl apply -f - && kubectl port-forward deploy/socks-server 1080:1080'"
+  expects: 
+  - name     : name
+    desc     : A custom name for the socks server deployment (defaults to socks-server)
+    example  : socks-server
+    mandatory: false
+  - name     : port
+    desc     : The port where the socks server will be started within the container (defaults to 1080)
+    example  : 1080
+    mandatory: false
+
+todo:
+- Generate socks server deploy
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+    
+init:
+  deploy: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: {{name}}
+      name: {{name}}
+    spec:
+      selector:
+        matchLabels:
+          app: {{name}}
+      template:
+        metadata:
+          labels:
+            app: {{name}}
+        spec:
+          containers:
+          - command:
+            - /openaf/oaf
+            - -c
+            - includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()
+            image: openaf/oaf:nightly
+            imagePullPolicy: IfNotPresent
+            name: oaf
+            ports:
+            - containerPort: {{port}}
+              protocol: TCP
+            resources: {}
+          restartPolicy: Always
+
+jobs:
+# -----------------------------------
+- name : Generate socks server deploy
+  check:
+    in:
+      name: isString.default("socks-server")
+      port: toNumber.isNumber.default(1080)
+  exec : |
+    print( templify(args.init.deploy, args) )
