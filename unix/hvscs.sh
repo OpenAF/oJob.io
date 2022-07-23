@@ -6,6 +6,8 @@ WORKSPACE=`pwd`
 
 # -----------------
 
+ORIG=$1
+
 echo "hVSCs (https://github.com/nmaguiar/hvscs)"
 echo =========================================
 
@@ -56,7 +58,13 @@ _start() {
   echo -------------------------------------------------------------------------------
 
   ssh -p 2222 -q openvscode-server@127.0.0.1 -L1080:127.0.0.1:1080
-  _stop
+  if [ "$ORIG" != "start" ]; then
+     _stop
+  else
+     echo
+     echo To stop hVSCs just run: hvscs.sh stop
+     echo
+  fi
 }
 
 _stop() {
