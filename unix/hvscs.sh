@@ -5,7 +5,7 @@ SSH_PORT=22222
 SOCKS_PORT=1080
 NAME=hvscs
 WORKSPACE=`pwd`
-IMAGE=nmaguiar/hvscs:build
+IMAGE=nmaguiar/hvscs
 SSH_PASS=Password1
 
 # -----------------
