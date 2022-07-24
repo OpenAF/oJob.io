@@ -1,13 +1,15 @@
 #!/bin/sh
 
-PORT=8888
+WEB_PORT=8888
+SSH_PORT=22222
+SOCKS_PORT=1080
 NAME=hvscs
 WORKSPACE=`pwd`
+IMAGE=nmaguiar/hvscs
 
 # -----------------
 
 ORIG=$1
-
 echo "hVSCs (https://github.com/nmaguiar/hvscs)"
 echo =========================================
 
@@ -27,43 +29,46 @@ _start() {
   echo Creating hVSCs network...
   docker network create $NAME
 
-  echo "Starting hVSCs server (ssh port 2222)..."
+  echo "Starting hVSCs server (ssh port $SSH_PORT)..."
   CMD=""
   if [ "$MAC" != "false" ]; then
     #CMD="--cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw"
     CMD="--cgroupns=host"
   fi
-  docker run --rm -ti --init -d -p 3000 -p 2222:22 --privileged $CMD -v $WORKSPACE:/workspace:cached --network $NAME --name $NAME\_hvscs nmaguiar/hvscs
+  docker run --rm -ti --init -d -p 3000 -p $SSH_PORT:22 --privileged $CMD -v $WORKSPACE:/workspace:cached --network $NAME --name $NAME\_hvscs $IMAGE
 
-  echo "Starting nginx reverse proxy (port $PORT)..."
+  echo "Starting nginx reverse proxy (port $WEB_PORT)..."
   CMD='$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://'
   CMD=$CMD$NAME\_$NAME
   CMD=$CMD':3000 port='
-  CMD=$CMD$PORT
+  CMD=$CMD$WEB_PORT
   CMD=$CMD' websocket=true  ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
-  docker run --rm -ti -d -p $PORT:80 --network $NAME --name $NAME\_nginx openaf/oaf:nightly -c "$CMD"
+  docker run --rm -ti -d -p $WEB_PORT:80 --network $NAME --name $NAME\_nginx openaf/oaf:nightly -c "$CMD"
 
   echo
   echo Waiting for startup...
-  until curl -s -f -k -o /dev/null https://`hostname`:$PORT
+  until curl -s -f -k -o /dev/null https://`hostname`:$WEB_PORT
   do
     sleep 3
   done
 
-  echo -------------------------------------------------------------------------------
-  echo Ready! You can open your browser at https://`hostname`:$PORT/?folder=/workspace
-  echo -------------------------------------------------------------------------------
-  echo "Now we will SSH to the local hVSCs (use 'Password1' as your password)."
-  echo When finished simply exit and hVSCs will be stopped.
-  echo -------------------------------------------------------------------------------
+  echo =============================================================
+  echo READY! You can open your browser at: https://`hostname`:$WEB_PORT/?folder=/workspace
+  echo =============================================================
 
-  ssh -p 2222 -q openvscode-server@127.0.0.1 -L1080:127.0.0.1:1080
   if [ "$ORIG" != "start" ]; then
-     _stop
+    echo "Now we will SSH to the local hVSCs (use 'Password1' as your password)."
+    echo When finished simply exit and hVSCs will be stopped.
+    echo -------------------------------------------------------------------------------
+    ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
+    _stop
   else
-     echo
-     echo To stop hVSCs just run: hvscs.sh stop
-     echo
+    echo "You can SSH in by executing: ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080"
+    echo "(use 'Password1' as your password)."
+    echo
+    echo "To stop execute this script like this: ./hvscs.sh stop"
+    echo -------------------------------------------------------------------------------
+    ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
   fi
 }
 
