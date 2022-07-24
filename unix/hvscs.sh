@@ -5,7 +5,8 @@ SSH_PORT=22222
 SOCKS_PORT=1080
 NAME=hvscs
 WORKSPACE=`pwd`
-IMAGE=nmaguiar/hvscs
+IMAGE=nmaguiar/hvscs:build
+SSH_PASS=Password1
 
 # -----------------
 
@@ -35,7 +36,7 @@ _start() {
     #CMD="--cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw"
     CMD="--cgroupns=host"
   fi
-  docker run --rm -ti --init -d -p 3000 -p $SSH_PORT:22 --privileged $CMD -v $WORKSPACE:/workspace:cached --network $NAME --name $NAME\_hvscs $IMAGE
+  docker run --rm -ti --env SSH_PASS=$SSH_PASS --init -d -p 3000 -p $SSH_PORT:22 --privileged $CMD -v $WORKSPACE:/workspace:cached --network $NAME --name $NAME\_hvscs $IMAGE
 
   echo "Starting nginx reverse proxy (port $WEB_PORT)..."
   CMD='$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://'
@@ -57,14 +58,14 @@ _start() {
   echo =============================================================
 
   if [ "$ORIG" != "start" ]; then
-    echo "Now we will SSH to the local hVSCs (use 'Password1' as your password)."
+    echo "Now we will SSH to the local hVSCs (use '$SSH_PASS' as your password)."
     echo When finished simply exit and hVSCs will be stopped.
     echo -------------------------------------------------------------------------------
     ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
     _stop
   else
     echo "You can SSH in by executing: ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080"
-    echo "(use 'Password1' as your password)."
+    echo "(use '$SSH_PASS' as your password)."
     echo
     echo "To stop execute this script like this: ./hvscs.sh stop"
     echo -------------------------------------------------------------------------------
