@@ -36,7 +36,7 @@ if defined CMD (
 :_start
 
 echo -- Creating hVSCs network...
-docker network create hvscs
+docker network create %NAME%
 
 echo -- Starting hVSCs server (ssh port %SSH_PORT%)...
 docker pull %IMAGE%
@@ -65,7 +65,7 @@ docker stop %NAME%_nginx
 echo -- Stopping hVSCs...
 docker stop %NAME%_hvscs
 echo -- Deleting network...
-docker network rm hvscs
+docker network rm %NAME%
 echo -- Done.
 
 :_end

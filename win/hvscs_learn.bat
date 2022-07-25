@@ -3,7 +3,7 @@
 set WEB_PORT=8888
 set SSH_PORT=22222
 set SOCKS_PORT=1080
-set NAME=hvscs_earn
+set NAME=hvscs_learn
 set WORKSPACE=
 set IMAGE=nmaguiar/hvscs
 set SSH_PASS=Password1
@@ -36,7 +36,7 @@ if defined CMD (
 :_start
 
 echo -- Creating hVSCs network...
-docker network create hvscs
+docker network create %NAME%
 
 echo -- Starting hVSCs server (ssh port %SSH_PORT%)...
 docker pull %IMAGE%
@@ -65,7 +65,7 @@ docker stop %NAME%_nginx
 echo -- Stopping hVSCs...
 docker stop %NAME%_hvscs
 echo -- Deleting network...
-docker network rm hvscs
+docker network rm %NAME%
 echo -- Done.
 
 :_end
