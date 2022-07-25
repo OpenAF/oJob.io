@@ -122,6 +122,7 @@ jobs:
   lang : shell
   to   : 
   - Show secret
+  - Show token
   - Uninstall master
   exec : |
     curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_TOKEN={{secret}} sh -s - server --cluster-init
@@ -136,9 +137,11 @@ jobs:
       server: isString
   lang : shell
   to   :
+  - Show token
   - Uninstall master
   exec : |
     curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_TOKEN={{secret}} sh -s - server --server {{server}}
+
 
 # ------------------
 - name : Show secret
