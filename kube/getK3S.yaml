@@ -159,6 +159,7 @@ jobs:
 # -----------------
 - name : Show token
   exec : |
+    ow.loadNet()
     print("To add an agent node execute in it: ojob ojob.io/kube/getK3S agent=true token=" + io.readFileString("/var/lib/rancher/k3s/server/node-token").replace(/\n/g, "") + " server=https://" + ow.net.getHostName() + ":6443")
 
 # ----------------------
