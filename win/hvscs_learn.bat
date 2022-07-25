@@ -49,7 +49,7 @@ docker run --rm -ti --init --env SSH_PASS=%SSH_PASS% -d -p 3000 -p %SSH_PORT%:22
 
 echo -- Starting nginx reverse proxy (port %WEB_PORT%)...
 docker pull openaf/oaf:nightly
-docker run --rm -ti -d -p %WEB_PORT%:80 --network %NAME% --name %NAME%_nginx openaf/oaf:nightly -c "$sh('sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://%NAME%_%NAME%:3000 port=%WEB_PORT% websocket=true ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log').exec()"
+docker run --rm -ti -d -p %WEB_PORT%:80 --network %NAME% --name %NAME%_nginx openaf/oaf:nightly -c "$sh('sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://%NAME%_hvscs:3000 port=%WEB_PORT% websocket=true ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log').exec()"
 
 echo.
 echo -- Try to access https://127.0.0.1:%WEB_PORT%/?folder=/workspace in a couple of seconds (keep refreshing until you see a web page showing up)...

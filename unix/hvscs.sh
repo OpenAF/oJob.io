@@ -46,7 +46,7 @@ _start() {
 
   echo "-- Starting nginx reverse proxy (port $WEB_PORT)..."
   CMD='$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://'
-  CMD=$CMD$NAME\_$NAME
+  CMD=$CMD$NAME\_hvscs
   CMD=$CMD':3000 port='
   CMD=$CMD$WEB_PORT
   CMD=$CMD' websocket=true  ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
