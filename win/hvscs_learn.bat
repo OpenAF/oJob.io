@@ -3,8 +3,8 @@
 set WEB_PORT=8888
 set SSH_PORT=22222
 set SOCKS_PORT=1080
-set NAME=hvscs
-set WORKSPACE=%~dp0
+set NAME=hvscs_earn
+set WORKSPACE=
 set IMAGE=nmaguiar/hvscs
 set SSH_PASS=Password1
 

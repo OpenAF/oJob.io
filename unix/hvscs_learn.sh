@@ -3,8 +3,8 @@
 WEB_PORT=8888
 SSH_PORT=22222
 SOCKS_PORT=1080
-NAME=hvscs
-WORKSPACE=`pwd`
+NAME=hvscs_learn
+WORKSPACE=
 IMAGE=nmaguiar/hvscs
 SSH_PASS=Password1
 
