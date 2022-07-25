@@ -45,7 +45,7 @@ if defined WORKSPACE (
 ) else (
   set WKS= 
 )
-docker run --rm -ti --init --env SSH_PASS=%SSH_PASS% -d -p 3000 -p %SSH_PORT%:22 --privileged %WKS% --network hvscs --name %NAME%_hvscs %IMAGE%
+docker run --rm -ti --init --env SSH_PASS=%SSH_PASS% -d -p 3000 -p %SSH_PORT%:22 --privileged %WKS% --network %NAME% --name %NAME%_hvscs %IMAGE%
 
 echo -- Starting nginx reverse proxy (port %WEB_PORT%)...
 docker pull openaf/oaf:nightly
