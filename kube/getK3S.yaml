@@ -95,6 +95,7 @@ jobs:
   to   : 
   - Show token
   - Uninstall master
+  - Show result
   exec : |
     curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin sh -
 
@@ -109,6 +110,7 @@ jobs:
   lang : shell
   to   :
   - Uninstall agent
+  - Show result
   exec : |
     curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_URL={{server}} K3S_TOKEN={{token}} sh -
 
@@ -124,6 +126,7 @@ jobs:
   - Show secret
   - Show token
   - Uninstall master
+  - Show result
   exec : |
     curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_TOKEN={{secret}} sh -s - server --cluster-init
 
@@ -139,6 +142,7 @@ jobs:
   to   :
   - Show token
   - Uninstall master
+  - Show result
   exec : |
     curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_TOKEN={{secret}} sh -s - server --server {{server}}
 
@@ -149,13 +153,13 @@ jobs:
     in:
       secret: isString.default(secret)
   exec : |
-    sprint({ secret: args.secret }, "")
-    print("To add anoter master node execute in it: ojob ojob.io/kube/getK3S secret=" + args.secret + " master=true server=https://this.Server.IP.Address:6443")
+    ow.loadNet()
+    print("To add anoter master node execute in it: ojob ojob.io/kube/getK3S secret=" + args.secret + " master=true server=https://" + ow.net.getHostName() + ":6443")
 
 # -----------------
 - name : Show token
   exec : |
-    print("To add an agent node execute in it: ojob ojob.io/kube/getK3S agent=true token=" + io.readFileString("/var/lib/rancher/k3s/server/node-token").replace(/\n/g, "") + " server=https://this.Server.IP.Address:6443")
+    print("To add an agent node execute in it: ojob ojob.io/kube/getK3S agent=true token=" + io.readFileString("/var/lib/rancher/k3s/server/node-token").replace(/\n/g, "") + " server=https://" + ow.net.getHostName() + ":6443")
 
 # ----------------------
 - name : Uninstall agent
@@ -166,3 +170,13 @@ jobs:
 - name : Uninstall master
   exec : |
     print("To uninstall execute: /usr/bin/k3s-uninstall.sh\n")
+
+# ------------------
+- name : Show result
+  exec : |
+    ow.loadNet()
+    ow.oJob.output({
+      secret: args.secret,
+      token : args.token,
+      host  : ow.net.getHostName()
+    }, args)
