@@ -1,14 +1,42 @@
 # Author: Nuno Aguiar
 help:
   text   : Gets and installs K3S
-  # expects: 
-  # - name     : something
-  #   desc     : To do stuff
-  #   example  : aValueExample
-  #   mandatory: true
+  expects: 
+  - name     : agent
+    desc     : If agent=true it will install a K3S agent node (requires a token to be provided)
+    example  : "true"
+    mandatory: false
+  - name     : master
+    desc     : If master=true it will install a K3S master node (requires a secret to be provided). If no "server" is provided it will assume it's the first cluster master node.
+    example  : "true"
+    mandatory: false
+  - name     : token
+    desc     : If agent=true a token must be provided (can be obtained from k3s servers on /var/lib/rancher/k3s/server/node-token)
+    example  : K173832c8dd5a175bf2123d840ad491850199cbd19309ab3b37827047cdd6319b04::server:faddf0a734d338cd66d4ab19fb4bed73
+    mandatory: false
+  - name     : server
+    desc     : When adding extra nodes or master nodes you need to provide an url to one of the master nodes (e.g. https://1.2.3.4:6443).
+    example  : https://1.2.3.4:6443
+    mandatory: false
+  - name     : secret
+    desc     : If master=true this will determine the secret used for master to connect between them. If none is provided for the first cluster master node, one will be generated.
+    example  : secret
+    mandatory: false 
 
 todo:
-- Gets and installs K3S
+- Check options
+
+- when: STANDALONE
+  name: Gets and installs K3S single master
+
+- when: AGENT
+  name: Gets and installs agent
+
+- when: MASTER_FIRST
+  name: Gets and install the first master
+
+- when: MASTER
+  name: Gets, installs and adds a master
 
 ojob:
   opacks      :
@@ -18,10 +46,120 @@ ojob:
         
 
 jobs:
-# ----------------------------
-- name : Gets and installs K3S
+# --------------------
+- name : Check options
+  check:
+    in:
+      agent : toBoolean.isBoolean.default(false)
+      master: toBoolean.isBoolean.default(false)
+      token : isString.default(__)
+      server: isString.default(__)
+      secret: isString.default(__)
+  exec : |
+    var state = ""
+
+    if (!args.agent && !args.master) {
+      state = "STANDALONE"
+    } else {
+      if (args.agent) {
+        if (isUnDef(args.token) || isUnDef(args.server)) {
+          throw "To deploy a K3S agent you will need to provide a token and a server"
+        } else {
+          state = "AGENT"
+        }
+      }
+      // If master and agent, master will be choosen
+      if (args.master) {
+        if (isUnDef(args.server)) {
+          if (isUnDef(args.secret)) {
+            var genSecret = (aSize) => {
+              var sr = new java.security.SecureRandom()
+              return range(aSize).map(r => ow.format.toBase36(sr.nextInt(2 ** 30))).join("")
+            }
+            global.secret = genSecret(32)
+          }
+          state = "MASTER_FIRST"
+        } else {
+          state = "MASTER"
+        }
+      }
+    }
+
+    ow.oJob.setState(state)
+
+# ------------------------------------------
+- name : Gets and installs K3S single master
   typeArgs:
     shellPrefix: k3s
   lang : shell
+  to   : 
+  - Show token
+  - Uninstall master
   exec : |
-    curl -sfL https://get.k3s.io | sh -
+    curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin sh -
+
+# ------------------------------
+- name : Gets and installs agent
+  check:
+    in:
+      server: isString
+      token : isString
+  typeArgs:
+    shellPrefix: k3s
+  lang : shell
+  to   :
+  - Uninstall agent
+  exec : |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_URL={{server}} K3S_TOKEN={{token}} sh -
+
+# ----------------------------------------
+- name : Gets and install the first master
+  check:
+    in:
+      secret: isString.default(global.secret)
+  typeArgs:
+    shellPrefix: k3s
+  lang : shell
+  to   : 
+  - Show secret
+  - Uninstall master
+  exec : |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_TOKEN={{secret}} sh -s - server --cluster-init
+
+# ---------------------------------------
+- name : Gets, installs and adds a master
+  typeArgs:
+    shellPrefix: k3s
+  check:
+    in:
+      secret: isString
+      server: isString
+  lang : shell
+  to   :
+  - Uninstall master
+  exec : |
+    curl -sfL https://get.k3s.io | INSTALL_K3S_BIN_DIR=/usr/bin K3S_TOKEN={{secret}} sh -s - server --server {{server}}
+
+# ------------------
+- name : Show secret
+  check:
+    in:
+      secret: isString.default(global.secret)
+  exec : |
+    sprint({ secret: args.secret }, "")
+    print("To add anoter master node execute in it: ojob ojob.io/kube/getK3S secret=" + args.secret + " master=true server=https://this.Server.IP.Address:6443")
+
+# -----------------
+- name : Show token
+  exec : |
+    print("To add an agent node execute in it: ojob ojob.io/kube/getK3S token=" + io.readFileString("/var/lib/rancher/k3s/server/node-token").replace(/\n/g, "") + " server=https://this.Server.IP.Address:6443")
+
+# ----------------------
+- name : Uninstall agent
+  exec : |
+    print("To uninstall execute: /usr/bin/k3s-agent-uninstall.sh\n")
+
+# -----------------------
+- name : Uninstall master
+  exec : |
+    print("To uninstall execute: /usr/bin/k3s-uninstall.sh\n")
