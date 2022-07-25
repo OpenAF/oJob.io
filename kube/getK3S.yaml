@@ -116,7 +116,7 @@ jobs:
 - name : Gets and install the first master
   check:
     in:
-      secret: isString.default(global.secret)
+      secret: isString.default(secret)
   typeArgs:
     shellPrefix: k3s
   lang : shell
@@ -147,7 +147,7 @@ jobs:
 - name : Show secret
   check:
     in:
-      secret: isString.default(global.secret)
+      secret: isString.default(secret)
   exec : |
     sprint({ secret: args.secret }, "")
     print("To add anoter master node execute in it: ojob ojob.io/kube/getK3S secret=" + args.secret + " master=true server=https://this.Server.IP.Address:6443")
@@ -155,7 +155,7 @@ jobs:
 # -----------------
 - name : Show token
   exec : |
-    print("To add an agent node execute in it: ojob ojob.io/kube/getK3S token=" + io.readFileString("/var/lib/rancher/k3s/server/node-token").replace(/\n/g, "") + " server=https://this.Server.IP.Address:6443")
+    print("To add an agent node execute in it: ojob ojob.io/kube/getK3S agent=true token=" + io.readFileString("/var/lib/rancher/k3s/server/node-token").replace(/\n/g, "") + " server=https://this.Server.IP.Address:6443")
 
 # ----------------------
 - name : Uninstall agent
