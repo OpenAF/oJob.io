@@ -79,7 +79,7 @@ _start() {
     echo "Now we will SSH to the local hVSCs (use '$SSH_PASS' as your password)."
     echo When finished simply exit and hVSCs will be stopped.
     echo -------------------------------------------------------------------------------
-    ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
+    ssh -tt -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
     _stop
   else
     echo "You can SSH in by executing: ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080"
@@ -87,7 +87,7 @@ _start() {
     echo
     echo "To stop execute this script like this: ./hvscs.sh stop"
     echo -------------------------------------------------------------------------------
-    ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
+    ssh -tt -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
   fi
 }
 
