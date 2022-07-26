@@ -1,0 +1,69 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates the docker or docker-compose entries to have a quick and simple unencrypted socks5 server.
+  expects: 
+  - name     : cmdline
+    desc     : If cmdline=true it will generate the command line instead of docker-compose
+    example  : "true"
+    mandatory: false
+  - name     : network
+    desc     : If defined it will use the corresponding network name
+    example  : mynet
+    mandatory: false
+
+todo:
+- name: ojob options
+  args:
+    optionOn : cmdline
+    lowerCase: true
+    todos    :
+      "true" :
+      - Generate docker
+      "false":
+      - Generate docker-compose
+    default  :
+    - Generate docker-compose
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/common/ojob      
+
+jobs:
+# ----------------------
+- name : Generate docker
+  exec :
+    tprint("docker run --rm -ti -p 1080:1080 {{#if network}}--network {{network}} {{/if}}openaf/oaf:nightly -c \"includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()\"", args)
+
+# ------------------------------
+- name : Generate docker-compose
+  args :
+    dc: |
+      version: '3.4'
+
+      services:
+        socks:
+          hostname: socks
+          image   : openaf/oaf:nightly
+          ports   :
+          - 1080:1080
+          {{#if network}}
+          networks:
+          - {{network}}
+          {{/if}}
+          command :
+          - /openaf/oaf
+          - -c
+          - includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()
+
+      {{#if network}}
+      networks:
+        {{network}}:
+      {{/if}}
+
+  exec : |
+    tprint(args.dc, args)
