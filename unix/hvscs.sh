@@ -14,7 +14,7 @@ NOSSH=${_NOSSH:-}
 NODOCKER=${_NODOCKER:-}
 NOK8S=${_NOK8S:-}
 NOVSCODE=${_NOVSCODE:-}
-NOPULL=${_NOPUL:-}
+NOPULL=${_NOPULL:-}
 
 ORIG=$1
 echo "hVSCs (https://github.com/nmaguiar/hvscs)"

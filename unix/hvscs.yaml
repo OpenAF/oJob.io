@@ -26,10 +26,14 @@ help:
     desc     : The hostname to use for URLs
     example  : 1.2.3.4
     mandatory: false
+  - name     : flags
+    desc     : "Extra flags to use when creating a new hVSCs instance separated by commas (example: NOSSH,NODOCKER,NOK8S,NOVSCODE)"
+    example  : NOSSH,NODOCKER,NOK8S,NOVSCODE
+    mandatory: false
 
 init:
   dockHVSCS: |
-    docker run --rm -ti --init -d -p 3000 -p {{sshPort}}:22 --privileged {{{extra}}} {{{wkspVolume}}} --network {{network}} --name {{name}}_hvscs {{image}}
+    docker run --rm -ti --init -d -p 3000 -p {{sshPort}}:22 --privileged {{{extra}}} {{{envs}}} {{{wkspVolume}}} --network {{network}} --name {{name}}_hvscs {{image}}
   dockNginx: |
     docker run --rm -ti -d -p {{webPort}}:80 --network {{network}} --name {{name}}_nginx openaf/oaf:nightly -c '$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://{{name}}_hvscs:3000 port={{webPort}} websocket=true  ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
   dockNet  : |
@@ -57,8 +61,11 @@ ojob:
   opacks      :
   - openaf: 20211229
   - oJob-common
+  - Docker
   catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
+  loadLibs    :
+  - docker.js
 
 include:
 - ojob.yaml
@@ -70,9 +77,11 @@ jobs:
     in:
       host: isString.default("127.0.0.1")
   exec : |
+    var d = new Docker()
+
     // Get network
-    $set("networks", $sh("docker network ls --format '{{json .}}'").get(0).stdout.split("\n").filter(r => r.length > 0).map(r => jsonParse(r)) )
-    $set("dockers",  $sh("docker ps --format '{{json .}}'").get(0).stdout.split("\n").filter(r => r.length > 0).map(r => jsonParse(r)) )
+    $set("networks", d.getNetworks() )
+    $set("dockers",  d.getContainers() )
 
     var nets = $from($get("networks"))
                .starts("Name", "hvscs_")
@@ -82,24 +91,22 @@ jobs:
     nets.forEach(net => {
       // Get dockers per network
       var dock = $from($get("dockers"))
-                 .equals("Networks", net)
+                 .notEmpty("NetworkSettings.Networks." + net)
                  .select()
 
       var docks = []
       dock.forEach(d => {
         // Parse function
-        d._name = d.Names.replace(net + "_", "")
+        d._name = d.Names[0].replace("/" + net + "_", "")
 
         // Parse ports
         d._ports = []
-        d.Ports.split(", ").forEach(port => {
-          var m = port.match(/^(.+):(\d+)->(\d+)\/(\w+)$/)
-          if (!isArray(m) && m.length < 5) return
+        d.Ports.forEach(port => {
           d._ports.push({
-            host   : m[1],
-            extPort: m[2],
-            intPort: m[3],
-            proto  : m[4]
+            host   : port.IP,
+            extPort: port.PublicPort,
+            intPort: port.PrivatePort,
+            proto  : port.Type
           })
         })
         docks.push(d)
@@ -109,12 +116,12 @@ jobs:
 
       var dm = {}
       dm.name = net.replace("hvscs_", "")
-      $from(docks).equals("_name", dm.name + "_nginx").select(r => {
+      $from(docks).equals("Names[0]", "/" + dm.name + "_nginx").select(r => {
         $from(r._ports)
         .equals("intPort", 80)
         .select(s => { dm.webPort = s.extPort })
       })
-      $from(docks).equals("_name", dm.name + "_hvscs").select(r => {
+      $from(docks).equals("Names[0]", "/" + dm.name + "_hvscs").select(r => {
         $from(r._ports)
         .equals("intPort", 22)
         .select(s => { dm.sshPort = s.extPort })
@@ -122,7 +129,7 @@ jobs:
       })
 
       dm.webURL = "https://"+args.host+":" + dm.webPort + "/?folder=/workspace"
-      dm.sshURL = "ssh://openvscode-server@"+args.host+":" + dm.sshPort
+      dm.sshURL = "ssh -p " + dm.sshPort + " openvscode-server@"+args.host+" -L 1080:127.0.0.1:1080"
 
       lst.push(dm)
     })
@@ -134,6 +141,8 @@ jobs:
   from : Get data
   to   : ojob output
   exec : |
+    var r = $get("res")
+    if (isUnDef(res) || res.length == 0) print("No hVSCs found.")
     args.__format = _$(args.__format, "__format").default("table")
 
 # -------------
@@ -144,12 +153,14 @@ jobs:
       image : isString.default("nmaguiar/hvscs")
       mac   : toBoolean.isBoolean.default(false)
       volume: isString.default(__)
+      flags : isString.default("")
   exec : |
     var d = {
       name      : args.name,
       isMac     : true,
       webPort   : findRandomOpenPort(),
       sshPort   : findRandomOpenPort(),
+      envs      : args.flags.split(",").map(f => "--env " + f + "=1").join(" "),
       extra     : args.mac ? "--cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw" : "",
       network   : "hvscs_" + args.name,
       wkspVolume: (isDef(args.volume) ? "-v " + args.volume + ":/workspace:cached" : ""),
@@ -162,8 +173,10 @@ jobs:
     print("Running " + templify(args.init.dockHVSCS, d))
     $sh(templify(args.init.dockHVSCS, d)).exec()
 
-    print("Running " + templify(args.init.dockNginx, d))
-    $sh(templify(args.init.dockNginx, d)).exec()
+    if (args.flags.indexOf("NOVSCODE") < 0) {
+       print("Running " + templify(args.init.dockNginx, d))
+       $sh(templify(args.init.dockNginx, d)).exec()
+    }
 
 # -------------
 - name : Delete
