@@ -160,7 +160,7 @@ jobs:
       isMac     : true,
       webPort   : findRandomOpenPort(),
       sshPort   : findRandomOpenPort(),
-      envs      : args.flags.split(",").map(f => "--env " + f + "=1").join(" "),
+      envs      : args.flags.split(",").filter(f => f.length > 0).map(f => "--env " + f + "=1").join(" "),
       extra     : args.mac ? "--cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw" : "",
       network   : "hvscs_" + args.name,
       wkspVolume: (isDef(args.volume) ? "-v " + args.volume + ":/workspace:cached" : ""),
