@@ -1,0 +1,60 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds a container with skopeo and a script to use it. 
+  expects: 
+  - name     : path
+    desc     : Where to store the skopeo script
+    example  : .
+    mandatory: false
+
+todo:
+- Build skopeo
+- Write script
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+init:
+  df: |
+    FROM openaf/oaf
+
+    USER root
+    RUN apk add skopeo
+
+    ENTRYPOINT [ "/usr/bin/skopeo" ]
+  script: |
+    #!/bin/sh
+
+    docker run --rm -ti openaf/skopeo $@
+  winscript: |
+    @echo off
+    docker run --rm -ti openaf/skopeo %*
+
+jobs:
+# -------------------
+- name : Build skopeo
+  exec : |
+    var res = $sh().sh("docker build -t openaf/skopeo -", args.init.df)
+              .prefix("build")
+              .get(0)
+    
+# ------------------- 
+- name : Write script
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    ow.loadFormat()
+    if (ow.format.isWindows()) {
+      var f = args.path + "/skopeo.bat"
+      log("Writing " + f + "...")
+      io.writeFileString(f, args.init.winscript)
+    } else {
+      var f = args.path + "/skopeo.sh"
+      log("Writing " + f + "...")
+      io.writeFileString(f, args.init.script)
+      $sh("chmod u+x " + f).exec()
+    }
