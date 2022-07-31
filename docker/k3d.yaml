@@ -89,9 +89,9 @@ jobs:
       var versions = $sh("k3d version").get(0).stdout.trim().split("\n").map(r => r.split(" ")[2])
 
       var f = "k3d-airgap-images-" + arch 
-      $sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " docker-archive:" + f + "-rancher_k3s.tar")
-      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", "") + " docker-archive:" + f + "-k3d-io_k3d-proxy.tar")
-      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", "") + " docker-archive:" + f + "-k3d-io_k3d-tools.tar")
+      $sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " docker-archive:" + f + "-rancher_k3s.tar:rancher/k3s:" + versions[1])
+      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", "") + " docker-archive:" + f + "-k3d-io_k3d-proxy.tar:ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", ""))
+      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", "") + " docker-archive:" + f + "-k3d-io_k3d-tools.tar:ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", ""))
       .exec()
 
       $sh("gzip *.tar")
