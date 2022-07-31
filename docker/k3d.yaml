@@ -92,8 +92,7 @@ jobs:
       var versions = $sh("k3d version").get(0).stdout.trim().split("\n").map(r => r.split(" ")[2])
 
       print(f)
-      $sh("skopeo copy docker://docker.io/openaf/oaf:nightly dir:" + f)
-      .sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " dir:" + f)
+      $sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " dir:" + f)
       .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", "") + " dir:" + f)
       .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", "") + " dir:" + f)
       .exec()
