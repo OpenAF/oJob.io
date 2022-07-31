@@ -78,9 +78,6 @@ jobs:
       images: toBoolean.isBoolean.default(false)
   exec : |
     if (args.images) {
-      var f = "images_" + genUUID()
-      io.mkdir(f)
-
       // Check OS and arch
       var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
       var arch = $sh("uname -m").get(0).stdout.trim()
@@ -91,17 +88,13 @@ jobs:
 
       var versions = $sh("k3d version").get(0).stdout.trim().split("\n").map(r => r.split(" ")[2])
 
-      print(f)
-      $sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " dir:" + f)
-      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", "") + " dir:" + f)
-      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", "") + " dir:" + f)
+      var f = "k3d-airgap-images-" + arch 
+      $sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " docker-archive:" + f + "-rancher_k3s.tar")
+      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", "") + " docker-archive:" + f + "-k3d-io_k3d-proxy.tar")
+      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", "") + " docker-archive:" + f + "-k3d-io_k3d-tools.tar")
       .exec()
 
-      $sh("tar czf ../k3d-airgap-images-" + arch + ".tar.gz .")
-      .pwd(io.fileInfo(f).canonicalPath)
-      .exec()
-
-      $sh("rm -rf " + io.fileInfo(f).canonicalPath)
+      $sh("gzip *.tar")
       .exec()
 
       var url = "https://github.com/k3s-io/k3s/releases/download/" + versions[1].replace("-", "%2B") + "/k3s-airgap-images-" + arch + ".tar.gz"
