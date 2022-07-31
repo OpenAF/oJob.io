@@ -2,11 +2,11 @@
 help: &HELP
   text   : |
     Download and install K3D (Rancher's K3S for Docker) in a Linux system
-  # expects: 
-  # - name     : ""
-  #   desc     : ""
-  #   example  : ""
-  #   mandatory: false
+  expects:
+  - name     : images
+    desc     : "Should also download air-gap container images (e.g. default if false) (NOTE: requires skopeo)"
+    example  : true
+    mandatory: false
 
 todo:
 - Check for docker
@@ -20,7 +20,7 @@ ojob:
   logToConsole: false   # to change when finished
 
 include:
-- ojob.io/docker/_common 
+- ojob.io/docker/_common
 
 init:
   instructions: |
@@ -44,19 +44,25 @@ init:
     To uninstall      : rm /usr/local/bin/k3d
 
 jobs:
-# -------------------------
-- name: Install Rancher K3D
-  exec: |
+# --------------------------
+- name : Install Rancher K3D
+  to   :
+  - Install K3D
+  - Download K3D images
+
+# ------------------
+- name : Install K3D
+  exec : |
     log("Downloading K3D install script...")
     var tmp = io.createTempFile("install.", ".sh")
     $rest().get2File(tmp, "https://raw.githubusercontent.com/rancher/k3d/main/install.sh")
-    
+
     var cmd = []
     if (io.fileExists("/usr/bin/sudo")) {
       cmd.push("sudo")
     }
 
-    if (!io.fileExists("/bin/bash")) throw "Bash is necessary ot install"
+    if (!io.fileExists("/bin/bash")) throw "Bash is necessary to install"
 
     cmd.push("/bin/bash")
     cmd.push(tmp)
@@ -64,6 +70,44 @@ jobs:
     $sh(cmd)
     .prefix("k3d")
     .get()
+
+# --------------------------
+- name : Download K3D images
+  check:
+    in:
+      images: toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.images) {
+      var f = "images_" + genUUID()
+      io.mkdir(f)
+
+      // Check OS and arch
+      var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
+      var arch = $sh("uname -m").get(0).stdout.trim()
+
+      if (arch.startsWith("armv7")) arch = "arm"
+      if (arch == "aarch64") arch = "arm64"
+      if (arch == "x86_64") arch = "amd64"
+
+      var versions = $sh("k3d version").get(0).stdout.trim().split("\n").map(r => r.split(" ")[2])
+
+      print(f)
+      $sh("skopeo copy docker://docker.io/openaf/oaf:nightly dir:" + f)
+      .sh("skopeo copy docker://docker.io/rancher/k3s:" + versions[1] + " dir:" + f)
+      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-proxy:" + versions[0].replace("v", "") + " dir:" + f)
+      .sh("skopeo copy docker://ghcr.io/k3d-io/k3d-tools:" + versions[0].replace("v", "") + " dir:" + f)
+      .exec()
+
+      $sh("tar czf ../k3d-airgap-images-" + arch + ".tar.gz .")
+      .pwd(io.fileInfo(f).canonicalPath)
+      .exec()
+
+      $sh("rm -rf " + io.fileInfo(f).canonicalPath)
+      .exec()
+
+      var url = "https://github.com/k3s-io/k3s/releases/download/" + versions[1].replace("-", "%2B") + "/k3s-airgap-images-" + arch + ".tar.gz"
+      $rest().get2File("k3s-airgap-images-" + arch + ".tar.gz", url)
+    }
 
 # -----------------------
 - name: Next instructions
