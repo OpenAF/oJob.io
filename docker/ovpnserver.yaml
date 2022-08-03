@@ -135,7 +135,7 @@ jobs:
 
     log("Initializing PKI...");
     if (isDef(args.pass)) {
-      res = $sh("expect <<END\nspawn docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki\nexpect \"Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Re-Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Common Name (eg: your user, host, or server name) \"\nsend VPN\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Data Base Updated\"\nEND\n")
+      res = $sh("expect <<END\nspawn docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki\nexpect \"Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Re-Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Common Name (eg: your user, host, or server name) \"\nsend VPN\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nwait\nEND\n")
             .prefix("init pki")
             .exec(0)
     } else {
