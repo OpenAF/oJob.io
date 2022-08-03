@@ -1,4 +1,43 @@
 # Author: Nuno Aguiar
+help:
+  text   : Creates an openvpn docker daemon and shell scripts to add/del/list users.
+  expects:
+  - name     : url
+    desc     : The vpn external url (either "tcp://some.address" or "udp://some.address")
+    example  : udp://1.2.3.4
+    mandatory: true
+  - name     : path
+    desc     : Path where the scripts to use the vpn will be created (defaults to ".")
+    example  : /opt/vpn
+    mandatory: false
+  - name     : volume
+    desc     : Volume where the openvpn configuration will be stored (defaults to a docker volume openvpn)
+    example  : /etc/openvpn
+    mandatory: false
+  - name     : dns
+    desc     : Use a specific dns server instead of the Google DNS servers (e.g. 1.2.3.4)
+    example  : 10.90.0.2
+    mandatory: false
+  - name     : default
+    desc     : If default=true all traffic will be redirect to this vpn (default is false)
+    example  : "false"
+    mandatory: false
+  - name     : nat
+    desc     : If nat=false vpn clients will not be NATed (default is true)
+    example  : "true"
+    mandatory: false
+  - name     : subnet
+    desc     : Using a specific subnet for the vpn clients (e.g. 10.200.0.0/16)
+    example  : "10.190.0.0/16"
+    mandatory: false
+  - name     : route
+    desc     : Specify a specific route for VPN clients (e.g. "192.168.1.0 255.255.255.0")
+    example  : "10.90.0.0 255.255.0.0"
+    mandatory: false
+  - name     : keysize
+    desc     : Specify a RSA keysize different from the 4096 default.
+    example  : 4096
+    mandatory: false
 
 todo:
 - Generate server
@@ -19,30 +58,6 @@ ojob:
   sequential  : true
 
 jobs:
-# ----------
-- name: Help
-  help:
-    text   : Creates an openvpn docker daemon and shell scripts to add/del/list users.
-    expects:
-    - name: url
-      desc: The vpn external url (either "tcp://some.address" or "udp://some.address")
-    - name: path
-      desc: Path where the scripts to use the vpn will be created (defaults to ".")
-    - name: volume
-      desc: Volume where the openvpn configuration will be stored (defaults to a docker volume openvpn)
-    - name: dns
-      desc: Use a specific dns server instead of the Google DNS servers (e.g. 1.2.3.4)
-    - name: default
-      desc: If default=true all traffic will be redirect to this vpn (default is false)
-    - name: nat
-      desc: If nat=false vpn clients will not be NATed (default is true)
-    - name: subnet
-      desc: Using a specific subnet for the vpn clients (e.g. 10.200.0.0/16)
-    - name: route
-      desc: Specify a specific route for VPN clients (e.g. "192.168.1.0 255.255.255.0")
-    - name: keysize
-      desc: Specify a RSA keysize different from the 2048 default.
-
 # ----------------------------
 - name: Build container if ARM
   exec: |
@@ -84,7 +99,7 @@ jobs:
     args.nat    = _$(args.nat, "nat").default("true"); 
     
     global.url = _$(args.url, "url").default("udp://" + ow.format.getPublicIP().ip);
-    global.keysize = _$(args.keysize, "keysize").default(2048);
+    global.keysize = _$(args.keysize, "keysize").default(4096);
 
     var exists = $sh("docker").get(0).exitcode;
     if (exists != 0) throw "Couldn't find the docker client. Please install docker.";
