@@ -38,6 +38,10 @@ help:
     desc     : Specify a RSA keysize different from the 4096 default.
     example  : 4096
     mandatory: false
+  - name     : pass
+    desc     : Provide the CA password (if not defined it will be prompted; requires unix expect)
+    example  : somepass
+    mandatory: false
 
 todo:
 - Generate server
@@ -130,7 +134,15 @@ jobs:
     if (res.exitcode != 0) throw "Failed to create openvpn configuration.";
 
     log("Initializing PKI...");
-    res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki").prefix("init pki").exec(0);
+    if (isDef(args.pass)) {
+      res = $sh("expect <<END\nspawn docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki\nexpect \"Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Re-Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Common Name (eg: your user, host, or server name) \"\nsend VPN\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Data Base Updated\"\nEND\n")
+            .prefix("init pki")
+            .exec(0)
+    } else {
+      res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki")
+            .prefix("init pki")
+            .exec(0)
+    }
     if (res.exitcode != 0) throw "Failed to initialize PKI.";
 
     args.__format = _$(args.__format).default("pm");
@@ -257,12 +269,12 @@ jobs:
     file: openvpn_list.sh
     text: |
       #!/bin/sh
-      docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
-      #oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}})))'
+      #docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
+      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
     winText: |
       @echo off
-      docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
-      #oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}})))'
+      #docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
+      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
 
 # -----------------------------
 - name: Generate destroy script
