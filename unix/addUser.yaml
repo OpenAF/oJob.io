@@ -25,7 +25,7 @@ jobs:
       user: isString
   lang : shell
   exec : |
-    sudo adduser --disabled-password --gecos "" {{user}}
+    sudo adduser {{user}}
     sudo mkdir /home/{{user}}/.ssh
     sudo chmod 700 /home/{{user}}/.ssh
     sudo touch /home/{{user}}/.ssh/authorized_keys
