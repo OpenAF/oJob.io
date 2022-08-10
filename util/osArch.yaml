@@ -1,0 +1,42 @@
+# Author: Nuno Aguiar
+help:
+  text   : Tries to determine the current OS and architecture
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Get current OS and Arch
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------------------
+- name : Get current OS and Arch
+  check:
+    in:
+      os  : isString.default("linux")
+      arch: isString.default("x86")
+  exec : |
+    ow.loadFormat()
+    var tos = String(java.lang.System.getProperty("os.name"))
+    var tar = String(java.lang.System.getProperty("os.arch"))
+
+    if (tos.match(/Windows/)) args.os = "windows"
+    if (tos.match(/Mac OS/))  args.os = "macos"
+    if (tos.match(/Linux/))   args.os = "linux"
+
+    if (tar == "aarch64_be" || tar == "aarch64" || tar == "armv8b" || tar == "armv81" || tar == "arm64") {
+      args.arch = "arm"
+    } else {
+      args.arch = "x86"
+    }
+
+    ow.oJob.output({ os: args.os, arch: args.arch }, args)

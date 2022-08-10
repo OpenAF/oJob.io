@@ -1,0 +1,78 @@
+# Author: Nuno Aguiar
+help:
+  text   : Install AWS CLI 2
+  expects: 
+  - name     : dontReplace
+    desc     : If dontReplace=true if there is a /usr/bin/aws it won't be moved to aws.old and replaced with the new AWS CLI 2
+    example  : true
+    mandatory: false
+
+todo:
+- Download AWS CLI package
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+jobsInclude:
+- ojob.io/util/osArch  
+
+jobs:
+# -------------------------------
+- name : Download AWS CLI package
+  from : Get current OS and Arch
+  args :
+    __format: "pm"
+  check :
+    in: 
+      dontReplace: toBoolean.isBoolean.default(false)
+  exec : |
+    var url = "https://awscli.amazonaws.com/"
+    var file = ""
+    
+    if (args.os == "linux") {
+      file = "awscli.zip"
+      if (args.arch == "x86") {
+        url += "awscli-exe-linux-x86_64.zip"
+      } else {
+        url += "awscli-exe-linux-aarch64.zip"
+      }
+    }
+
+    if (args.os == "mac") {
+      url += "AWSCLIV2.pkg"
+      file = "AWSCLIV2.pkg"
+    }
+
+    if (args.os == "windows") {
+      url += "AWSCLIV2.msi"
+      file = "AWSCLIV2.msi"
+    }
+
+    print("Downloading from '" + url + "'...")
+    $rest().get2File(file, url)
+
+    if (args.os == "linux") {
+      if (io.fileExists("aws")) throw "Sub-folder 'aws' exists. Need an empty folder."
+
+      $sh("unzip " + file).prefix("unzip").get()
+      if (io.fileExists("/usr/local/aws-cli/v2/current")) {
+        $sh("sudo ./aws/install --update").prefix("update").get()
+      } else {
+        $sh("sudo ./aws/install").prefix("install").get()
+      }
+
+      if (!args.dontReplace && io.fileExists("/usr/bin/aws")) {
+        $sh("sudo mv /usr/bin/aws /usr/bin/aws.old").prefix("mv").get()
+        $sh("sudo ln -s /usr/local/bin/aws /usr/bin/aws").prefix("ln").get()
+      } else {
+        $sh("sudo ln -s /usr/local/bin/aws /usr/bin/aws").prefix("ln").get()
+      }
+
+      io.rm("aws")
+      io.rm(file)
+    } else {
+      print("Please execute the downloaded " + file + " file.")
+    }
