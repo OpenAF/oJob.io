@@ -5,7 +5,7 @@ help:
   - name     : md
     desc     : The MD file to convert
     example  : README.md
-    mandatory: true
+    mandatory: false
   - name     : html
     desc     : The HTML file to output
     example  : README.html
@@ -30,7 +30,7 @@ jobs:
 - name : Convert
   check:
     in:
-      md     : isString
+      md     : isString.default(__)
       html   : isString.default(__)
       compact: toBoolean.isBoolean.default(false)
   exec : |
@@ -38,9 +38,19 @@ jobs:
 
     if (args.compact) __flags.MD_NOMAXWIDTH = false
 
-    var html = ow.template.html.genStaticVersion4MDFile(args.md)
+    var html
+    if (isUnDef(args.md) && isString(__pm.res)) {
+      html = ow.template.html.genStaticVersion4MD(__pm.res)
+    } else {
+      html = ow.template.html.genStaticVersion4MDFile(args.md)
+    }
+
     if (isDef(args.html)) {
       io.writeFileString(args.html, html)
     } else {
-      print(html)
+      if (isDef(args.__format) && args.__format == "pm") {
+        __pm.res = html
+      } else {
+        print(html)
+      }
     }

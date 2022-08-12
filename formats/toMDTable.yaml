@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Given an array/list of maps will convert it into a markdown table
   expects: 
   - name   : file
@@ -9,8 +9,6 @@ help: &HELP
     desc   : If delete=false the __pm output won't be deleted (defaults to true)
     example: "true"
 
-init:
-  help: *HELP
 
 todo:
 - To MD table
@@ -23,11 +21,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # -----------------
 - name: To MD table 
   exec: |
@@ -61,7 +54,11 @@ jobs:
     if (isDef(args.file)) {
       io.writeFileString(args.file, md)
     } else {
-      print(md)
+      if (isDef(args.__format) && args.__format == "pm") {
+        __pm.res = md
+      } else {
+        print(md)
+      }
     }
 
     if (args.delete) {

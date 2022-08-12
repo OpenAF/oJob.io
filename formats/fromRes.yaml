@@ -1,0 +1,33 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints to stdout or to a file the contents of __pm.res
+  expects: 
+  - name     : file
+    desc     : If defined it will write to a file the contents of __pm.res
+    example  : myfile.txt
+    mandatory: false
+
+todo:
+- Write
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------
+- name : Write
+  check:
+    in:
+      file: isString.default(__)
+  exec : |
+    if (isDef(__pm) && isString(__pm.res)) {
+      if (isDef(args.file)) {
+        io.writeFileString(args.file, __pm.res)
+      } else {
+        print(__pm.res)
+      }
+    }
