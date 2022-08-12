@@ -45,7 +45,13 @@ jobs:
       }
 
       if (isUnDef(args.name)) args.name = args.file.substr(0, args.file.lastIndexOf("."))
-      print("![" + args.name + "](data:" + ext + ";base64," + b64 + ")")
+
+      var res = "![" + args.name + "](data:" + ext + ";base64," + b64 + ")" 
+      if (isDef(args.__format) && args.__format == "pm") {
+        __pm.res = res
+      } else {
+        print(res)
+      }
     } else {
       printErr("File '" + args.file + "' not found!")
     }
