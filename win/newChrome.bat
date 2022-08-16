@@ -20,3 +20,8 @@ if exist "%TMPDIR%\Default\" (
 
 echo Starting (hit Ctrl-C or close Chrome to end)...
 "%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe" --user-data-dir="%TMPDIR%" %PROXYARG% 
+
+if exist "%TMPDIR%\Default\" (
+   echo Deleting previous user data...
+   del /q %TMPDIR%
+)

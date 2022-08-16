@@ -19,3 +19,8 @@ fi
 echo "Starting (hit Ctrl-C or close Chrome to end)..."
 mkdir $TMP
 /Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir="$TMP" $PROXYARG
+
+if [ -d $TMP ]; then
+    echo Deleting temporary user data...
+    rm -rf $TMP
+fi
