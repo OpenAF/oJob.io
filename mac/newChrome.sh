@@ -1,26 +1,39 @@
-#!/bin/zsh
+#!/bin/sh
 # Author: Nuno Aguiar
 # Start a socks5 proxied (or not) clean Chrome instance
-# Usage: newChrome.sh localhost:1080
+# Usage: newChrome.sh somename localhost:1080
 
-TMP=$TMPDIR/chrome
+NAME=$1
+if [ -z $NAME ]; then
+    NAME=default
+fi
 
-HOSTPORT=$1
+TMPNAME="$TMPDIR/chrome_$NAME"
+
+HOSTPORT=$2
 PROXYARG=
 if [ ! -z $HOSTPORT ]; then
     PROXYARG=--proxy-server="socks5://$HOSTPORT"
 fi
 
-if [ -d $TMP ]; then
-    echo Deleting previous temporary user data...
-    rm -rf $TMP
+if [ -d "$TMPNAME/Default" ]; then
+    if [ ! -L "$TMPNAME/SingletonLock" ]; then
+        echo Deleting previous temporary user data for $NAME...
+        rm -rf "$TMPNAME"
+    else
+        echo Reusing user data for $NAME
+    fi
 fi
 
 echo "Starting (hit Ctrl-C or close Chrome to end)..."
-mkdir $TMP
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --user-data-dir="$TMP" $PROXYARG
+echo $TMPNAME
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir="$TMPNAME" $PROXYARG
 
-if [ -d $TMP ]; then
-    echo Deleting temporary user data...
-    rm -rf $TMP
+if [ -d "$TMPNAME/Default" ]; then
+    if [ ! -L "$TMPNAME/SingletonLock" ]; then
+        echo Deleting temporary user data for $NAME...
+        rm -rf "$TMPNAME"
+    else
+        echo User data for $NAME still in use
+    fi
 fi

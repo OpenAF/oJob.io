@@ -1,11 +1,16 @@
 @echo off
 rem Author: Nuno Aguiar
 rem Start a socks5 proxied (or not) clean Chrome instance
-rem Usage: newChrome.bat localhost:1080
+rem Usage: newChrome.bat somename localhost:1080
 
-set TMPDIR=%TMP%\chrome
+set NAME="%1"
+if "%NAME%" == """" (
+    set NAME=default
+)
 
-set HOSTPORT="%1"
+set TMPDIR=%TMP%\chrome_%NAME%
+
+set HOSTPORT="%2"
 set PROXYARG=
 if defined HOSTPORT (
     if not "%HOSTPORT%" == """" (
@@ -14,14 +19,22 @@ if defined HOSTPORT (
 )
 
 if exist "%TMPDIR%\Default\" (
-   echo Deleting previous temporary user data...
-   del /q %TMPDIR%
+   if not exist "%TMPDIR%\lockfile" (
+   	echo Deleting previous temporary user data for %NAME%...
+   	del /q %TMPDIR%
+   ) else (
+  	echo Reusing user data for %NAME%
+   )
 )
 
 echo Starting (hit Ctrl-C or close Chrome to end)...
-start /wait chrome.exe --user-data-dir="%TMPDIR%" %PROXYARG% 
+"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe" --user-data-dir="%TMPDIR%" %PROXYARG% 
 
 if exist "%TMPDIR%\Default\" (
-   echo Deleting previous user data...
-   del /q %TMPDIR%
+   if not exist "%TMPDIR%\lockfile" (
+   	echo Deleting previous user data for %NAME%...
+   	del /q %TMPDIR%
+   ) else (
+  	echo User data for %NAME% still in use
+   )
 )
