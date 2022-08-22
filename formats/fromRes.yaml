@@ -1,10 +1,18 @@
 # Author: Nuno Aguiar
 help:
-  text   : Prints to stdout or to a file the contents of __pm.res
+  text   : Prints to stdout or to a file or to a browser the contents of __pm.res
   expects: 
   - name     : file
     desc     : If defined it will write to a file the contents of __pm.res
     example  : myfile.txt
+    mandatory: false
+  - name     : browser
+    desc     : If browser=true opens the contents in a browser
+    example  : "true"
+    mandatory: false
+  - name     : wait
+    desc     : If browser=true the time, in ms, to wait for the browser to open
+    example  : 5000
     mandatory: false
 
 todo:
@@ -22,12 +30,24 @@ jobs:
 - name : Write
   check:
     in:
-      file: isString.default(__)
+      file   : isString.default(__)
+      browser: toBoolean.isBoolean.default(false)
+      wait   : isNumber.default(5000)
   exec : |
     if (isDef(__pm) && isString(__pm.res)) {
       if (isDef(args.file)) {
         io.writeFileString(args.file, __pm.res)
       } else {
-        print(__pm.res)
+        if (args.browser) {
+          var f = io.createTempFile("ojobio_fromRes", ".html")
+          io.writeFileString(f, __pm.res)
+          var url = String((new java.io.File(f)).toURL())
+          if (!openInBrowser(url)) 
+            print("Couldn't open browser.")
+          else
+            sleep(args.wait, true)
+        } else {
+          print(__pm.res)
+        }
       }
     }
