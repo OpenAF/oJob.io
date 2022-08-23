@@ -7,6 +7,7 @@ NAME=${_NAME:-hvscs}
 WORKSPACE=${_WORKSPACE:-`pwd`}
 IMAGE=${_IMAGE:-nmaguiar/hvscs}
 SSH_PASS=${_SSH_PASS:-Password1}
+HOST=${_HOST:-127.0.0.1}
 
 # -----------------
 
@@ -88,9 +89,9 @@ _start() {
 
     echo =============================================================
     echo Open your browser at:
-    echo "  [ https://`hostname`:$WEB_PORT/?folder=/workspace ]"
-    echo or
-    echo "  [ https://127.0.0.1:$WEB_PORT/?folder=/workspace ]"
+    echo
+    echo " --> [ https://$HOST:$WEB_PORT/?folder=/workspace ] <--"
+    echo
     echo =============================================================
   fi
 
@@ -98,16 +99,28 @@ _start() {
     cat  ~/.ssh/known_hosts | egrep -v "\[127.0.0.1\]:$SSH_PORT " > ~/.ssh/known_hosts
     if [ "$ORIG" != "start" ] && [ "$_OP" != "start"  ]; then
       echo -------------------------------------------------------------------------------
-      echo "Now we will SSH to the local hVSCs (use '$SSH_PASS' as your password)."
-      echo "Executing: [ ssh -N -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080 ]"
+      echo "Now we will SSH to the local hVSCs"
+      echo
+      echo "  --> reply 'yes' and use '$SSH_PASS' as your password <--"
+      echo
+      if [ -z $_HOST ]; then
+         echo "Executing: [ ssh -N -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080 ]"
+      else
+         echo "Executing: [ ssh -N -p $SSH_PORT openvscode-server@127.0.0.1 -g -L$SOCKS_PORT:127.0.0.1:1080 ]"
+      fi
       echo When finished simply hit Ctrl-C and hVSCs will be stopped.
       echo -------------------------------------------------------------------------------
-      ssh -N -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
+      if [ -z $_HOST ]; then
+         ssh -N -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080
+      else
+         ssh -N -p $SSH_PORT openvscode-server@127.0.0.1 -g -L$SOCKS_PORT:127.0.0.1:1080
+      fi
       _stop
     else
       echo "You can SSH in by executing:"
+      echo
       echo "   [ ssh -p $SSH_PORT openvscode-server@127.0.0.1 -L$SOCKS_PORT:127.0.0.1:1080 ]"
-      echo "   (use '$SSH_PASS' as your password)."
+      echo "   --> reply yes and use '$SSH_PASS' as your password <--"
       echo
       echo "To stop execute this script like this: ./hvscs.sh stop"
       echo -------------------------------------------------------------------------------
