@@ -38,11 +38,7 @@ init:
             app: {{name}}
         spec:
           containers:
-          - command:
-            - /openaf/oaf
-            - -c
-            - includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()
-            image: openaf/oaf:nightly
+          - image: nmaguiar/socksd
             imagePullPolicy: IfNotPresent
             name: oaf
             ports:
