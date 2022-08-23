@@ -67,9 +67,9 @@ _start() {
   CMD=$CMD' websocket=true  ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
 
   if [ ! -z $NOPULL ]; then
-    docker pull openaf/oaf:nightly
+    docker pull openaf/oaf
   fi
-  docker run --rm -ti -d -p $WEB_PORT:80 --network $NAME --name $NAME\_nginx openaf/oaf:nightly -c "$CMD"
+  docker run --rm -ti -d -p $WEB_PORT:80 --network $NAME --name $NAME\_nginx openaf/oaf -c "$CMD"
 
   if [ -z $NOVSCODE ]; then
     echo
