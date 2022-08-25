@@ -63,7 +63,10 @@ jobs:
     var tmplRegular = ow.template.execCompiled(ow.template.compile(args.init.templateRegular))
     var tmplDefault = ow.template.execCompiled(ow.template.compile(args.init.templateDefault))
 
+    var buf = ""
     global.parseLine = line => {
+      if (line.length != 0 && !line.trim().endsWith("}")) { buf += line.trim(); return }
+      if (buf.length > 0) { line = buf + line; buf = "" }
       if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { print(line); return }
 
       var data, go = true
@@ -116,4 +119,3 @@ jobs:
     } else {
       io.pipeLn(global.parseLine)
     }
-
