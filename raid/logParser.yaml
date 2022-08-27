@@ -63,11 +63,18 @@ jobs:
     var tmplRegular = ow.template.execCompiled(ow.template.compile(args.init.templateRegular))
     var tmplDefault = ow.template.execCompiled(ow.template.compile(args.init.templateDefault))
 
-    var buf = ""
+    var buf = __
     global.parseLine = line => {
-      if (line.length != 0 && !line.trim().endsWith("}")) { buf += line.trim(); return }
-      if (buf.length > 0) { line = buf + line; buf = "" }
-      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { print(line); return }
+      if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
+      if (isDef(buf)) {
+        if (line.length != 0 && !line.trim().endsWith("}")) { buf += line.trim(); return }
+        if (buf.length > 0) { line = buf + line; buf = __ }
+      }
+      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { 
+        print(line) 
+        buf = __
+        return 
+      }
 
       var data, go = true
       try { data = jsonParse(line) } catch(e) { sprintErr(e) }
