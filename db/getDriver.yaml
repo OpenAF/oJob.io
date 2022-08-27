@@ -172,6 +172,26 @@ init:
       docs    : https://drill.apache.org/docs/using-the-jdbc-driver
       url     : jdbc:drill:zk={{host}}:{{port}}/{{directory}}/{{clusterId}}
 
+    # Trino
+    - name    : trino
+      type    : maven
+      typeArgs:
+        groupId   : io.trino
+        artifactId: trino-jdbc
+      class   : io.trino.jdbc.TrinoDriver
+      docs    : https://trino.io/docs/current/client/jdbc.html
+      url     : jdbc:trino:{{host}}:{{port}}/{{catalog}}/{{schema}}
+
+    # Presto
+    - name    : presto
+      type    : maven
+      typeArgs:
+        groupId   : com.facebook.presto
+        artifactId: presto-jdbc
+      class   : com.facebook.presto.jdbc.PrestoDriver
+      docs    : https://prestodb.io/docs/current/installation/jdbc.html
+      url     : jdbc:presto:{{host}}:{{port}}/{{catalog}}/{{schema}}
+
     # Paradox
     - name    : paradox
       type    : maven
@@ -181,6 +201,26 @@ init:
       class   : com.googlecode.paradox.Driver
       docs    : https://github.com/leonhad/paradoxdriver
       url     : jdbc:paradox:{{path}}
+
+    # ODBC
+    - name    : odbc
+      type    : maven
+      typeArgs:
+        groupId   : com.oracle.database.jdbc
+        artifactId: ojdbc8
+      class   : sun.jdbc.odbc.JdbcOdbcDriver
+      docs    : https://www.oracle.com/database/technologies/maven-central-guide.html
+      url     : jdbc:odbc:{{db}}
+
+    # CouchBase
+    - name    : couchbase
+      type    : maven
+      typeArgs:
+        groupId   : com.couchbase.client
+        artifactId: couchbase-jdbc-driver
+      class   : com.couchbase.client.jdbc.CouchbaseDriver
+      docs    : https://github.com/couchbaselabs/couchbase-jdbc-driver
+      url     : jdbc:couchbase:analytics:{{host}}/{{catalog}}/{{schema}}
 
     # CSV
     - name    : csv
