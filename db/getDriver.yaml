@@ -280,7 +280,7 @@ jobs:
     switch(args.op.trim().toLowerCase()) {
     case "build"  : $job("Build oPack", args); break;
     case "install": $job("Build oPack", merge({ install: true }, args)); break;
-    case "list"   : res = args.init.data.drivers.map(r => r.name).sort(); break;
+    case "list"   : res = $from(args.init.data.drivers).sort("name").select(r => ({ db: r.name })); break;
     default       : res = { Help: args.init.help }
     }
 
