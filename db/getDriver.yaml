@@ -1,14 +1,14 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Builds and optionally install an oPack with a specific JDBC driver  
+  expects: 
+  - name   : op
+    desc   : The operation to be performed (e.g. list; install; build)
+    example: list
+  - name   : db
+    desc   : The db to install or build (use op=list to check the possible values)
+
 init:
-  help: &HELP
-    text   : Builds and optionally install an oPack with a specific JDBC driver  
-    expects: 
-    - name   : op
-      desc   : The operation to be performed (e.g. list; install; build)
-      example: list
-    - name   : db
-      desc   : The db to install or build (use op=list to check the possible values)
-  
   code: |
     (function() {
       var LIB_PATH = (isDef(getOPackPaths()["jdbc-{{name}}"]) ? getOPackPaths()["jdbc-{{name}}"]+"/" : ".");
@@ -197,16 +197,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210515
+  - openaf: 20211229
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
   logToConsole: false   # to change when finished
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------------
 - name: Build oPack
   exec: |
@@ -248,7 +244,7 @@ jobs:
       log("Generating opack...");
       ow.loadFormat();
 
-      $sh(getOpenAFPath() + "/opack genpack " + target).prefix("genpack").get(0);
+      $sh(ow.format.getJavaHome() + "/bin/java -jar " + getOpenAFJar() + " --opack -e \"genpack " + target + "\"").prefix("genpack").get(0);
       var pack = io.readFileYAML(target + "/.package.yaml");
       pack.author = "ojob.io/db/jdbc";
       pack.keywords = [ "DB", "JDBC", db.name ];
@@ -260,7 +256,7 @@ jobs:
       pack.dependencies = { openaf: ">=" + getVersion() };
       io.writeFileYAML(target + "/.package.yaml", pack);
 
-      $sh(getOpenAFPath() + "/opack pack " + target).prefix("pack").get(0);
+      $sh(ow.format.getJavaHome() + "/bin/java -jar " + getOpenAFJar() + " --opack -e \"pack " + target + "\"").prefix("pack").get(0)
       io.rm(target);
 
       if (args.install) {
