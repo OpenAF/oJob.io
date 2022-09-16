@@ -18,12 +18,20 @@ ojob:
         
 
 jobs:
+# --------------------------
+- name : Is docker available
+  exec : | 
+    args.isDockerAvailable = false
+    var exists = $sh("docker -v").get(0).exitcode;
+    if (exists == 0) args.isDockerAvailable = true
+
 # ------------------------------
 - name : Get current OS and Arch
   check:
     in:
-      os  : isString.default("linux")
-      arch: isString.default("x86")
+      os   : isString.default("linux")
+      arch : isString.default("x86")
+      quiet: toBoolean.isBoolean.default(false)
   exec : |
     ow.loadFormat()
     var tos = String(java.lang.System.getProperty("os.name"))
@@ -39,4 +47,4 @@ jobs:
       args.arch = "x86"
     }
 
-    ow.oJob.output({ os: args.os, arch: args.arch }, args)
+    if (!args.quiet) ow.oJob.output({ os: args.os, arch: args.arch }, args)
