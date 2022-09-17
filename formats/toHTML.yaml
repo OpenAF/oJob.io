@@ -1,0 +1,76 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a "__pm" input from another job will return an HTML representation of it
+  expects: 
+  - name     : file
+    desc     : Where the HTML representation should be saved to
+    example  : result.html
+    mandatory: false
+  - name     : nobrowser
+    desc     : If "file" is not provided and nobrowser=true the html will just be output without trying to open the browser (defaults to false)
+    example  : "true"
+    mandatory: false
+  - name     : path
+    desc     : Filters the provided "__pm" input to a json path (using OpenAF's $$.get)
+    example  : my.results[0]
+    mandatory: false
+  - name     : nofull
+    desc     : If "nofull=true" the html produced will be a map divided into css (with the style content) and out (with the body content)
+    example  : "true"
+    mandatory: false
+
+todo:
+- Generate HTML
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# --------------------
+- name : Generate HTML
+  check:
+    in:
+      file     : isString.default(__)
+      nobrowser: toBoolean.isBoolean.default(false)
+      path     : isString.default(__)
+      nofull   : toBoolean.isBoolean.default(false)
+  exec : |
+    var html, res
+
+    ow.loadTemplate()
+    var out = __pm
+
+    if (isDef(__pm._map))  out = __pm._map
+    if (isDef(__pm._list)) out = __pm._list
+
+    if (isDef(args.path)) {
+      res = ow.template.html.parseMap($$(out).get(args.path), !args.nofull)
+    } else {
+      res = ow.template.html.parseMap(out, !args.nofull)
+    }
+    html = args.nofull ? res : "<html><style>" + res.css + "</style><body>" + res.out + "</body></html>"
+
+    if (isUnDef(args.file)) {
+      if (args.nobrowser) {
+        ow.oJob.output(html, args)
+      } else {
+        // Open browser or output if not possible
+        var tmp = io.createTempFile("ojobio", ".html")
+        io.writeFileString(tmp, html)
+        if (!openInBrowser("file://" + tmp)) {
+          print(html)
+        } else {
+          sleep(3000, true)
+        }
+      }
+    } else {
+      if (args.nofull) {
+        io.writeFileJSON(args.file, html)
+      } else {
+        io.writeFileString(args.file, html)
+      }
+    }
