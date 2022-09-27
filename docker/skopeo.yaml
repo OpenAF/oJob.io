@@ -28,20 +28,22 @@ jobs:
 - name : Deploy container
   check:
     in:
-      cmd: isString.default(__)
+      cmd   : isString.default(__)
+      volume: isString.default(".") 
   exec : |
     var cmds = ["docker", "run", "--rm"]
     var names = [], extra = "&& /bin/sh"
+    var res = {}
 
     if (isDef(args.cmd)) {
-      extra = "&& skopeo " + args.cmd
+      extra = "&& cd /input && skopeo " + args.cmd
     } else {
       cmds.push("-ti")
     }
 
     cmds = cmds.concat(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
-    cmds = cmds.concat(["-v", io.fileInfo(".").canonicalPath + ":/input"])
-    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"sudo apk update && sudo apk add docker && sudo apk add skopeo " + extra + "\").exec()"])
-    $sh(cmds).exec()
+    cmds = cmds.concat(["-v", io.fileInfo(args.volume).canonicalPath + ":/input"])
+    cmds = cmds.concat(["openaf/oaf:nightly", "-c", "$sh(\"sudo apk update 2>&1 > /dev/null && sudo apk add docker 2>&1 > /dev/null && sudo apk add skopeo 2>&1 > /dev/null " + extra + "\").exec()"])
+    if (isDef(args.cmd)) res = $sh(cmds).getJson(0); else $sh(cmds).exec()
 
-    ow.oJob.output(args, args)
+    ow.oJob.output(isMap(res) ? res.stdout : res, args)
