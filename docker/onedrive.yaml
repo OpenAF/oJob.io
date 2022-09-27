@@ -1,0 +1,45 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds a container to run 
+  expects: 
+  - name     : cmd
+    desc     : If provided runs onedrive with the provided command-line instead of the default shell
+    example  : --help
+    mandatory: false
+  - name     : volume
+    desc     : Maps a volume into the container folder /input
+    example  : /my/custom/path
+    mandatory: false
+
+todo:
+- Deploy container
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : Deploy container
+  check:
+    in:
+      cmd   : isString.default(__)
+      volume: isString.default(".")
+  exec : |
+    var cmds = ["docker", "run", "--rm"]
+    var names = [], extra = "&& /bin/sh"
+
+    if (isDef(args.cmd)) {
+      extra = "&& cd /input && onedrive " + args.cmd
+    } else {
+      cmds.push("-ti")
+    }
+
+    cmds = cmds.concat(["-v", io.fileInfo(args.volume).canonicalPath + ":/input"])
+    cmds = cmds.concat(["openaf/oaf:nightly", "-c", "$sh(\"sudo apk update 2>&1 >/dev/null && sudo apk add onedrive --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community  2>&1 >/dev/null " + extra + "\").exec()"])
+    $sh(cmds).exec()
+
+    ow.oJob.output({}, args)
