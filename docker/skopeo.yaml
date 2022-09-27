@@ -1,0 +1,47 @@
+# Author: Nuno Aguiar
+help:
+  text   : Opens an OpenAF container running skopeo
+  expects:
+  - name     : cmd
+    desc     : If provided runs skopeo with the provided command-line instead of the default shell
+    example  : --help
+    mandatory: false
+  - name     : volume
+    desc     : Maps a volume into the container folder /input
+    example  : /my/custom/path
+    mandatory: false
+
+todo:
+- Deploy container
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+include:
+- ojob.io/docker/_common
+
+jobs:
+# -----------------------
+- name : Deploy container
+  check:
+    in:
+      cmd: isString.default(__)
+  exec : |
+    var cmds = ["docker", "run", "--rm"]
+    var names = [], extra = "&& /bin/sh"
+
+    if (isDef(args.cmd)) {
+      extra = "&& skopeo " + args.cmd
+    } else {
+      cmds.push("-ti")
+    }
+
+    cmds = cmds.concat(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
+    cmds = cmds.concat(["-v", io.fileInfo(".").canonicalPath + ":/input"])
+    cmds = cmds.concat(["openaf/openaf:nightly", "-c", "$sh(\"sudo apk update && sudo apk add docker && sudo apk add skopeo " + extra + "\").exec()"])
+    $sh(cmds).exec()
+
+    ow.oJob.output(args, args)

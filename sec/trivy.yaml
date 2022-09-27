@@ -137,7 +137,7 @@ jobs:
       res = $sh().pwd(args.trivyPath).sh("./trivy -f json " + args.options).getJson(0)
     }
 
-    ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0 ? res.stdout : res), args)
+    ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res, args)
 
 # -------------------------------
 - name : Run trivy on a container
@@ -154,4 +154,4 @@ jobs:
       res = $sh("docker run --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).getJson(0)
     }
 
-    ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0 ? res.stdout : res), args)
+    ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res, args)
