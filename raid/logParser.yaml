@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Reads a ndjson logs file and converts it to readable human logs
+  text   : Reads a ndjson logs file and converts it to readable human logs (version 20220928)
   expects:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
@@ -64,6 +64,10 @@ jobs:
     var tmplDefault = ow.template.execCompiled(ow.template.compile(args.init.templateDefault))
 
     var buf = __
+    global.wildcardTest = (str, pattern) => {
+        var w = "^" + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$1').replace(/\*/g, '.*').replace(/\?/g, '.') + "$"
+        return (new RegExp(w, 'i')).test(str)
+    }
     global.parseLine = line => {
       if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
       if (isDef(buf)) {
@@ -71,25 +75,39 @@ jobs:
         if (buf.length > 0) { line = buf + line; buf = __ }
       }
       if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { 
-        print(line) 
+        if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type)) print(line) 
         buf = __
         return 
       }
 
       var data, go = true
       try { data = jsonParse(line) } catch(e) { sprintErr(e) }
-      if (!isMap(data)) { print(data); return }
+      if (!isMap(data)) { if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type)) print(data); return }
       if (isString(args.filter)) {
-        args.filter.split(",").forEach(f => {
-          var ar = f.split(":")
-          if (isUnDef(data[ar[0]]) || String(data[ar[0]]) != String(ar[1])) go = false
-        })
+        if (args.filter.indexOf("*") >= 0 || args.filter.indexOf("?") >= 0) {
+          args.filter.split(",").forEach(f => {
+            var ar = f.split(":")
+            if (isUnDef(data[ar[0]]) || !global.wildcardTest(data[ar[0]], ar[1]) ) go = false
+          })
+        } else {
+          args.filter.split(",").forEach(f => {
+            var ar = f.split(":")
+            if (isUnDef(data[ar[0]]) || String(data[ar[0]]) != String(ar[1])) go = false
+          })
+        }
       }
       if (isString(args.notfilter)) {
-        args.notfilter.split(",").forEach(f => {
-          var ar = f.split(":")
-          if (isDef(data[ar[0]]) && String(data[ar[0]]) == String(ar[1])) go = false
-        })
+        if (args.filter.indexOf("*") >= 0 || args.filter.indexOf("?") >= 0) {
+          args.filter.split(",").forEach(f => {
+            var ar = f.split(":")
+            if (isDef(data[ar[0]]) && global.wildcardTest(data[ar[0]], ar[1]) ) go = false
+          })
+        } else {
+          args.notfilter.split(",").forEach(f => {
+            var ar = f.split(":")
+            if (isDef(data[ar[0]]) && String(data[ar[0]]) == String(ar[1])) go = false
+          })
+        }
       }
 
       if (isDef(args.type) && data.logger_name != args.type) go = false
