@@ -142,7 +142,7 @@ jobs:
   to   : ojob output
   exec : |
     var r = $get("res")
-    if (isUnDef(res) || res.length == 0) print("No hVSCs found.")
+    if (isUnDef(r) || r.length == 0) print("No hVSCs found.")
     args.__format = _$(args.__format, "__format").default("table")
 
 # -------------
