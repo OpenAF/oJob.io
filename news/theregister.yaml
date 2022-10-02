@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves The Register News RSS
+
+todo:
+- The Register 
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# -------------
+- name: The Register 
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://www.theregister.com/headlines.rss
