@@ -34,7 +34,7 @@ jobs:
     in:
       path   : isString.default(__)
       file   : isString.default(__)
-      summary: toBoolean.isBoolean.default(true)
+      summary: toBoolean.isBoolean.default(false)
   exec : |
     if (isUnDef(args.path) && isUnDef(args.file)) throw "Please provide a path or a jar/class file"
 
@@ -49,7 +49,7 @@ jobs:
     var res = [], data = []
     ow.loadJava()
 
-    if (isDef(args.file)) {
+    if (isDef(args.file) && io.fileInfo(args.file).isFile) {
       if (args.file.endsWith(".jar")) {
         plugin("ZIP")
         var zip = new ZIP()
@@ -63,35 +63,35 @@ jobs:
           })
         })
       } else {
-        if (io.fileInfo(args.file).isDirectory) {
-          $from(io.listFiles(args.file).files)
-          .ends("filename", ".class")
-          .orEnds("filename", ".jar")
-          .select(cls => {
-            var ver
-            if (cls.filename.endsWith(".class")) {
-              ver = ow.java.getClassVersion(cls.canonicalPath)
+        var ver = ow.java.getClassVersion(args.file)
+        data.push({
+          class  : args.file,
+          version: ver
+        })
+      }
+    } else {
+      if (isDef(args.path) && io.fileInfo(args.path).isDirectory) {
+        $from(io.listFiles(args.path).files)
+        .ends("filename", ".class")
+        .orEnds("filename", ".jar")
+        .select(cls => {
+          var ver
+          if (cls.filename.endsWith(".class")) {
+            ver = ow.java.getClassVersion(cls.canonicalPath)
+            data.push({
+              classOrJar: cls.filename,
+              version   : ver
+            })
+          }
+          if (cls.filename.endsWith(".jar")) {
+            ow.java.getJarVersion(cls.canonicalPath).forEach(ver => {
               data.push({
-                classOrJar  : cls,
-                version: ver
+                classOrJar: cls.filename,
+                version   : ver
               })
-            }
-            if (cls.filename.endsWith(".jar")) {
-              ow.java.getJarVersion(cls.canonicalPath).forEach(ver => {
-                data.push({
-                  classOrJar: cls.filename,
-                  version   : ver
-                })
-              })
-            }
-          })
-        } else {
-          var ver = ow.java.getClassVersion(args.file)
-          data.push({
-            class  : args.file,
-            version: ver
-          })
-        }
+            })
+          }
+        })
       }
     }
 
