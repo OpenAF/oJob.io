@@ -1,0 +1,114 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves a list of Java class versions from a local folder or from a list of jars 
+  expects: 
+  - name     : path
+    desc     : The path where the JAR files are located
+    example  : .
+    mandatory: false
+  - name     : file
+    desc     : The class or single jar filename path to analyze the JVM version
+    example  : myClass.class
+    mandatory: false
+  - name     : summary
+    desc     : When summary=true checking multiple classes or jar output only a summary
+    example  : "true"
+    mandatory: false
+
+todo:
+- Check options
+- Process
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+include:
+- ojob.io/common/ojob
+
+jobs:
+- name : Check options
+  check:
+    in:
+      path   : isString.default(__)
+      file   : isString.default(__)
+      summary: toBoolean.isBoolean.default(true)
+  exec : |
+    if (isUnDef(args.path) && isUnDef(args.file)) throw "Please provide a path or a jar/class file"
+
+# --------------
+- name : Process
+  check:
+    in:
+      path   : isString.default(__)
+      file   : isString.default(__)
+      summary: toBoolean.isBoolean.default(false)
+  exec : |
+    var res = [], data = []
+    ow.loadJava()
+
+    if (isDef(args.file)) {
+      if (args.file.endsWith(".jar")) {
+        plugin("ZIP")
+        var zip = new ZIP()
+        Object.keys(zip.list(args.file))
+        .filter(cls => cls.endsWith(".class"))
+        .forEach(cls => {
+          var ver = ow.java.getClassVersion(args.file + "::" + cls)
+          data.push({
+            class  : cls,
+            version: ver
+          })
+        })
+      } else {
+        if (io.fileInfo(args.file).isDirectory) {
+          $from(io.listFiles(args.file).files)
+          .ends("filename", ".class")
+          .orEnds("filename", ".jar")
+          .select(cls => {
+            var ver
+            if (cls.filename.endsWith(".class")) {
+              ver = ow.java.getClassVersion(cls.canonicalPath)
+              data.push({
+                classOrJar  : cls,
+                version: ver
+              })
+            }
+            if (cls.filename.endsWith(".jar")) {
+              ow.java.getJarVersion(cls.canonicalPath).forEach(ver => {
+                data.push({
+                  classOrJar: cls.filename,
+                  version   : ver
+                })
+              })
+            }
+          })
+        } else {
+          var ver = ow.java.getClassVersion(args.file)
+          data.push({
+            class  : args.file,
+            version: ver
+          })
+        }
+      }
+    }
+
+    data.forEach(r => {
+      if (isUnDef(r.version)) r.version = "undetermined"
+    })
+
+    if (args.summary) {
+      var ver = {}
+      data.forEach(r => {
+        if (isUnDef(ver[r.version])) ver[r.version] = 1; else ver[r.version] += 1
+      })
+      data = Object.keys(ver).map(v => ({
+        version: Number(v),
+        count  : ver[v]
+      }))
+      data = $from(data).sort("version").select()
+    }
+
+    ow.oJob.output(data, args)
