@@ -1,0 +1,123 @@
+# Author: Nuno Aguiar
+help:
+  text   : Sends an email with the piped (__pm) contents
+  expects: 
+  - name     : server
+    desc     : The SMTP server to use
+    example  : smtp.gmail.com
+    mandatory: true
+  - name     : from
+    desc     : The email from address
+    example  : my.address@email.com
+    mandatory: true
+  - name     : subject
+    desc     : The email subject
+    example  : my subject
+    mandatory: true
+  - name     : to
+    desc     : The email to address list separated by commas
+    example  : user1@email.com,user2@email.com,user3@email.com
+    mandatory: true
+  - name     : cc
+    desc     : The email cc address list separated by commas
+    example  : user1@email.com,user2@email.com,user3@email.com
+    mandatory: false
+  - name     : bcc
+    desc     : The email bcc address list separated by commas
+    example  : user1@email.com,user2@email.com,user3@email.com
+    mandatory: false
+  - name     : cred
+    desc     : The email credentials to use
+    example  : "login:password"
+    mandatory: false
+  - name     : debug
+    desc     : If debug=true the email sending debug will be turned on
+    example  : "true"
+    mandatory: false
+  - name     : usemd
+    desc     : If usemd=true and the contents is an array will parse as a markdown table
+    example  : "true"
+    mandatory: false
+  - name     : attach
+    desc     : A comma delimeted list of filepaths to attach the email
+    example  : "true"
+    mandatory: false
+  - name     : embed
+    desc     : A comma delimeted list of filepaths to embed in the email
+    example  : "true"
+    mandatory: false
+  - name     : html
+    desc     : A HTML file to send (if defined piped (__pm) will be ignored)
+    example  : myhtml.html
+    mandatory: false
+  - name     : text
+    desc     : A text content to send (if defined piped (__pm) will be ignored)
+    example  : mytxt.txt
+    mandatory: false
+  - name     : md
+    desc     : A markdown file to send (if defined piped (__pm) will be ignored)
+    example  : mymd.md
+    mandatory: false
+
+todo:
+- Send email
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Send email
+  check:
+    in:
+      server : isString
+      from   : isString
+      subject: isString
+      to     : isString
+      cc     : isString.default("")
+      bcc    : isString.default("")
+      cred   : isString.default(__)
+      debug  : toBoolean.isBoolean.default(false)
+      usemd  : toBoolean.isBoolean.default(false)
+      attach : isString.default(__)
+      embed  : isString.default(__)
+      html   : isString.default(__)
+      text   : isString.default(__)
+      md     : isString.default(__)
+  exec : |
+    var out = __pm
+
+    if (isDef(__pm._map))  out = __pm._map
+    if (isDef(__pm._list)) out = __pm._list
+
+    ow.loadTemplate()
+    plugin("Email")
+    var email = new Email(args.server, args.from, true, true, true)
+    if (isDef(args.cred)) {
+      var [ login, pass ] = args.cred.split(":")
+      email.login(login, pass)
+    }
+    if (args.debug) email.getEmailObj().setDebug(true)
+
+    if (isDef(args.attach)) args.attach.split(",").filter(r => r.length > 0).forEach(r => email.addAttachment(r))
+    if (isDef(args.embed))  args.embed.split(",").filter(r => r.length > 0).forEach(r => email.embedFile(r, io.fileInfo(r).filename))
+
+    if (isUnDef(args.html) && isUnDef(args.text) && isUnDef(args.md)) {
+      if (args.usemd && isArray(out)) {
+        email.setHTML(ow.template.addInLineCSS2HTML(ow.template.parseMD2HTML( ow.template.md.table(out), false )))
+      } else {
+        var html = ow.template.html.parseMap(out, true)
+        html = "<html><style>" + html.css + "</style><body>" + html.out + "</body></html>"
+        email.setHTML(html)
+      }
+    } else {
+      if (isDef(args.html)) email.setHTML(io.readFileString(args.html))
+      if (isDef(args.text)) email.setHTML(args.text)
+      if (isDef(args.md))   email.setHTML(ow.template.addInLineCSS2HTML(ow.template.parseMD2HTML(io.readFileString(args.md))))
+    }
+
+    email.send(args.subject, isDef(args.text) ? args.text : "", args.to.split(",").filter(r => r.length > 0), args.cc.split(",").filter(r => r.length > 0), args.bcc.split(",").filter(r => r.length > 0), args.from)
