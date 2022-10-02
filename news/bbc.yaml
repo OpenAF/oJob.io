@@ -1,29 +1,21 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Retrieves BBC News RSS
 
 todo:
 - BBC
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20210412
+  - openaf: 20211229
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves BBC News RSS
-
 # ---------
 - name: BBC
-  exec: |
-    var fn = h => {
-      if (isMap(h) && isDef(h.null)) h = h.null;
-      return h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
-    }
-
-    var rss = af.fromXML2Obj($rest().get("http://feeds.bbci.co.uk/news/rss.xml?edition=int")).rss.channel.item.map(r => ({ title: fn(r.title), description: fn(r.description), date: r.pubDate, link: r.link }));
-
-    ow.oJob.output(rss, args);
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: http://feeds.bbci.co.uk/news/rss.xml?edition=int

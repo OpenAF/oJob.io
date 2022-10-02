@@ -1,22 +1,21 @@
 # Author: Nuno Aguiar
 help: 
-  text   : Retrieves Scaleway RSS 
+  text   : Retrieves Wired News RSS
 
 todo:
-- ScaleWay
+- Wired 
 
 ojob:
   opacks      :
   - openaf: 20211229
-  catch       : logErr(exception)
+  catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-# --------------
-- name: ScaleWay
+# -------------
+- name: Wired 
   type: jobs
   typeArgs:
     url: ojob.io/news/rss
   args:
-    url: https://blog.scaleway.com/rss/
-
+    url: http://feeds.wired.com/wired/index

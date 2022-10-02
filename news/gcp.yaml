@@ -4,9 +4,8 @@ todo:
 - GCP
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20210515
+  - openaf: 20211229
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 

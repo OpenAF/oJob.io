@@ -1,27 +1,23 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Retrieves AWS news RSS
 
 todo:
-- AWS
+- AWS news
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20211012
-  catch       : logErr(exception);
+  - openaf: 20211229
+  catch       : logErr(exception)
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves AWS What's new RSS
-
-# ---------
-- name: AWS
-  exec: |
-    var fn = h => h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
-
-    var rss = af.fromXML2Obj($rest().get("https://aws.amazon.com/about-aws/whats-new/recent/feed/")).rss.channel.item.map(r => ({ title: r.title, description: fn(r.description), date: r.pubDate, link: r.link }));
-
-    ow.oJob.output(rss, args);
+# --------------
+- name: AWS news
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://aws.amazon.com/about-aws/whats-new/recent/feed/
+    
 

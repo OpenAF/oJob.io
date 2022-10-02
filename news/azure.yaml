@@ -1,27 +1,21 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Retrieves Azure RSS
 
 todo:
 - Azure
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20211229
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves Azure RSS
-
 # ---------
 - name: Azure
-  exec: |
-    var fn = h => h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
-
-    var rss = af.fromXML2Obj($rest().get("https://azurecomcdn.azureedge.net/en-us/blog/feed/")).rss.channel.item.map(r => ({ title: r.title, description: fn(r.description), date: r.pubDate, link: r.link }));
-
-    ow.oJob.output(rss, args);
-
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://azurecomcdn.azureedge.net/en-us/blog/feed/

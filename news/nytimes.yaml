@@ -1,21 +1,21 @@
 # Author: Nuno Aguiar
 help: 
-  text   : Retrieves K8s blog RSS
+  text   : Retrieves NYTimes  News RSS
 
 todo:
-- K8s
+- NYTimes 
 
 ojob:
   opacks      :
   - openaf: 20211229
-  catch       : logErr(exception)
+  catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
 # ---------
-- name: K8s
+- name: NYTimes 
   type: jobs
   typeArgs:
     url: ojob.io/news/rss
   args:
-    url: https://kubernetes.io/feed.xml
+    url: https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/section/world/rss.xml

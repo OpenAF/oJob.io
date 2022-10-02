@@ -1,22 +1,21 @@
 # Author: Nuno Aguiar
 help: 
-  text   : Retrieves Scaleway RSS 
+  text   : Retrieves MacRumors News RSS
 
 todo:
-- ScaleWay
+- MacRumors 
 
 ojob:
   opacks      :
   - openaf: 20211229
-  catch       : logErr(exception)
+  catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-# --------------
-- name: ScaleWay
+# ---------------
+- name: MacRumors 
   type: jobs
   typeArgs:
     url: ojob.io/news/rss
   args:
-    url: https://blog.scaleway.com/rss/
-
+    url: http://feeds.macrumors.com/MacRumors-All

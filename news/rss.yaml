@@ -1,0 +1,52 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves RSS feed
+  expects: 
+  - name     : url
+    desc     : The RSS url to retrieve
+    example  : 
+    mandatory: true
+  - name     : nodesc
+    desc     : If nodesc=true no description will be included
+    example  : "true"
+    mandatory: false
+  - name     : path
+    desc     : JSON path to the array of items
+    example  : RDF.item
+    mandatory: false
+
+todo:
+- RSS
+
+ojob:
+  opacks      :
+  - openaf: 20210412
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+init:
+  defaultPath: rss.channel.item
+
+jobs:
+# ----------
+- name : RSS
+  check:
+    in:
+      url   : isString
+      nodesc: toBoolean.isBoolean.default(false)
+      path  : isString.default(__)
+  exec : |
+    var fn = h => {
+      if (isMap(h) && isDef(h.null)) h = h.null
+      return h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim()
+    }
+
+    if (isUnDef(args.path)) args.path = args.init.defaultPath
+    
+    var rss
+    if (args.nodesc) 
+      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), date: isDef(r.date) ? r.date : r.pubDate, link: r.link }))
+    else
+      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), description: fn(r.description), date: isDef(r.date) ? r.date : r.pubDate, link: r.link }))
+
+    ow.oJob.output(rss, args)

@@ -1,27 +1,21 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Retrieves HackerNews RSS
 
 todo:
 - Hacker News 
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20200523
-  catch       : logErr(exception);
+  - openaf: 20211229
+  catch       : logErr(exception)
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves HackerNews RSS
-
-# ---------
+# -----------------
 - name: Hacker News
-  exec: |
-    var fn = h => h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim();
-
-    var rss = af.fromXML2Obj($rest().get("http://feeds.feedburner.com/TheHackersNews?format=xml")).rss.channel.item.map(r => ({ title: r.title, description: fn(r.description), date: r.pubDate, link: r.link }));
-
-    ow.oJob.output(rss, args);
-
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: http://feeds.feedburner.com/TheHackersNews?format=xml
