@@ -5,19 +5,19 @@ help:
   - name     : server
     desc     : The SMTP server to use
     example  : smtp.gmail.com
-    mandatory: true
+    mandatory: false
   - name     : from
     desc     : The email from address
     example  : my.address@email.com
-    mandatory: true
+    mandatory: false
   - name     : subject
     desc     : The email subject
     example  : my subject
-    mandatory: true
+    mandatory: false
   - name     : to
     desc     : The email to address list separated by commas
     example  : user1@email.com,user2@email.com,user3@email.com
-    mandatory: true
+    mandatory: false
   - name     : cc
     desc     : The email cc address list separated by commas
     example  : user1@email.com,user2@email.com,user3@email.com
@@ -68,10 +68,16 @@ ojob:
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
         
+include:
+- ojob.io/common/ojob
 
 jobs:
 # -----------------
 - name : Send email
+  from : ojob sec get
+  to   : Send an email
+
+- name : Send an email
   check:
     in:
       server : isString
