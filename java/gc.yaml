@@ -1,0 +1,199 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses Java HS performance information (including GC)
+  expects: 
+  - name     : file
+    desc     : The JAVA HS performance file to parse (e.g /tmp/hsperfdata_somebody/12345). If not provided and cmd is not provided it will used STDIN.
+    example  : /tmp/hsperfdata_somebody/12345
+    mandatory: false
+  - name     : cmd
+    desc     : Command to run to obtain the JAVA HS performance file contents. If not provided and file is not provided it will used STDIN.
+    example  : cat /tmp/hsperfdata_somebody/12345
+    mandatory: false
+  - name     : filter
+    desc     : Comma delimited list of json paths to show
+    example  : sun.gc.metaspace.maxCapacity,sun.gc.metaspace.capacity,sun.gc.metaspace.used
+    mandatory: false
+  - name     : path
+    desc     : JSON path to use as the root path
+    example  : java.__mem
+    mandatory: false
+  - name     : interval
+    desc     : If defined starts reading data for the defined ms interval (e.g 1000 = 1s)
+    example  : 1000
+    mandatory: false
+  - name     : fields
+    desc     : "If specified only the output fields will be renamed and remapped from the comma delimited list (example: \"mused:sun.gc.metaspace.used,mcap:sun.gc.metaspace.capacity\")"
+    example  : "mused:sun.gc.metaspace.used,mcap:sun.gc.metaspace.capacity"
+    mandatory: false
+  - name     : template
+    desc     : An OpenAF template to use to output data (you can use OpenAF's main, format and conditional helpers)
+    example  : ""
+    mandatory: false
+  - name     : type
+    desc     : If defined sets a pre-defined list of arguments and fields (see ojob's init.types for details)
+    example  : mem
+    mandatory: false
+
+init:
+  types:
+    mem:
+      path    : java.__mem
+      fields  : "max:total,used:used,free:free"
+      template: "max: {{owFormat_toBytesAbbreviation max 3}} | used: {{owFormat_toBytesAbbreviation used 3}} | free: {{owFormat_toBytesAbbreviation free 3}}"
+    fullmem:
+      path    : java.__mem
+      fields  : "max:total,used:used,free:free,mMax:metaMax,mTotal:metaTotal,mUsed:metaUsed,mFree:metaFree"
+      __format: slon
+    gcutil8:
+      fields  : "S0:sun.gc.__percUsed_s0,S1:sun.gc.__percUsed_s1,E:sun.gc.__percUsed_eden,O:sun.gc.__percUsed_space,M:sun.gc.__percUsed_meta"
+      template: " {{$f '% 3.2f' S0}} {{$f '% 3.2f' S1}} {{$f '% 3.2f' E}} {{$f '% 3.2f' O}} {{$f '% 3.2f' M}}"
+      __format: slon
+
+todo:
+- Main
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+jobs:
+# ------------------
+- name : Output data
+  check:
+    in: 
+      template: isString.default(__)
+  exec : |
+    if (isDef(args.template)) {
+      tprint(args.template, args.data)
+    } else {
+      ow.oJob.output(args.data, args)
+    }
+
+# ------------------
+- name : Enrich data
+  check:
+    in:
+      data: isMap
+  exec : |
+    var r = { max: 0, total: 0, used: 0, free: 0 }
+    args.data.sun.gc.generation.forEach(gen => {
+      gen.space.forEach(space => {
+        r.max   = (r.max < Number(space.maxCapacity)) ? Number(space.maxCapacity) : r.max
+        r.used  = r.used + Number(space.used)
+        r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
+        args.data.sun.gc["__percUsed_" + space.name] = (100 * space.used) / space.capacity
+      })
+    })
+    args.data.sun.gc.__percUsed_meta = (100 * args.data.sun.gc.metaspace.used) / args.data.sun.gc.metaspace.capacity
+    args.data.sun.gc.__percUsed_ccs = (100 * args.data.sun.gc.compressedclassspace.used) / args.data.sun.gc.compressedclassspace.capacity
+
+    args.data.java.__mem = {
+      total    : r.total,
+      used     : r.used,
+      free     : r.total - r.used,
+      metaMax  : args.data.sun.gc.metaspace.maxCapacity,
+      metaTotal: args.data.sun.gc.metaspace.capacity,
+      metaUsed : args.data.sun.gc.metaspace.used,
+      metaFree : args.data.sun.gc.metaspace.capacity - args.data.sun.gc.metaspace.used
+    }
+
+# ------------------
+- name : Filter data
+  check:
+    in:
+      data  : isMap
+      filter: isString.default(__)
+      path  : isString.default(__)
+      fields: isString.default(__)
+      type  : isString.default(__)
+  exec : |
+    if (isDef(args.type)) {
+      var t = args.init.types[args.type]
+      if (isDef(t)) {
+        Object.keys(t).forEach(k => {
+          if (isUnDef(args[k])) args[k] = t[k]
+        })
+      }
+    } 
+
+    if (isDef(args.filter)) {
+      var newData = {}
+      args.filter.split(",").filter(r => r.length > 0).forEach(path => {
+        $$(newData).set(path, $$(args.data).get(path))
+      })
+      args.data = newData
+    }
+
+    if (isDef(args.path)) {
+      args.data = $$(args.data).get(args.path)
+    }
+
+    if (isDef(args.fields)) {
+      var newData = {}
+      args.fields.split(",").filter(r => r.length > 0).forEach(path => {
+        var [ newPath, origPath ] = path.split(":")
+        $$(newData).set(newPath, $$(args.data).get(origPath))
+      })
+      args.data = newData
+    }
+
+# -----------
+- name : Main
+  check:
+    in:
+      interval: isString.default(__)
+  exec : |
+    ow.loadFormat()
+    ow.loadTemplate()
+    ow.template.addOpenAFHelpers()
+    ow.template.addFormatHelpers()
+    ow.template.addConditionalHelpers()
+
+    if (isDef(args.interval)) {
+      args.interval = ow.format.fromTimeAbbreviation(args.interval)
+      while(1) {
+        $job("Parse HSPerf", args)
+        sleep(args.interval, true)
+      }
+    } else {
+      $job("Parse HSPerf", args)
+    }
+
+# -------------------
+- name : Parse HSPerf
+  to   :
+  - Enrich data
+  - Filter data
+  - Output data
+  check:
+    in:
+      file: isString.default(__)
+      cmd : isString.default(__)
+  exec : |
+    ow.loadJava()
+
+    var ostream = af.newOutputStream()
+    if (isDef(args.file)) {
+      var istream = io.readFileStream(args.file)
+      
+      ioStreamCopy(ostream, istream)
+      args.data = ow.java.parseHSPerf(ostream.toByteArray())
+    } else {
+      if (isDef(args.cmd)) {
+        $sh(args.cmd)
+        .cb((o, e, i) => {
+          ioStreamCopy(ostream, o)
+          args.data = ow.java.parseHSPerf(ostream.toByteArray())
+        })
+        .get()
+      } else {
+        Packages.org.apache.commons.io.IOUtils.copyLarge(java.lang.System.in, ostream)
+        if (ostream.toByteArray().length > 0)
+          args.data = ow.java.parseHSPerf(ostream.toByteArray())
+        else
+          return
+      }
+    }
