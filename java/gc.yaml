@@ -46,7 +46,7 @@ init:
       fields  : "max:total,used:used,free:free,mMax:metaMax,mTotal:metaTotal,mUsed:metaUsed,mFree:metaFree"
       __format: slon
     gcutil8:
-      fields  : "S0:sun.gc.__percUsed_s0,S1:sun.gc.__percUsed_s1,E:sun.gc.__percUsed_eden,O:sun.gc.__percUsed_space,M:sun.gc.__percUsed_meta"
+      fields  : "S0:sun.gc.__percUsed_s0,S1:sun.gc.__percUsed_s1,E:sun.gc.__percUsed_eden,O:sun.gc.__percUsed_old,M:sun.gc.__percUsed_meta"
       template: " {{$f '% 3.2f' S0}} {{$f '% 3.2f' S1}} {{$f '% 3.2f' E}} {{$f '% 3.2f' O}} {{$f '% 3.2f' M}}"
       __format: slon
 
