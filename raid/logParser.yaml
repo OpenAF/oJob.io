@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Reads a ndjson logs file and converts it to readable human logs (version 20220928)
+  text   : Reads a ndjson logs file and converts it to readable human logs (version 20221003)
   expects:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
