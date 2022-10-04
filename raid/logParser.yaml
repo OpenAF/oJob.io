@@ -18,6 +18,10 @@ help:
     desc     : "If you want to specify any longer not included by default (for example: AuditLogger)"
     example  : AuditLogger
     mandatory: false
+  - name     : icase
+    desc     : "If icase=false then filters will be case sensitive (default: icase=true)"
+    example  : "false"
+    mandatory: false
 
 init:
   templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{activityDescr}}, {{result}}, {{errorCode}}, {{failureDescr}}, {{operationTime}} {{stack_trace}}"
@@ -44,6 +48,7 @@ jobs:
       filter   : isString.default(__)
       notfilter: isString.default(__)
       type     : isString.default(__)
+      icase    : toBoolean.isBoolean.default(true)
   exec : |
     var is
     ow.loadTemplate()
@@ -64,9 +69,10 @@ jobs:
     var tmplDefault = ow.template.execCompiled(ow.template.compile(args.init.templateDefault))
 
     var buf = __
-    global.wildcardTest = (str, pattern) => {
+    global.wildcardTest = (str, pattern, caseSensitive) => {
+        caseSensitive = _$(caseSensitive).isBoolean().default(false)
         var w = "^" + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$1').replace(/\*/g, '.*').replace(/\?/g, '.') + "$"
-        return (new RegExp(w, 'i')).test(str)
+        return (new RegExp(w, (caseSensitive ? __ : 'i'))).test(str)
     }
     global.parseLine = line => {
       if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
@@ -87,7 +93,7 @@ jobs:
         if (args.filter.indexOf("*") >= 0 || args.filter.indexOf("?") >= 0) {
           args.filter.split(",").forEach(f => {
             var ar = f.split(":")
-            if (isUnDef(data[ar[0]]) || !global.wildcardTest(data[ar[0]], ar[1]) ) go = false
+            if (isUnDef(data[ar[0]]) || !global.wildcardTest(data[ar[0]], ar[1], !args.icase) ) go = false
           })
         } else {
           args.filter.split(",").forEach(f => {
@@ -97,10 +103,10 @@ jobs:
         }
       }
       if (isString(args.notfilter)) {
-        if (args.filter.indexOf("*") >= 0 || args.filter.indexOf("?") >= 0) {
-          args.filter.split(",").forEach(f => {
+        if (args.notfilter.indexOf("*") >= 0 || args.notfilter.indexOf("?") >= 0) {
+          args.notfilter.split(",").forEach(f => {
             var ar = f.split(":")
-            if (isDef(data[ar[0]]) && global.wildcardTest(data[ar[0]], ar[1]) ) go = false
+            if (isDef(data[ar[0]]) && global.wildcardTest(data[ar[0]], ar[1], !args.icase) ) go = false
           })
         } else {
           args.notfilter.split(",").forEach(f => {
