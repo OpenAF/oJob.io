@@ -38,7 +38,7 @@ jobs:
   exec : |
     var fn = h => {
       if (isMap(h) && isDef(h.null)) h = h.null
-      return h.replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim()
+      return String(h).replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim()
     }
 
     if (isUnDef(args.path)) args.path = args.init.defaultPath
