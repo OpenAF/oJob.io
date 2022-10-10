@@ -22,6 +22,10 @@ help:
     desc     : "If icase=false then filters will be case sensitive (default: icase=true)"
     example  : "false"
     mandatory: false
+  - name     : inception
+    desc     : "If inception=true it will handle cases where JSON is included in the message field (default: inception=true)"
+    example  : "true"
+    mandatory: false
 
 init:
   templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{activityDescr}}, {{result}}, {{errorCode}}, {{failureDescr}}, {{operationTime}} {{stack_trace}}"
@@ -49,6 +53,7 @@ jobs:
       notfilter: isString.default(__)
       type     : isString.default(__)
       icase    : toBoolean.isBoolean.default(true)
+      inception: toBoolean.isBoolean.default(true)
   exec : |
     var is
     ow.loadTemplate()
@@ -87,7 +92,13 @@ jobs:
       }
 
       var data, go = true
-      try { data = jsonParse(line) } catch(e) { sprintErr(e) }
+      try { 
+        data = jsonParse(line)
+        // Test for "inception"
+        if (args.inception && isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) data = jsonParse(data.message)
+      } catch(e) { 
+        sprintErr(e) 
+      }
       if (!isMap(data)) { if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type)) print(data); return }
       if (isString(args.filter)) {
         if (args.filter.indexOf("*") >= 0 || args.filter.indexOf("?") >= 0) {
