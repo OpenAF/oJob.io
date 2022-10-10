@@ -131,6 +131,7 @@ jobs:
       if (isUnDef(args.type) && data.logger_name == "AuditLogger") go = false
 
       if (go) {
+        if (isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         switch(data.logger_name) {
         case "AuditLogger":
           try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
