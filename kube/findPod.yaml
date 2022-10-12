@@ -1,0 +1,47 @@
+# Author: Nuno Aguiar
+help:
+  text   : Return the K8S node(s) where a Pod is currently running
+  expects:
+  - name     : prefix
+    desc     : The Pod prefix name (e.g. my-pod)
+    example  : my-pod
+    mandatory: true 
+  - name     : namespace
+    desc     : The K8S namespace to look for the Pod
+    example  : default
+    mandatory: false
+
+todo:
+- Find pod
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  - Kube  : 20220921
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ---------------
+- name : Find pod
+  check:
+    in:
+      prefix   : isString
+      namespace: isString.default(__)
+  exec : |
+    var res
+
+    loadLib("kube.js")
+    res = $from( $kube().getPO(args.namespace) )
+          .starts("Metadata.Name", args.prefix)
+          .select(r => ({
+            podName  : r.Metadata.Name,
+            namespace: r.Metadata.Namespace,
+            phase    : r.Status.Phase,
+            podIP    : r.Status.PodIP,
+            hostIP   : r.Status.HostIP,
+            nodeName : r.Spec.NodeName
+          }))
+
+    ow.oJob.output(res, args)
