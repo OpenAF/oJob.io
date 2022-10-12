@@ -1,0 +1,82 @@
+# Author: Nuno Aguiar
+help:
+  text   : Runs Netshoot on the default K8S cluster
+  expects: 
+  - name     : namespace
+    desc     : Run netshoot on a specific namespace different from the current one
+    example  : mynamespace
+    mandatory: false
+  - name     : mode
+    desc     : Run netshoot normally (mode=normal) or in the host network (mode=host) or as a debug (mode=debug). If "mode=debug" you need also to defined pod.
+    example  : normal
+    mandatory: false
+  - name     : pod
+    desc     : When running netshoot as a debug you need also to provide the pod name
+    example  : my-pod
+    mandatory: false
+
+todo:
+- name: ojob options 
+  args:
+    optionOn : mode
+    lowerCase: true
+    todos    :
+      normal :
+      - more information
+      - netshoot normal
+      host   :
+      - more information
+      - netshoot host
+      debug:
+      - more information
+      - netshoot debug
+    default:
+    - more information
+    - netshoot normal
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+include:
+- ojob.io/common/ojob
+
+jobs:
+# -----------------------
+- name : more information
+  exec : |
+    print("Check for more information in https://github.com/nmaguiar/netshoot")
+    
+# --------------------
+- name : set namespace
+  check:
+    in:
+      namespace: isString.default(__)
+  exec : |
+    if (isDef(args.namespace)) args.ns = "-n " + args.namespace; else args.ns = ""
+
+# ----------------------
+- name : netshoot normal
+  from : set namespace
+  exec : |
+    $sh("kubectl run tmp-netshoot --rm -i --tty --image nmaguiar/netshoot --image-pull-policy=Always " + args.ns)
+    .exec()
+    
+# --------------------
+- name : netshoot host
+  from : set namespace
+  exec : |
+    $sh("kubectl run tmp-netshoot --rm -i --tty --overrides='{\"spec\": {\"hostNetwork\": true}}' --image nmaguiar/netshoot --image-pull-policy=Always " + args.ns)
+    .exec()
+
+# -----------------------
+- name : netshoot debug
+  from : set namespace
+  check:
+    in:
+      pod: isString
+  exec : |
+    $sh("kubectl debug --image nmaguiar/netshoot --image-pull-policy=Always " + args.pod + " " + args.ns + " -it -- /bin/zsh")
+    .exec()
