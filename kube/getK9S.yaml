@@ -1,0 +1,62 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the K9S utility
+  expects: 
+  - name     : path
+    desc     : If provided will install the K9S utility on the provided path (e.g. /usr/bin)
+    example  : .
+    mandatory: false
+
+init:
+  url: https://api.github.com/repos/derailed/k9s/releases
+  dwn: https://github.com/derailed/k9s/releases/download
+
+todo:
+- Get K9S binary
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------
+- name : Get K9S binary
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    // Check OS and arch
+    var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
+    os = os.charAt(0).toUpperCase() + os.slice(1)
+    var arch = $sh("uname -m").get(0).stdout.trim()
+
+    if (arch.startsWith("armv5")) arch = "arm"
+    if (arch.startsWith("armv6")) arch = "arm"
+    if (arch.startsWith("armv7")) arch = "arm"
+    if (arch == "aarch64") arch = "arm64"
+    if (arch == "x86") arch = "x86"
+    if (arch == "x86_64") arch = "x86_64"
+    if (arch == "i686") arch = "x86"
+    if (arch == "i386") arch = "x86"
+
+    // Get the tgz
+    var rels = $rest().get(args.init.url)
+    var version = $from(rels).equals("draft", false).equals("prerelease", false).sort("-published_at").at(0).tag_name
+    var tmp = io.createTempFile("k9s_", ".tgz")
+
+    var url = args.init.dwn + "/" + version + "/k9s_" + os + "_" + arch + ".tar.gz"
+    log("Downloading " + url + "...")
+    $rest().get2File(tmp, url)
+
+    var is = Packages.org.apache.commons.compress.archivers.tar.TarArchiveInputStream(io.readFileGzipStream(tmp))
+    var _e = is.getNextTarEntry()
+    while(_e != null && String(_e.getName()).replace(/^.+\//, "") != "k9s") _e = is.getNextTarEntry()
+    if (_e != null) {
+      log("Writing " + args.path + "/k9s...")
+      ioStreamCopy(io.writeFileStream(args.path + "/k9s"), is)
+      $sh("chmod u+x " + args.path + "/k9s").exec()
+    } else
+      throw("Can't find 'k9s' utility in downloaded version")
