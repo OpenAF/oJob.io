@@ -10,6 +10,10 @@ help:
     desc     : The port where the socks server will be started within the container (defaults to 1080)
     example  : 1080
     mandatory: false
+  - name     : nodeport
+    desc     : If nodeport is defined then the corresponding service yaml will also be output (e.g. nodeport=31080)
+    example  : 31080
+    mandatory: false
 
 todo:
 - Generate socks server deploy
@@ -21,6 +25,24 @@ ojob:
   logToConsole: false   # to change when finished
     
 init:
+  svc: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: {{name}}
+      name: {{name}}
+    spec:
+      ports:
+      - nodePort  : {{nodeport}}
+        port      : {{nodeport}}
+        protocol  : TCP
+        targetPort: {{port}}
+      selector:
+        app: {{name}}
+      sessionAffinity: None
+      type: NodePort
+
   deploy: |
     apiVersion: apps/v1
     kind: Deployment
@@ -52,7 +74,12 @@ jobs:
 - name : Generate socks server deploy
   check:
     in:
-      name: isString.default("socks-server")
-      port: toNumber.isNumber.default(1080)
+      name    : isString.default("socks-server")
+      port    : toNumber.isNumber.default(1080)
+      nodeport: toNumber.isNumber.default(__)
   exec : |
     print( templify(args.init.deploy, args) )
+    if (isDef(args.nodeport)) {
+      print("---\n")
+      print( templify(args.init.svc, args) )
+    }
