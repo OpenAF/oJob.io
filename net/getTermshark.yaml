@@ -1,0 +1,88 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the Termshark utility (requires tshark or wireshark-cli previously installed)
+  expects: 
+  - name     : path
+    desc     : If provided will install the Termshark utility on the provided path (e.g. /usr/bin)
+    example  : .
+    mandatory: false
+  - name     : installTShark
+    desc     : Tries to instal tshark in alpine or debian
+    example  : "true"
+    mandatory: false
+
+init:
+  url: https://api.github.com/repos/gcla/termshark/releases
+  dwn: https://github.com/gcla/termshark/releases/download
+
+todo:
+- Install tshark
+- Get Termshark binary
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : logErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+- name : Install tshark
+  check:
+    in:
+      installTShark: toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.installTShark) {
+      var os = ""
+      if ($sh("apk version").get(0).exitcode == 0)       os = "alpine"
+      if ($sh("apt-get --version").get(0).exitcode == 0) os = "debian"
+      
+      print("os = " + os)
+      switch(os) {
+      case "alpine":
+        $sh("sudo apk add tshark").exec()
+        break
+      case "debian":
+        $sh("sudo apt-get install tshark").exec()
+        break
+      }
+    }
+
+# ---------------------------
+- name : Get Termshark binary
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    // Check OS and arch
+    var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
+    if (os == "darwin") os = "macOS"
+    var arch = $sh("uname -m").get(0).stdout.trim()
+
+    if (arch.startsWith("armv5")) arch = "arm"
+    if (arch.startsWith("armv6")) arch = "armv6"
+    if (arch.startsWith("armv7")) arch = "arm"
+    if (arch == "aarch64") arch = "arm64"
+    if (arch == "x86") arch = "x86"
+    if (arch == "x86_64") arch = "x64"
+    if (arch == "i686") arch = "x86"
+    if (arch == "i386") arch = "x86"
+
+    // Get the tgz
+    var rels = $rest().get(args.init.url)
+    var version = $from(rels).equals("draft", false).equals("prerelease", false).sort("-published_at").at(0).tag_name
+    var tmp = io.createTempFile("termshark", ".tgz")
+
+    var url = args.init.dwn + "/" + version + "/termshark_" + version.slice(1) + "_" + os + "_" + arch + ".tar.gz"
+    log("Downloading " + url + "...")
+    $rest().get2File(tmp, url)
+
+    var is = Packages.org.apache.commons.compress.archivers.tar.TarArchiveInputStream(io.readFileGzipStream(tmp))
+    var _e = is.getNextTarEntry()
+    while(_e != null && String(_e.getName()).replace(/^.+\//, "") != "termshark") _e = is.getNextTarEntry()
+    if (_e != null) {
+      log("Writing " + args.path + "/termshark...")
+      ioStreamCopy(io.writeFileStream(args.path + "/termshark"), is)
+      $sh("chmod u+x " + args.path + "/termshark").exec()
+    } else
+      throw("Can't find 'termshark' utility in downloaded version")
