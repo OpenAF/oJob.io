@@ -1,3 +1,6 @@
+help:
+  text: Configures unix bash powerline and tmux
+
 ojob:
   opacks:
     oJob-common: 20200520
