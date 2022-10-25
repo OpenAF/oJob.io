@@ -42,9 +42,9 @@ jobs:
     // Build openaflambdabuilder ARM
     var path = getOPackPath(args.pack)
     $sh("docker build -t openaflambdabuilder .")
-    .sh("docker run -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder OPACKS=" + args.opacks)
+    .sh("docker run --pull always -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder OPACKS=" + args.opacks)
     .sh("docker build -t openaflambdabuilder_arm -f Dockerfile.arm .")
-    .sh("docker run -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder_arm OPACKS=" + args.opacks)
+    .sh("docker run --pull always -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder_arm OPACKS=" + args.opacks)
     .pwd(path)
     .exec()
 

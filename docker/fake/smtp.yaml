@@ -52,7 +52,7 @@ jobs:
 
       ow.oJob.output(args, args);
     } else {
-      $sh("docker run -p 1025:1025 -p 1080:1080 --name fake-smtp-server -d reachfive/fake-smtp-server")
+      $sh("docker run --pull always -p 1025:1025 -p 1080:1080 --name fake-smtp-server -d reachfive/fake-smtp-server")
       .exec();
   
       ow.oJob.output(args.init.instructions, args);

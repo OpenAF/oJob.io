@@ -28,7 +28,7 @@ jobs:
       file: isString
   exec : |
     var res = $sh()
-              .sh("docker run -i datree/datree test -", io.readFileString(args.file))
+              .sh("docker run --pull always -i datree/datree test -", io.readFileString(args.file))
               .prefix("check")
               .get(0)
 

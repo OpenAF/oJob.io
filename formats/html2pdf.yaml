@@ -104,4 +104,4 @@ jobs:
 - name: Convert
   lang: oafshell
   exec: |
-    docker run --rm -v {{path}}:/out wkhtmltopdf {{cmd}} /out/{{in}} /out/{{out}} {{{extra}}}
+    docker run --pull always --rm -v {{path}}:/out wkhtmltopdf {{cmd}} /out/{{in}} /out/{{out}} {{{extra}}}

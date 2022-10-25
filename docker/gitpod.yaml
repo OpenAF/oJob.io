@@ -142,7 +142,7 @@ jobs:
       args.port = 3000
     }
 
-    var cmd = templify("docker run {{#if privileged}}--privileged{{/if}} --rm -it --init -d -p {{port}}:3000 -v \"{{{path}}}:/workspace:cached\" openaf/gitpod", args)
+    var cmd = templify("docker run --pull always {{#if privileged}}--privileged{{/if}} --rm -it --init -d -p {{port}}:3000 -v \"{{{path}}}:/workspace:cached\" openaf/gitpod", args)
 
     if (isUnDef(args.output)) {
       var output = $sh(cmd).get(0).stdout, dlog

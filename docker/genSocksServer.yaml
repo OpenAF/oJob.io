@@ -37,7 +37,7 @@ jobs:
 # ----------------------
 - name : Generate docker
   exec :
-    tprint("docker run --rm -ti -p 1080:1080 {{#if network}}--network {{network}} {{/if}}openaf/oaf:nightly -c \"includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()\"", args)
+    tprint("docker run --pull always --rm -ti -p 1080:1080 {{#if network}}--network {{network}} {{/if}}openaf/oaf:nightly -c \"includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()\"", args)
 
 # ------------------------------
 - name : Generate docker-compose

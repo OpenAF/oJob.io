@@ -61,7 +61,7 @@ jobs:
       log("Creating the portainer container...");
       var extra = "";
       if (isDef(args.agentPort)) extra = "-p " + Number(args.agentPort) + ":8000";
-      $sh("docker run -d -p " + args.port + ":9000 " + extra + " --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce")
+      $sh("docker run --pull always -d -p " + args.port + ":9000 " + extra + " --name portainer --restart=always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce")
       .exec(0);
     } 
 

@@ -65,5 +65,5 @@ jobs:
     envs.push("-e OJOB_METHOD=" + args.method.toLowerCase())
 
     // Trying to run
-    $sh("docker run --rm -ti -v \"$(pwd)\":/input " + envs.join(" ") + " openaf/ojobrt:" + args.tag)
+    $sh("docker run --pull always --rm -ti -v \"$(pwd)\":/input " + envs.join(" ") + " openaf/ojobrt:" + args.tag)
     .exec()

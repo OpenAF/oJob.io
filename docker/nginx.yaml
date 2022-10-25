@@ -121,7 +121,7 @@ init:
         networks      :
         - nginx
   docker   : |
-    docker run --rm -ti -p {{port}}:80 openaf/oaf:nightly -c '$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url={{url}} {{#if port}}port={{port}}{{/if}} {{#if websocket}}websocket={{websocket}}{{/if}} {{#if auth}}auth={{auth}}{{/if}} {{#if ssl}}ssl={{ssl}}{{/if}} {{#if sslvalid}}sslvalid={{sslvalid}}{{/if}} {{#if sslsize}}sslsize={{sslsize}}{{/if}} && sudo mv nginx.conf /etc/nginx/nginx.conf {{#if auth}}&& sudo mv nginx_htpasswd /etc/nginx/.htpasswd{{/if}} {{#if ssl}}&& sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key{{/if}} && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
+    docker run --pull always --rm -ti -p {{port}}:80 openaf/oaf:nightly -c '$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url={{url}} {{#if port}}port={{port}}{{/if}} {{#if websocket}}websocket={{websocket}}{{/if}} {{#if auth}}auth={{auth}}{{/if}} {{#if ssl}}ssl={{ssl}}{{/if}} {{#if sslvalid}}sslvalid={{sslvalid}}{{/if}} {{#if sslsize}}sslsize={{sslsize}}{{/if}} && sudo mv nginx.conf /etc/nginx/nginx.conf {{#if auth}}&& sudo mv nginx_htpasswd /etc/nginx/.htpasswd{{/if}} {{#if ssl}}&& sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key{{/if}} && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
 
 todo:
 - Generate a nginx and docker-compose

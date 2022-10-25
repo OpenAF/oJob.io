@@ -1,1 +1,1 @@
-docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock openaf/openaf:nightly -c '$sh("apk update && apk add docker").exec();oJobRunFile("ojob.io")'
+docker run --pull always --rm -ti -v /var/run/docker.sock:/var/run/docker.sock openaf/openaf:nightly -c '$sh("apk update && apk add docker").exec();oJobRunFile("ojob.io")'

@@ -55,13 +55,13 @@ jobs:
     in:
       container: isString.default(__)
   exec : |
-    $sh("docker run -it " + (isDef(args.container) ? "--net container:" + args.container : "") + " nmaguiar/netshoot")
+    $sh("docker run --pull always -it " + (isDef(args.container) ? "--net container:" + args.container : "") + " nmaguiar/netshoot")
     .exec()
     
 # --------------------
 - name : netshoot host
   exec : |
-    $sh("docker run -it --net host nmaguiar/netshoot")
+    $sh("docker run --pull always -it --net host nmaguiar/netshoot")
     .exec()
 
 # -------------------
@@ -70,5 +70,5 @@ jobs:
     in:
       network: isString
   exec : |
-    $sh("docker run -it " + (isDef(args.network) ? "--net " + args.network : "") + " nmaguiar/netshoot")
+    $sh("docker run --pull always -it " + (isDef(args.network) ? "--net " + args.network : "") + " nmaguiar/netshoot")
     .exec()
