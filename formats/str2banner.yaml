@@ -61,10 +61,10 @@ jobs:
     var _fn = (isDef(args.__format) ? arr => ow.oJob.output(arr, args) : fn)
 
     if (isDef(args.str)) {
-      var lst = a.listFonts().map(f => ({ font: f, text: a.write(args.str, f) }))
+      var lst = $from(a.listFonts()).sort("-").select(f => ({ font: f, text: a.write(args.str, f) }))
       _fn(lst)
     } else {
-      ow.oJob.output(a.listFonts(), args)
+      ow.oJob.output($from(a.listFonts()).sort("-").select(), args)
     }
 
 # -------------------
