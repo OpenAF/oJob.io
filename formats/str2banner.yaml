@@ -47,9 +47,22 @@ jobs:
       str : isString.default(__)
   exec : |
     var a = new AsciiMo()
+    var fn = arr => {
+      arr.forEach(elem => {
+        print(repeat(elem.font.length, "="))
+        print(elem.font)
+        print("")
+        print(elem.text)
+        print(repeat(elem.font.length, "-"))
+        print("")
+      })
+    }
+
+    var _fn = (isDef(args.__format) ? arr => ow.oJob.output(arr, args) : fn)
+
     if (isDef(args.str)) {
       var lst = a.listFonts().map(f => ({ font: f, text: a.write(args.str, f) }))
-      ow.oJob.output(lst, args)
+      _fn(lst)
     } else {
       ow.oJob.output(a.listFonts(), args)
     }
