@@ -1,0 +1,44 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given an AWS region will list all repositories and images.
+  expects: 
+  - name     : region
+    desc     : The AWS region where the ECR is on
+    example  : eu-west-1
+    mandatory: true
+  - name     : accesskey
+    desc     : The AWS API access key
+    example  : ABC123
+    mandatory: false
+  - name     : secretkey
+    desc     : The AWS API secret key
+    example  : ABC123
+    mandatory: false
+
+todo:
+- List all images
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  - AWS   : 20221024
+  loadLibs    :
+  - aws.js
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name : List all images
+  check:
+    in:
+      region   : isString
+      accessKey: isString.default(__)
+      secretKey: isString.default(__)
+  exec : |
+    var aws = new AWS(args.accesskey, args.secretkey)
+
+    var res = aws.ECR_DescribeRepositories(args.region).map(r => ({ repositoryName: r.repositoryName, imageIds: aws.ECR_ListImages(args.region, r.repositoryName) }))
+
+    ow.oJob.output(res, args)
