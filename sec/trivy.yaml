@@ -16,11 +16,15 @@ help:
     mandatory: false
   - name     : nodocker
     desc     : Don't use trivy through docker (defaults to false)
-    example  : true
+    example  : "true"
     mandatory: false
   - name     : noparse
     desc     : Don't parse trivy result (defaults to false)
-    example  : true
+    example  : "true"
+    mandatory: false
+  - name     : report
+    desc     : If report=true will add extra options & set noparse=true to produce a HTML report 
+    example  : "true"
     mandatory: false
 
 todo:
@@ -62,7 +66,13 @@ jobs:
       path         : isString.default(__)
       image        : isString.default(__)
       dockerOptions: isString.default("")
+      report       : toBoolean.isBoolean.default(false)
   exec : |
+    if (args.report) {
+      args.options += "--format template --template \"@contrib/html.tpl\""
+      args.noparse = true
+    }
+
     // path
     if (isDef(args.path)) {
       if (ow.oJob.getState() == "docker") {
@@ -82,7 +92,7 @@ jobs:
     }
 
 # ----------------------------------
-- name : Install trivy temporarially
+- name : Install trivy temporarily
   exec : |
     args.trivyPath = io.createTempDir("trivy")  
 
@@ -128,7 +138,7 @@ jobs:
 - name : Run trivy locally
   from:
   - Process trivy options
-  - Install trivy temporarially
+  - Install trivy temporarily
   exec : |
     var res
     if (args.noparse) {
@@ -149,9 +159,9 @@ jobs:
   exec : |
     var res
     if (args.noparse) {
-      $sh("docker run --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).exec()
+      $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).exec()
     } else {
-      res = $sh("docker run --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).getJson(0)
+      res = $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).getJson(0)
     }
 
     ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res, args)
