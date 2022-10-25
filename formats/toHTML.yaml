@@ -61,7 +61,7 @@ jobs:
         // Open browser or output if not possible
         var tmp = io.createTempFile("ojobio", ".html")
         io.writeFileString(tmp, html)
-        if (!openInBrowser("file://" + tmp)) {
+        if (!openInBrowser("file://" + io.fileInfo(tmp).canonicalPath)) {
           print(html)
         } else {
           sleep(3000, true)
