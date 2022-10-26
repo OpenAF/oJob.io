@@ -21,6 +21,7 @@ init:
   - sudo apk update
   - sudo apk add docker python3 py3-pip
   - sudo pip3 install docker-squash
+  - sudo pip3 install docker==5.0.3
 
 todo:
 - name: Run squash
