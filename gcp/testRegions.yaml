@@ -1,6 +1,7 @@
 # Author: Nuno Aguiar
 
 init:
+  # From https://github.com/GoogleCloudPlatform/gcping/internal/config/endpoints.go
   regions:
   - name: global
     host: global.gcping.com
@@ -62,9 +63,15 @@ init:
   - name: europe-west8
     host: europe-west8-5tkroniexa-oc.a.run.app
     region: Milan
+  - name: europe-west9
+    host: europe-west9-5tkroniexa-od.a.run.app
+    region: Paris
   - name: europe-southwest1
     host: europe-southwest1-5tkroniexa-no.a.run.app
     region: Madrid
+  - name: me-west1
+    host: me-west1-5tkroniexa-zf.a.run.app
+    region: Tel Aviv
   - name: northamerica-northeast1
     host: northamerica-northeast1-5tkroniexa-nn.a.run.app
     region: Montréal
@@ -86,6 +93,12 @@ init:
   - name: us-east4
     host: us-east4-5tkroniexa-uk.a.run.app
     region: North Virginia
+  - name: us-east5
+    host: us-east5-5tkroniexa-ul.a.run.app
+    region: Ohio
+  - name: us-south1
+    host: us-south1-5tkroniexa-vp.a.run.app
+    region: Dallas
   - name: us-west1
     host: us-west1-5tkroniexa-uw.a.run.app
     region: Oregon
