@@ -1,6 +1,8 @@
 # Author: Nuno Aguiar
 help:
-  text   : Configure a light-ide (based on danebulat/light-ide)
+  text   : >
+    Configure a light-ide (based on danebulat/light-ide). To disable the mouse selection enter 'set mouse-=a' and 
+    to remove line numbers enter 'set nu!'
   expects: 
   - name     : color
     desc     : The color scheme to use (default iceberg)
