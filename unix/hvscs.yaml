@@ -33,9 +33,7 @@ help:
 
 init:
   dockHVSCS: |
-    docker run --rm -ti --init -d -p 3000 -p {{sshPort}}:22 --privileged {{{extra}}} {{{envs}}} {{{wkspVolume}}} --network {{network}} --name {{name}}_hvscs {{image}}
-  dockNginx: |
-    docker run --rm -ti -d -p {{webPort}}:80 --network {{network}} --name {{name}}_nginx openaf/oaf:nightly -c '$sh("sudo apk update && sudo apk add nginx && ojob ojob.io/docker/nginx url=http://{{name}}_hvscs:3000 port={{webPort}} websocket=true  ssl=hvscs sslvalid=525600 && sudo mv nginx.conf /etc/nginx/nginx.conf  && sudo mv nginx.pem /etc/nginx.pem && sudo mv nginx.key /etc/nginx.key && echo --- && sudo nginx && tail -f /var/log/nginx/access.log").exec()'
+        docker run --rm -ti --init -d --network {{network}} -p {{webPort}}:8443 -p {{socksPort}}:1080 -p {{sshPort}}:22 --privileged {{{extra}}} {{{envs}}} {{{wkspVolume}}} --name {{name}}_hvscs {{image}}
   dockNet  : |
     docker network create {{network}}
 
@@ -118,18 +116,25 @@ jobs:
       dm.name = net.replace("hvscs_", "")
       $from(docks).equals("Names[0]", "/" + dm.name + "_nginx").select(r => {
         $from(r._ports)
-        .equals("intPort", 80)
+        .equals("intPort", 8443)
         .select(s => { dm.webPort = s.extPort })
       })
       $from(docks).equals("Names[0]", "/" + dm.name + "_hvscs").select(r => {
         $from(r._ports)
         .equals("intPort", 22)
         .select(s => { dm.sshPort = s.extPort })
+        $from(r._ports)
+        .equals("intPort", 8443)
+        .select(s => { dm.webPort = s.extPort })
+        $from(r._ports)
+        .equals("intPort", 1080)
+        .select(s => { dm.socksPort = s.extPort })
         dm.image = r.Image
       })
 
-      dm.webURL = "https://"+args.host+":" + dm.webPort + "/?folder=/workspace"
-      dm.sshURL = "ssh -p " + dm.sshPort + " openvscode-server@"+args.host+" -L 1080:127.0.0.1:1080"
+      dm.webURL  = "https://"+args.host+":" + dm.webPort
+      dm.sshURL  = "ssh -p " + dm.sshPort + " openvscode-server@"+args.host
+      dm.browser = "newChrome " + dm.name + " " + args.host + ":" + dm.socksPort
 
       lst.push(dm)
     })
@@ -160,6 +165,7 @@ jobs:
       isMac     : true,
       webPort   : findRandomOpenPort(),
       sshPort   : findRandomOpenPort(),
+      socksPort : findRandomOpenPort(),
       envs      : args.flags.split(",").filter(f => f.length > 0).map(f => "--env " + f + "=1").join(" "),
       extra     : args.mac ? "--cgroupns=host -v /sys/fs/cgroup:/sys/fs/cgroup:rw" : "",
       network   : "hvscs_" + args.name,
@@ -173,11 +179,6 @@ jobs:
     print("Running " + templify(args.init.dockHVSCS, d))
     $sh(templify(args.init.dockHVSCS, d)).exec()
 
-    if (args.flags.indexOf("NOVSCODE") < 0) {
-       print("Running " + templify(args.init.dockNginx, d))
-       $sh(templify(args.init.dockNginx, d)).exec()
-    }
-
 # -------------
 - name : Delete
   from : Get data
@@ -185,6 +186,5 @@ jobs:
     in:
       name: isString
   exec : |
-    $sh("docker stop " + args.name + "_nginx").exec()
     $sh("docker stop " + args.name + "_hvscs").exec()
     $sh("docker network rm hvscs_" + args.name).exec()
