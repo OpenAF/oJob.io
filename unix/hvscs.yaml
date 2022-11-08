@@ -132,7 +132,7 @@ jobs:
         dm.image = r.Image
       })
 
-      dm.webURL  = "https://"+args.host+":" + dm.webPort
+      dm.webURL  = "https://"+args.host+":" + dm.webPort + "/?folder=/workspace"
       dm.sshURL  = "ssh -p " + dm.sshPort + " openvscode-server@"+args.host
       dm.browser = "newChrome " + dm.name + " " + args.host + ":" + dm.socksPort
 
