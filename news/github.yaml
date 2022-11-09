@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves MacRumors News RSS
+
+todo:
+- MacRumors 
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------
+- name: MacRumors 
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://github.blog/changelog/feed/
