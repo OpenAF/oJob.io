@@ -1,0 +1,60 @@
+# Author: Nuno Aguiar
+help:
+  text   : Runs Speedtest in docker
+  expects: 
+  - name     : nodown
+    desc     : If nodown=true will not perform download test
+    example  : "true"
+    mandatory: false
+  - name     : noup
+    desc     : If noup=true will not perform upload test
+    example  : "true"
+    mandatory: false
+  - name     : single
+    desc     : If single=true will use one single connection
+    example  : "true"
+    mandatory: false
+
+todo:
+- Check for docker
+- Speedtest
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+include:
+- ojob.io/docker/_common
+
+init:
+  cmd: |
+    docker run --rm openaf/oaf -c "sprint(\$sh('sudo apk add speedtest-cli').sh('speedtest --json {{extra}}').getJson(1).stdout, '')"
+
+jobs:
+# ----------------
+- name : Speedtest
+  check:
+    in:
+      nodown: toBoolean.isBoolean.default(false)
+      noup  : toBoolean.isBoolean.default(false)
+      single: toBoolean.isBoolean.default(false)
+  exec : |
+    args.extra = []
+    if (args.nodown) args.extra.push("--no-download")
+    if (args.noup)   args.extra.push("--no-upload")
+    if (args.single) args.extra.push("--single")
+    args.extra = args.extra.join(" ")
+
+    var data = $sh(templify(args.init.cmd, args)).getJson(0).stdout
+    if (isDef(data.bytes_sent))     data.bytes_sent_formatted = ow.format.toBytesAbbreviation(data.bytes_sent)
+    if (isDef(data.bytes_received)) data.bytes_received_formatted = ow.format.toBytesAbbreviation(data.bytes_received)
+
+    if (isDef(data.download) && data.download > 0) data.downloadFormatted = ow.format.toBytesAbbreviation(data.download).replace(/B$/, "bps")
+    if (isDef(data.upload)   && data.upload > 0)   data.uploadFormatted = ow.format.toBytesAbbreviation(data.upload).replace(/B$/, "bps")
+
+    if (isDef(data.ping)) data.pingFormatted = data.ping + " ms"
+    if (isDef(data.server) && isDef(data.server.d)) data.distanceFormatted = $f("%.2f km", data.server.d)
+
+    ow.oJob.output(data, args)
