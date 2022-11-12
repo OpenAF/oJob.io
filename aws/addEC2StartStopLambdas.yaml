@@ -30,36 +30,43 @@ init:
     import boto3
       
     def lambda_handler(event, context):
-        # { "action": "start", "instances": ['my-machine'], "region": "eu-west-1", "vpc": "vpc-12345678900" }
-        # { "action": "stop", "instances": ['my-machine'], "region": "eu-west-1", "vpc": "vpc-12345678900" }
-        ec2r = boto3.resource('ec2', region_name=event['region'])
-        vpc  = ec2r.Vpc(event['vpc'])
-        ins  = []
-        preActionStr = "Stopping"
-        posActionStr = "Stopped"
+      # { "action": "start", "instances": ['my-machine'], "tags": ['mykey:myvalue'], "region": "eu-west-1", "vpc": "vpc-12345678900" }
+      # { "action": "stop", "instances": ['my-machine'], "tags": ['mykey:myvalue'], "region": "eu-west-1", "vpc": "vpc-12345678900" }
+      ec2r = boto3.resource('ec2', region_name=event['region'])
+      vpc  = ec2r.Vpc(event['vpc'])
+      ins  = []
+      preActionStr = "Stopping"
+      posActionStr = "Stopped"
 
-        if event['action'] == 'start':
-          preActionStr = "Starting"
-          posActionStr = "Started"
-        
-        for instance in vpc.instances.all():
-          for tag in instance.tags:
+      if event['action'] == 'start':
+        preActionStr = "Starting"
+        posActionStr = "Started"
+      
+      for instance in vpc.instances.all():
+        for tag in instance.tags:
+          if 'instances' in event:
             if (tag['Key'] == 'Name'):
               if tag['Value'] in event['instances']:
                   print(preActionStr + ' ' + str(tag['Value']) + " in region " + event['region'])
                   ins.append(instance.id)
-        
-        ec2 = boto3.client('ec2', region_name=event['region'])
-        if len(ins) > 0:
-          if event['action'] == 'start':
-            ec2.start_instances(InstanceIds=ins)
-          if event['action'] == 'stop':
-            ec2.stop_instances(InstanceIds=ins)
-        
-        return {
-          'statusCode': 200,
-          'body'      : json.dumps(posActionStr + ' instances: ' + str(event['instances']))
-        }
+                  
+          if 'tags' in event:
+            if tag['Key'] + ":" + tag['Value'] in event['tags']:
+              print(preActionStr + ' ' + str(instance.id) + " in region " + event['region'])
+              ins.append(instance.id)
+      
+      ec2 = boto3.client('ec2', region_name=event['region'])
+      if len(ins) > 0:
+        if event['action'] == 'start':
+          ec2.start_instances(InstanceIds=ins)
+        if event['action'] == 'stop':
+          ec2.stop_instances(InstanceIds=ins)
+      
+      return {
+        'statusCode': 200,
+        'body'      : json.dumps(posActionStr + ' instances: ' + str(event['instances']))
+      }
+
 
 todo:
 - Connecting to AWS
