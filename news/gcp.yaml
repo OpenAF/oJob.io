@@ -10,17 +10,16 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves Google Cloud RSS
-    expects:
-    - name   : weeks
-      desc   : Number of weeks to parse (defaults to 4)
-      example: 4
-
 # ---------
-- name: GCP
+- name: GCP 
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://cloudblog.withgoogle.com/rss/
+
+# -------------
+- name: old GCP
   exec: |
     args.weeks = Number( _$(args.weeks, "weeks").isString().default(4) );
 
