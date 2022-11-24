@@ -1,0 +1,32 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts a CSV into a NDJSON output
+  expects: 
+  - name     : file
+    desc     : The CSV file to convert
+    example  : mydata.csv
+    mandatory: true
+
+todo:
+- Convert
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------
+- name : Convert
+  check:
+    in:
+      file: isString
+  exec : |
+    $csv({ quoteMode: "MINIMAL", withHeader: true }).fromInFile(args.file).toOutFn(m => {
+      if (isDef(m["@timestamp"]) && m["@timestamp"].indexOf("@") >= 0) {
+        m["@timestamp"] = ow.format.toDate(m["@timestamp"], "MMM dd, yyyy '@' hh:MM:ss.SSS")
+      }
+      sprint(m, "")
+    })

@@ -75,9 +75,9 @@ jobs:
 
     var buf = __
     global.wildcardTest = (str, pattern, caseSensitive) => {
-        caseSensitive = _$(caseSensitive).isBoolean().default(false)
-        var w = "^" + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$1').replace(/\*/g, '.*').replace(/\?/g, '.') + "$"
-        return (new RegExp(w, (caseSensitive ? __ : 'i'))).test(str)
+      caseSensitive = _$(caseSensitive).isBoolean().default(false)
+      var w = "^" + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$1').replace(/\*/g, '.*').replace(/\?/g, '.') + "$"
+      return (new RegExp(w, (caseSensitive ? __ : 'i'))).test(str)
     }
     global.parseLine = line => {
       if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
@@ -140,7 +140,7 @@ jobs:
           break;
         default           :
           try {
-            if (isUnDef(data.code)) {
+            if (isUnDef(data.code) || isUnDef(data.thread_name)) {
               try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
               if (isDef(data["thread_name"])) data.message = "[" + data["thread_name"] + "] " + data.message
               print(tmplDefault(data))

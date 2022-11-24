@@ -91,7 +91,7 @@ jobs:
 
     // Build query
     var qry = []
-    if (isString(args.from) && isString(args.to)) ["(@timestamp: [\"" + args.from + "\" TO \"" + args.to + "\"])"]
+    if (isString(args.from) && isString(args.to)) qry.push("(@timestamp: [\"" + args.from + "\" TO \"" + args.to + "\"])")
     if (isString(args.filter)) {
       args.filter.split(",").forEach(f => {
         var ar = f.split(":")
