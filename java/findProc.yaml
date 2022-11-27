@@ -1,0 +1,113 @@
+# Author: Nuno Aguiar
+help:
+  text   : Finds Java processes in docker containers or Kubernetes generating the command for using ojob.io/java/gc
+  expects: 
+  - name     : docker
+    desc     : The id of a docker container if you want to find processes in a docker container
+    example  : abc123
+    mandatory: false
+  - name     : pod
+    desc     : The kubernetes pod id if you want to find processes in a kubernetes pod (see also podc and ns)
+    example  : mypod
+    mandatory: false
+  - name     : podc
+    desc     : If the target kubernetes pod as multiple containers podc provides the container id
+    example  : mycontainer
+    mandatory: false
+  - name     : ns
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: false
+
+todo:
+- Find java choose between docker or kube
+
+- when: docker
+  name: Find java processes in a docker container
+
+- when: kube
+  name: Find java processes in a kube pod
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+init:
+  cmds:
+    docker: "docker exec -i {{docker}} {{cmd}}"
+    kube  : "kubectl exec {{#if ns}}-n {{ns}}{{/if}} {{#if podc}}-c {{podc}}{{/if}} {{pod}} -- {{cmd}}"
+
+jobs:
+# ----------------------------------------------
+- name : Find java choose between docker or kube
+  check:
+    in:
+      docker: isString.default(__)
+      pod   : isString.default(__)
+      podc  : isString.default(__)
+      ns    : isString.default(__)  
+  exec : |
+    if (isDef(args.docker)) ow.oJob.setState("docker")
+    if (isDef(args.pod)) ow.oJob.setState("kube")
+
+    if (isUnDef(args.docker) && isUnDef(args.pod)) throw "Need either docker or pod to be defined."
+
+# --------------------
+- name : Run find java
+  check:
+    in:
+      tmpl: isString
+  exec : |
+    var _rlst = []
+    var res = $sh(templify(args.tmpl, merge(args, { cmd: "find /tmp -type f" }))).get(0)
+    if (res.exitcode == 0) {
+      var lst = res.stdout
+                   .split("\n")
+                   .filter(l => l.indexOf("/tmp/hsperfdata_") == 0)
+      
+      ow.loadJava()
+      _rlst = lst.map(r => {
+        var _r = {}, _hsp, ostream = af.newOutputStream()
+        var res = $sh(templify(args.tmpl, merge(args, { cmd: "cat " + r })))
+                  .cb((o, e, i) => {
+                    ioStreamCopy(ostream, o)
+                    _hsp = ow.java.parseHSPerf(ostream.toByteArray())
+                  })
+                  .get(0)
+
+        if (res.exitcode == 0) {
+          _r["path"] = r
+          _r["cmd"]  = _hsp.sun.rt.javaCommand
+          _r["gc"]   = "ojob ojob.io/java/gc cmd=" + templify(args.tmpl, merge(args, { cmd: "cat " + r })).replace(/ +/g, "\\\\ ")
+          _r["grid"] = "ojob ojob.io/grid/data/gc2 cmd=" + templify(args.tmpl, merge(args, { cmd: "cat " + r })).replace(/ +/g, "\\\\ ")
+        } else {
+          printErr(res.stderr)
+        }
+
+        return _r
+      })
+    } else {
+      printErr(res.stderr)
+    }
+
+    ow.oJob.output(_rlst, args)
+
+# ------------------------------------------------
+- name : Find java processes in a docker container
+  check:
+    in:
+      docker: isString.default(__)
+  to   : Run find java
+  exec : |
+    args.tmpl = args.init.cmds.docker
+
+# ----------------------------------------
+- name : Find java processes in a kube pod
+  check:
+    in:
+      kube: isString.default(__)
+  to   : Run find java
+  exec : |
+    args.tmpl = args.init.cmds.kube
