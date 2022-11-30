@@ -60,6 +60,8 @@ init:
       mon1:
         image: {{image}}:{{tag}}
         command: "mon"
+        hostname: mon1
+        restart: always
         environment:
           MON_IP: {{net}}.99
           CEPH_PUBLIC_NETWORK: {{net}}.0/24
@@ -75,6 +77,8 @@ init:
       mgr:
         image: {{image}}:{{tag}}
         command: "mgr"
+        hostname: mgr
+        restart: always
         environment:
           LANG: en_US.utf8
           TZ: {{tz}}
@@ -98,6 +102,8 @@ init:
         {{else}}
         command: "osd_directory"
         {{/if}}
+        hostname: {{name}}
+        restart: always
         environment:
           LANG: en_US.utf8
           TZ: {{../tz}}
@@ -117,6 +123,8 @@ init:
       rgw1:
         image: {{image}}:{{tag}}
         command: "rgw"
+        hostname: rgw1
+        restart: always
         environment:
           LANG: en_US.utf8
           TZ: {{tz}}
@@ -136,6 +144,7 @@ init:
         image: {{image}}:{{tag}}
         command: "mds"
         hostname: "ceph-mds1-host"
+        restart: always
         environment:
           CEPHFS_CREATE: 1
           LANG: en_US.utf8
