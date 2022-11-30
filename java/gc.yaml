@@ -46,10 +46,14 @@ init:
       fields  : "max:total,used:used,free:free,mMax:metaMax,mTotal:metaTotal,mUsed:metaUsed,mFree:metaFree"
       __format: slon
     gcutil8:
-      fields  : "S0:sun.gc.__percUsed_s0,S1:sun.gc.__percUsed_s1,E:sun.gc.__percUsed_eden,O:sun.gc.__percUsed_old,M:sun.gc.__percUsed_meta"
-      template: " {{$f '% 3.2f' S0}} {{$f '% 3.2f' S1}} {{$f '% 3.2f' E}} {{$f '% 3.2f' O}} {{$f '% 3.2f' M}}"
-      __format: slon
-
+      fields   : "S0:sun.gc.__percUsed_s0,S1:sun.gc.__percUsed_s1,E:sun.gc.__percUsed_eden,O:sun.gc.__percUsed_old,M:sun.gc.__percUsed_meta,CCS:sun.gc.__percUsed_ccs,YGC:sun.gc.__ygc,YGCT:sun.gc.__ygct,FGC:sun.gc.__fgc,FGCT:sun.gc.__fgct,GCT:sun.gc.__gct"
+      htemplate: "  {{$f '%-6s' 'S0'}} {{$f '%-6s' 'S1'}} {{$f '%-6s' 'E'}} {{$f '%-6s' 'O'}} {{$f '%-6s' 'M'}} {{$f '%-6s' 'CCS'}} {{$f '%-6s' 'YGC'}} {{$f '%-8s' 'YGCT'}} {{$f '%-5s' 'FGC'}} {{$f '%-8s' 'FGCT'}} {{$f '%-8s' 'GCT'}}"
+      template : "{{$f '% 6.2f' S0}} {{$f '% 6.2f' S1}} {{$f '% 6.2f' E}} {{$f '% 6.2f' O}} {{$f '% 6.2f' M}} {{$f '% 6.2f' CCS}} {{$f '% 6.0f' YGC}} {{$f '% 8.3f' YGCT}} {{$f '% 5.0f' FGC}} {{$f '% 8.3f' FGCT}} {{$f '% 8.3f' GCT}}"
+    gcutil11:
+      fields   : "S0:sun.gc.__percUsed_s0,S1:sun.gc.__percUsed_s1,E:sun.gc.__percUsed_eden,O:sun.gc.__percUsed_space,M:sun.gc.__percUsed_meta,CCS:sun.gc.__percUsed_ccs"
+      htemplate: "  {{$f '%-6s' 'S0'}} {{$f '%-6s' 'S1'}} {{$f '%-6s' 'E'}} {{$f '%-6s' 'O'}} {{$f '%-6s' 'M'}} {{$f '%-6s' 'CCS'}}"
+      template : " {{$f '% 3.2f' S0}} {{$f '% 3.2f' S1}} {{$f '% 3.2f' E}} {{$f '% 3.2f' O}} {{$f '% 3.2f' M}} {{$f '% 3.2f' CCS}}"
+      
 todo:
 - Main
 
@@ -66,6 +70,10 @@ jobs:
     in: 
       template: isString.default(__)
   exec : |
+    if (isDef(args.htemplate) && isUnDef(global.first)) {
+      global.first = true
+      tprint(args.htemplate, args.data)
+    }
     if (isDef(args.template)) {
       tprint(args.template, args.data)
     } else {
@@ -89,6 +97,17 @@ jobs:
     })
     args.data.sun.gc.__percUsed_meta = (100 * args.data.sun.gc.metaspace.used) / args.data.sun.gc.metaspace.capacity
     args.data.sun.gc.__percUsed_ccs = (100 * args.data.sun.gc.compressedclassspace.used) / args.data.sun.gc.compressedclassspace.capacity
+
+    // Java 8
+    var _ygc = $from(args.data.sun.gc.collector).equals("name", "PSScavenge").at(0)
+    args.data.sun.gc.__ygc = isDef(_ygc) ? Number(_ygc.invocations) : 0
+    args.data.sun.gc.__ygct = isDef(_ygc) ? Number(_ygc.time / 1000000000) : 0
+    
+    var _fgc = $from(args.data.sun.gc.collector).equals("name", "PSParallelCompact").orEquals("name", "").at(0)
+    args.data.sun.gc.__fgc = isDef(_fgc) ? Number(_fgc.invocations) : 0
+    args.data.sun.gc.__fgct = isDef(_fgc) ? Number(_fgc.time / 1000000000) : 0
+
+    args.data.sun.gc.__gct = $from(args.data.sun.gc.collector).sum("time") / 1000000000
 
     args.data.java.__mem = {
       total    : r.total,
@@ -135,7 +154,8 @@ jobs:
       var newData = {}
       args.fields.split(",").filter(r => r.length > 0).forEach(path => {
         var [ newPath, origPath ] = path.split(":")
-        $$(newData).set(newPath, $$(args.data).get(origPath))
+        //$$(newData).set(newPath, $$(args.data).get(origPath))
+        $$(newData).set(newPath, $path(args.data, origPath))
       })
       args.data = newData
     }
