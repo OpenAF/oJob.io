@@ -173,6 +173,8 @@ init:
     auth_cluster_required = none
     auth_service_required = none
     auth_client_required = none
+
+    ms_mon_client_mode = crc
   dcMON: docker-compose exec -T mon1
   dcRGW: docker-compose exec -T rgw
 
