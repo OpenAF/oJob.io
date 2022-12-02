@@ -46,9 +46,9 @@ jobs:
 
     if (isDef(url1Info.error) || isDef(url2Info.error)) throw "Problem with remote distribution: " + af.toSLON(url1Info) + " || " + af.toSLON(url2Info) 
 
-    tlog("Downloading {{dist}} openaf.jar ({{size}})...", { dist: getDistribution(), size: ow.format.toBytesAbbreviation(url1Info.response["Content-Length"] || url1Info.response["content-length"]) })
+    tlog("Downloading {{dist}} openaf.jar ({{size}})...", { dist: args.dist, size: ow.format.toBytesAbbreviation(url1Info.response["Content-Length"] || url1Info.response["content-length"]) })
     $rest().get2File(path + "/tmp_openaf.jar.orig", url1)
-    tlog("Downloading {{dist}} openaf.jar.repacked ({{size}})...", { dist: getDistribution(), size: ow.format.toBytesAbbreviation(url2Info.response["Content-Length"] || url2Info.response["content-length"]) })
+    tlog("Downloading {{dist}} openaf.jar.repacked ({{size}})...", { dist: args.dist, size: ow.format.toBytesAbbreviation(url2Info.response["Content-Length"] || url2Info.response["content-length"]) })
     $rest().get2File(path + "/tmp_openaf.jar", url2)
 
 # --------------------------
