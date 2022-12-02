@@ -1,0 +1,61 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts input __pm map (or stdin) into a OpenMetrics format and optionally send it to a gateway.
+  expects: 
+  - name     : prefix
+    desc     : The metrics prefix to use
+    example  : test
+    mandatory: false
+  - name     : joburl
+    desc     : The prometheus gateway equivalent job url (e.g. http://gw:9091/metrics/job/myjob)
+    example  : http://gw:9091/metrics/job/myjob
+    mandatory: false
+
+todo:
+- Convert to OpenMetrics
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : Parsing function
+  check:
+    in:
+      prefix: isString.default(__)
+  exec : |
+    ow.loadMetrics()
+    global.parseData = function(data) {
+      if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
+      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix)
+      
+      if (isDef(args.joburl)) {
+        var res = $rest().post(args.joburl, out)
+        if (isDef(res.error)) {
+          printErr(res.error.response)
+        }
+        print("Sent " + out.length + " bytes to " + args.joburl)
+      } else {
+        print(out)
+      }
+    }
+
+# -----------------------------
+- name : Convert to OpenMetrics
+  from : 
+  - Parsing function
+  exec : |
+    var data = __pm
+
+    if (isDef(__pm._map)) data = __pm._map
+    if (isDef(__pm._list)) data = __pm._list
+
+    if (Object.keys(data).length == 0) {
+      io.pipeLn(global.parseData)
+    } else {
+      global.parseData(data)
+    }

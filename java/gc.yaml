@@ -60,7 +60,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20220822
-  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  catch       : printErrnl("[" + job.name + "] "); printErr(exception)
   logToConsole: false   # to change when finished
         
 jobs:
