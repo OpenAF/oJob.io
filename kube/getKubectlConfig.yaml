@@ -1,0 +1,75 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the current appropriate Kubectl config (~/.kube/config) to access a Kubernetes cluster
+  expects: 
+  - name     : url
+    desc     : An URL to access the kubernetes cluster
+    example  : https://mycluster:1234
+    mandatory: false
+  - name     : user
+    desc     : An user to access the kubernetes cluster
+    example  : myuser
+    mandatory: false
+  - name     : pass
+    desc     : A password to access the kubernetes cluster
+    example  : mypass
+    mandatory: false
+  - name     : token
+    desc     : A token to access the kubernetes cluster
+    example  : abcd1234
+    mandatory: false
+
+todo:
+- Get current client config
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  - Kube  : 20221123
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - kube.js
+
+init:
+  config: |
+    apiVersion: {{ApiVersion}}
+    clusters:
+    - cluster:
+        certificate-authority-data: {{{CaCertData}}}
+        server: {{{MasterUrl}}}
+      name: {{Contexts.[0].Name}}
+    contexts:
+    {{#each Contexts}}
+    - context:
+        cluster: {{Context.[0].Cluster}}
+        user: {{Context.[0].User}}
+      name: {{Name}}
+    {{/each}}
+    current-context: {{CurrentContext.[0].Name}}
+    kind: Config
+    preferences: {}
+    users:
+    {{#each Contexts}}
+    - name: {{Context.[0].User}}
+      user:
+        client-certificate-data: {{{../ClientCertData}}}
+        client-key-data: {{{../ClientKeyData}}}
+    {{/each}}
+        
+jobs:
+# --------------------------------
+- name : Get current client config
+  check:
+    in:
+      url  : isString.default(__)
+      user : isString.default(__)
+      pass : isString.default(__)
+      token: isString.default(__)
+  exec : |
+    if (isUnDef(args.__format)) args.__format = "yaml"
+    
+    var kube = new Kube(args.url, args.user, args.pass, __, args.token)
+    var data = kube.getConfig()
+    var out = af.fromYAML(templify(args.init.config, data))
+    ow.oJob.output(out, args)
