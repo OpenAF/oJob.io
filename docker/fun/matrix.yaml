@@ -1,0 +1,65 @@
+# Author: Nuno Aguiar
+help:
+  text   : Matrix like effect 
+  expects: 
+  - name     : useBold
+    desc     : Use bold characters
+    example  : "true"
+    mandatory: false
+  - name     : allBold
+    desc     : Use all bold characters
+    example  : "true"
+    mandatory: false
+  - name     : useJapanese
+    desc     : Use japanese characters
+    example  : "true"
+    mandatory: false
+  - name     : linuxFont
+    desc     : Use the linux matrix font if available
+    example  : "true"
+    mandatory: false
+  - name     : color
+    desc     : Use the provided color name
+    example  : "red"
+    mandatory: false
+  - name     : rainbow
+    desc     : Use a rainbow of colors
+    example  : "true"
+    mandatory: false
+
+include:
+- ojob.io/docker/_common
+
+todo:
+- Check for docker
+- Run CMatrix
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------
+- name : Run CMatrix
+  check:
+    in:
+      useBold    : toBoolean.isBoolean.default(false)
+      allBold    : toBoolean.isBoolean.default(false)
+      useJapanese: toBoolean.isBoolean.default(false)
+      linuxFont  : toBoolean.isBoolean.default(false)
+      color      : isString.default(__)
+      rainbow    : toBoolean.isBoolean.default(false)
+  exec : |
+    var options = []
+    if (args.useBold) options.push("-b")
+    if (args.allBold) options.push("-B")
+    if (args.useJapanese) options.push("-c")
+    if (args.linuxFont) options.push("-l")
+    if (isDef(args.color)) options.push("-C " + args.color)
+    if (args.rainbow) options.push("-r")
+
+    $sh(["docker", "run", "--rm", "-ti", "openaf/oaf", "-c", "$sh(\"sudo apk add cmatrix && cmatrix " + options.join(" ") + "\").exec()"])
+    .exec()
