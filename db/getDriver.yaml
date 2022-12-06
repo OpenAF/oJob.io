@@ -212,8 +212,8 @@ init:
       docs    : https://www.oracle.com/database/technologies/maven-central-guide.html
       url     : jdbc:odbc:{{db}}
 
-    # CouchBase
-    - name    : couchbase
+    # CouchBaseAnalytics
+    - name    : couchbaseanalytics
       type    : maven
       typeArgs:
         groupId   : com.couchbase.client
@@ -221,6 +221,16 @@ init:
       class   : com.couchbase.client.jdbc.CouchbaseDriver
       docs    : https://github.com/couchbaselabs/couchbase-jdbc-driver
       url     : jdbc:couchbase:analytics:{{host}}/{{catalog}}/{{schema}}
+
+    # CouchBase
+    - name    : couchbase
+      type    : maven
+      typeArgs:
+        groupId   : com.couchbase.jdbc
+        artifactId: jdbc-n1ql
+      class   : com.couchbase.jdbc.CBDriver
+      docs    : https://github.com/jdbc-json/jdbc-cb
+      url     : jdbc:couchbase://{{host}}:{{port}}
 
     # CSV
     - name    : csv
