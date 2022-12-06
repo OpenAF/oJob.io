@@ -1,0 +1,60 @@
+# Author: Nuno Aguiar
+help:
+  text   : Starts a socks server
+  expects: 
+  - name     : port
+    desc     : Port assigned to the socks server (defaults to 1080)
+    example  : 10080
+    mandatory: false
+  - name     : log
+    desc     : If log=false no logging will be produced (defaults to true)
+    example  : "false"
+    mandatory: false
+  - name     : verbose
+    desc     : If verbose=true it will produce a more verbose log
+    example  : "true"
+    mandatory: false
+  - name     : localnet
+    desc     : Filters all proxied traffic only to private network addresses
+    example  : "true"
+    mandatory: false
+  - name     : filters
+    desc     : Comma-delimited list of CIDRs to filter all traffic proxied.
+    example  : "192.168.1.0/16,fc00::/7"
+    mandatory: false
+
+todo:
+- Start socks server
+
+ojob:
+  opacks      :
+  - openaf     : 20211229
+  - SocksServer: 20221205
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - socksServer.js
+        
+
+jobs:
+# -------------------------
+- name : Start socks server
+  check:
+    in:
+      port    : toNumber.isNumber.default(1080)
+      verbose : toBoolean.isBoolean.default(false)
+      log     : toBoolean.isBoolean.default(true)
+      localnet: toBoolean.isBoolean.default(false)
+      filters : isString.default(__)
+  exec : |
+    var ss = new SocksServer()
+    if (args.localnet) {
+      ss.start(args.port, ss.getLocalNetCallback(args.log, args.verbose))
+    } else {
+      if (args.filters) {
+        ss.start(args.port, ss.getCallback(ss.getNetFilter(args.filters), args.log, args.verbose))
+      } else {
+        ss.start(args.port, ss.getLogCallback(args.log, args.verbose))
+      }
+    }
+    log("Ready on port " + args.port)
