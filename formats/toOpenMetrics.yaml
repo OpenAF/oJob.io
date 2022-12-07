@@ -11,8 +11,12 @@ help:
     example  : http://gw:9091/metrics/job/myjob
     mandatory: false
   - name     : timestamp
-    desc     : If "timestamp=true" it will include the timestamp of when the data was produced
+    desc     : If "timestamp=true" it will include the timestamp of when the data was produced. If timefield is not defined it uses the current time.
     example  : "true"
+    mandatory: false
+  - name     : timefield
+    desc     : The JSON path to the field from where to derive the timestamp if timestamp=true (the field will be removed from the metrics data)
+    example  : "__ts"
     mandatory: false
 
 todo:
@@ -32,11 +36,15 @@ jobs:
     in:
       prefix: isString.default(__)
       timestamp: toBoolean.isBoolean.default(false)
+      timefield: isString.default(__)
   exec : |
     ow.loadMetrics()
     global.parseData = function(data) {
       if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
-      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, (args.timestamp ? new Date() : __) )
+
+      var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
+      if (isDef(args.timefield)) $$(data).set(args.timefield, __)
+      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, _ts )
       
       if (isDef(args.joburl)) {
         var res = $rest().post(args.joburl, out)

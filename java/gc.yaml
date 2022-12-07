@@ -86,6 +86,8 @@ jobs:
     in:
       data: isMap
   exec : |
+    args.data.__ts = new Date()
+
     var r = { max: 0, total: 0, used: 0, free: 0 }
     args.data.sun.gc.generation.forEach(gen => {
       gen.space.forEach(space => {
