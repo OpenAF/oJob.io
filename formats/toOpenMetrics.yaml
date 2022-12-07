@@ -10,6 +10,10 @@ help:
     desc     : The prometheus gateway equivalent job url (e.g. http://gw:9091/metrics/job/myjob)
     example  : http://gw:9091/metrics/job/myjob
     mandatory: false
+  - name     : timestamp
+    desc     : If "timestamp=true" it will include the timestamp of when the data was produced
+    example  : "true"
+    mandatory: false
 
 todo:
 - Convert to OpenMetrics
@@ -27,11 +31,12 @@ jobs:
   check:
     in:
       prefix: isString.default(__)
+      timestamp: toBoolean.isBoolean.default(false)
   exec : |
     ow.loadMetrics()
     global.parseData = function(data) {
       if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
-      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix)
+      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, (args.timestamp ? new Date() : __) )
       
       if (isDef(args.joburl)) {
         var res = $rest().post(args.joburl, out)
