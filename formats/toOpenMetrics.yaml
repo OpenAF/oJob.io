@@ -44,7 +44,7 @@ jobs:
 
       var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
       if (isDef(args.timefield)) $$(data).set(args.timefield, __)
-      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, _ts )
+      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, Math.round(_ts.getTime() / 1000) )
       
       if (isDef(args.joburl)) {
         var res = $rest().post(args.joburl, out)
@@ -53,7 +53,7 @@ jobs:
         }
         print("Sent " + out.length + " bytes to " + args.joburl)
       } else {
-        print(out)
+        printnl(out)
       }
     }
 
