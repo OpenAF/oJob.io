@@ -20,7 +20,7 @@ help:
     mandatory: false
 
 todo:
-- Find java choose between docker or kube
+- Find java choose between docker or kube or local
 
 - when: docker
   name: Find java processes in a docker container
@@ -28,20 +28,25 @@ todo:
 - when: kube
   name: Find java processes in a kube pod
 
+- when: local
+  name: Find java processes locally
+
+
 ojob:
   opacks      :
   - openaf: 20220822
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
-  logToConsole: true   # to change when finished
+  logToConsole: false   # to change when finished
         
 init:
   cmds:
-    docker: "docker exec -i {{docker}} {{cmd}}"
-    kube  : "kubectl exec {{#if ns}}-n {{ns}}{{/if}} {{#if podc}}-c {{podc}}{{/if}} {{pod}} -- {{cmd}}"
+    docker: "docker exec -i {{docker}} {{{cmd}}}"
+    kube  : "kubectl exec {{#if ns}}-n {{ns}}{{/if}} {{#if podc}}-c {{podc}}{{/if}} {{pod}} -- {{{cmd}}}"
+    local : "{{{cmd}}}"
 
 jobs:
-# ----------------------------------------------
-- name : Find java choose between docker or kube
+# -------------------------------------------------------
+- name : Find java choose between docker or kube or local
   check:
     in:
       docker: isString.default(__)
@@ -52,7 +57,8 @@ jobs:
     if (isDef(args.docker)) ow.oJob.setState("docker")
     if (isDef(args.pod)) ow.oJob.setState("kube")
 
-    if (isUnDef(args.docker) && isUnDef(args.pod)) throw "Need either docker or pod to be defined."
+    //if (isUnDef(args.docker) && isUnDef(args.pod)) throw "Need either docker or pod to be defined."
+    if (isUnDef(args.docker) && isUnDef(args.pod)) ow.oJob.setState("local")
 
 # --------------------
 - name : Run find java
@@ -61,11 +67,12 @@ jobs:
       tmpl: isString
   exec : |
     var _rlst = []
-    var res = $sh(templify(args.tmpl, merge(args, { cmd: "find /tmp -type f" }))).get(0)
+    var res = $sh(templify(args.tmpl, merge(args, { cmd: "echo ${TMPDIR:-/tmp} && echo \"||\" && find ${TMPDIR:-/tmp} -type f" }))).get(0)
     if (res.exitcode == 0) {
-      var lst = res.stdout
+      var _tmp = res.stdout.split("||")
+      var lst = _tmp[1]
                    .split("\n")
-                   .filter(l => l.indexOf("/tmp/hsperfdata_") == 0)
+                   .filter(l => l.indexOf(_tmp[0].replace(/\n/g, "") + "/hsperfdata_") == 0)
       
       ow.loadJava()
       _rlst = lst.map(r => {
@@ -111,3 +118,9 @@ jobs:
   to   : Run find java
   exec : |
     args.tmpl = args.init.cmds.kube
+
+# ----------------------------------
+- name : Find java processes locally
+  to   : Run find java
+  exec : |
+    args.tmpl = args.init.cmds.local
