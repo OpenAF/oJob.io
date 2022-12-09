@@ -1,15 +1,15 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Generates a quick docker-compose with prometheus and, optionally, grafana.
-    expects: 
-    - name: grafana 
-      desc: "If grafana=true grafana will be added to the docker-compose file."
-    - name: pushgateway
-      desc: "If pushgateway=true pushgateway will be added to the docker-compose file."
-    - name: prometheusConfig
-      desc: "The localfilename containing the prometheus configuration (default: prometheus.yml)"
+help:
+  text   : Generates a quick docker-compose with prometheus and, optionally, grafana.
+  expects: 
+  - name: grafana 
+    desc: "If grafana=true grafana will be added to the docker-compose file."
+  - name: pushgateway
+    desc: "If pushgateway=true pushgateway will be added to the docker-compose file."
+  - name: prometheusConfig
+    desc: "The localfilename containing the prometheus configuration (default: prometheus.yml)"
 
+init:
   prom: |
     # my global config
     global:
@@ -113,15 +113,11 @@ include:
 
 ojob:
   opacks      :
-  - openaf: 20210721
+  - openaf: 20220822
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------------
 - name: Install prometheus 
   exec: |
