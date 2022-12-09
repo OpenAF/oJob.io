@@ -192,7 +192,7 @@ init:
           "targets": [
             {
               "editorMode": "builder",
-              "expr": "max(metric_sun_gc_generation_maxCapacity)",
+              "expr": "max({{prefix}}_sun_gc_generation_maxCapacity)",
               "legendFormat": "__auto",
               "range": true,
               "refId": "A"
@@ -717,7 +717,7 @@ init:
           "targets": [
             {
               "editorMode": "builder",
-              "expr": "sum by(name) (metric_sun_gc_collector_invocations)",
+              "expr": "sum by(name) ({{prefix}}_sun_gc_collector_invocations)",
               "format": "time_series",
               "hide": false,
               "interval": "0",
@@ -806,7 +806,7 @@ init:
           "targets": [
             {
               "editorMode": "builder",
-              "expr": "max by(name) (metric_sun_gc_collector___lastExecTime)",
+              "expr": "max by(name) ({{prefix}}_sun_gc_collector___lastExecTime)",
               "legendFormat": "\{{name}}",
               "range": true,
               "refId": "A"
@@ -864,7 +864,7 @@ init:
           "targets": [
             {
               "editorMode": "builder",
-              "expr": "max by(name) (metric_sun_gc_generation_space_capacity)",
+              "expr": "max by(name) ({{prefix}}_sun_gc_generation_space_capacity)",
               "hide": false,
               "interval": "0",
               "legendFormat": "\{{name}}",
@@ -925,7 +925,7 @@ init:
             {
               "editorMode": "builder",
               "exemplar": false,
-              "expr": "max by(name) (metric_sun_gc_generation_space_used)",
+              "expr": "max by(name) ({{prefix}}_sun_gc_generation_space_used)",
               "format": "time_series",
               "instant": false,
               "interval": "0",
