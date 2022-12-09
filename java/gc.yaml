@@ -34,6 +34,10 @@ help:
     desc     : If defined sets a pre-defined list of arguments and fields (see ojob's init.types for details)
     example  : mem
     mandatory: false
+  - name     : output
+    desc     : Outputs to a ndjson.gz file
+    example  : gcData.ndjson.gz
+    mandatory: false
 
 init:
   types:
@@ -69,15 +73,25 @@ jobs:
   check:
     in: 
       template: isString.default(__)
+      output  : isString.default(__)
   exec : |
-    if (isDef(args.htemplate) && isUnDef(global.first)) {
-      global.first = true
-      tprint(args.htemplate, args.data)
-    }
-    if (isDef(args.template)) {
-      tprint(args.template, args.data)
+    if (isDef(args.output)) {
+      if (isUnDef(global.oStream)) {
+        global.oStream = io.writeFileGzipStream(args.output)
+        addOnOpenAFShutdown(() => global.oStream.close())
+      }
+      ioStreamWrite(global.oStream, stringify(args.data, __, "") + "\n")
+      global.oStream.flush()
     } else {
-      ow.oJob.output(args.data, args)
+      if (isDef(args.htemplate) && isUnDef(global.first)) {
+        global.first = true
+        tprint(args.htemplate, args.data)
+      }
+      if (isDef(args.template)) {
+        tprint(args.template, args.data)
+      } else {
+        ow.oJob.output(args.data, args)
+      }
     }
 
 # ------------------
