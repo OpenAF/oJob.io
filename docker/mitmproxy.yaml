@@ -1,0 +1,38 @@
+# Author: Nuno Aguiar
+help:
+  text   : Start mitmproxy SSL/TLS interceptor proxy for HTTP & Websockets in a docker container (use http://mitm.it to download/install the generated CA certificates)
+  expects: 
+  - name     : port
+    desc     : The port of the proxy to provide (e.g. defaults to 8080)
+    example  : 8080
+    mandatory: false
+  - name     : webport
+    desc     : If defined starts the mitmproxy web interface on the specified port
+    example  : 8081
+    mandatory: false
+
+todo:
+- Run mitmproxy
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------
+- name : Run mitmproxy
+  check:
+    in:
+      port   : toNumber.isNumber.default(8080)
+      webport: toNumber.isNumber.default(__)
+  exec : |
+    if (isDef(args.webport)) {
+      $sh(templify("docker run --rm -it -p {{port}}:8080 -p {{webport}}:8081 mitmproxy/mitmproxy mitmweb --web-host 0.0.0.0", args))
+      .exec()
+    } else {
+      $sh(templify("docker run --rm -it -p {{port}}:8080 mitmproxy/mitmproxy", args))
+      .exec()
+    }
