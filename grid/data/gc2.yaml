@@ -152,7 +152,7 @@ help:
 
 ojob:
   opacks:
-  - openaf: 20220505
+  - openaf: 20220822
   catch: logErr(exception)
   logToConsole: false
 
@@ -184,13 +184,15 @@ jobs:
           var istream = io.readFileStream(args.file)
           
           ioStreamCopy(ostream, istream)
-          data = ow.java.parseHSPerf(ostream.toByteArray())
+          var ba = ostream.toByteArray()
+          if (ba.length) data = ow.java.parseHSPerf(ba); else data = {}
         } else {
           if (isDef(args.cmd)) {
             $sh(args.cmd)
             .cb((o, e, i) => {
               ioStreamCopy(ostream, o)
-              data = ow.java.parseHSPerf(ostream.toByteArray())
+              var ba = ostream.toByteArray()
+              if (ba.length) data = ow.java.parseHSPerf(ba); else data = {}
             })
             .get()
           } else {
