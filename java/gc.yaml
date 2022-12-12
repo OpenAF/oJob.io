@@ -216,20 +216,23 @@ jobs:
       var istream = io.readFileStream(args.file)
       
       ioStreamCopy(ostream, istream)
-      args.data = ow.java.parseHSPerf(ostream.toByteArray())
+      var ba = ostream.toByteArray()
+      if (ba.length > 0) args.data = ow.java.parseHSPerf(ba); else args.data = {}
     } else {
       if (isDef(args.cmd)) {
         $sh(args.cmd)
         .cb((o, e, i) => {
           ioStreamCopy(ostream, o)
-          args.data = ow.java.parseHSPerf(ostream.toByteArray())
+          var ba = ostream.toByteArray()
+          if (ba.length > 0) args.data = ow.java.parseHSPerf(ba); else args.data = {}
         })
         .get()
       } else {
         Packages.org.apache.commons.io.IOUtils.copyLarge(java.lang.System.in, ostream)
-        if (ostream.toByteArray().length > 0)
-          args.data = ow.java.parseHSPerf(ostream.toByteArray())
-        else
+        if (ostream.toByteArray().length > 0) {
+          var ba = ostream.toByteArray()
+          if (ba.length > 0) args.data = ow.java.parseHSPerf(ba); else args.data = {}
+        } else
           return
       }
     }
