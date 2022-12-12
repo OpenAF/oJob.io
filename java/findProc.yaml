@@ -67,12 +67,12 @@ jobs:
       tmpl: isString
   exec : |
     var _rlst = []
-    var res = $sh(templify(args.tmpl, merge(args, { cmd: "echo ${TMPDIR:-/tmp} && echo \"||\" && find ${TMPDIR:-/tmp} -type f" }))).get(0)
+    var res = $sh(templify(args.tmpl, merge(args, { cmd: "/bin/sh -c 'echo ${TMPDIR:-/tmp} && echo \"||\" && find ${TMPDIR:-/tmp} -type f'" }))).get(0)
     if (res.exitcode == 0) {
       var _tmp = res.stdout.split("||")
       var lst = _tmp[1]
-                   .split("\n")
-                   .filter(l => l.indexOf(_tmp[0].replace(/\n/g, "") + "/hsperfdata_") == 0)
+                .split("\n")
+                .filter(l => l.indexOf(_tmp[0].replace(/\n/g, "") + "/hsperfdata_") == 0)
       
       ow.loadJava()
       _rlst = lst.map(r => {
@@ -80,7 +80,8 @@ jobs:
         var res = $sh(templify(args.tmpl, merge(args, { cmd: "cat " + r })))
                   .cb((o, e, i) => {
                     ioStreamCopy(ostream, o)
-                    _hsp = ow.java.parseHSPerf(ostream.toByteArray())
+                    var ba = ostream.toByteArray()
+                    if (ba.length > 0) _hsp = ow.java.parseHSPerf(ba)
                   })
                   .get(0)
 
