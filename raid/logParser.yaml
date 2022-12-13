@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Reads a ndjson logs file and converts it to readable human logs (version 20221010)
+  text   : Reads a ndjson logs file and converts it to readable human logs (version 20221212)
   expects:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
@@ -28,7 +28,7 @@ help:
     mandatory: false
 
 init:
-  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{activityDescr}}, {{result}}, {{errorCode}}, {{failureDescr}}, {{operationTime}} {{stack_trace}}"
+  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{{activityDescr}}}, {{{result}}}, {{errorCode}}, {{{failureDescr}}}, {{operationTime}} {{stack_trace}}"
   templateRegular: "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{{message}}} {{{stack_trace}}}"
   templateDefault: "{{_time}} | {{level }} | {{{message}}}"
 
