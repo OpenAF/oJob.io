@@ -916,8 +916,8 @@ init:
       },
       "timepicker": {},
       "timezone": "",
-      "title": "Java GC",
-      "uid": "WAuGYcFVk",
+      "title": "Java GC ({{prefix}})",
+      "uid": "{{uid}}",
       "version": 1,
       "weekStart": ""
     }
@@ -929,4 +929,5 @@ jobs:
     in:
       prefix: isString.default("metric")
   exec : |
+    args.uid = sha512(args.prefix).substring(0,9)
     tprint(args.init.dash, args)
