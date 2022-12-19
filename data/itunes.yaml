@@ -1,0 +1,30 @@
+# Author: Nuno Aguiar
+help:
+  text   : iTunes search for keyword
+  expects: 
+  - name     : keyword
+    desc     : Keyword to search in iTunes
+    example  : Sinatra
+    mandatory: true
+
+todo:
+- iTunes search
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  - APIs  : 20220515
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js
+        
+jobs:
+# --------------------
+- name : iTunes search
+  check:
+    in:
+      keyword: isString
+  exec : |
+    var data = apis.iTunesSearch.get(args.keyword)
+    ow.oJob.output(data, args)

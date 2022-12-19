@@ -1,0 +1,27 @@
+# Author: Nuno Aguiar
+help:
+  text   : Provides "advice" on what to do if bored.
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Bored
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  - APIs  : 20220515
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js
+
+jobs:
+# ------------
+- name : Bored
+  exec : |
+    var data = apis.BoredActivity.get()
+    ow.oJob.output(data, args)

@@ -1,0 +1,30 @@
+# Author: Nuno Aguiar
+help:
+  text   : Get country from calling code
+  expects: 
+  - name     : code
+    desc     : The country calling code
+    example  : 1
+    mandatory: true
+
+todo:
+- Country by code
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  - APIs  : 20220515
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js
+
+jobs:
+# ----------------------
+- name : Country by code
+  check:
+    in:
+      code: isString
+  exec : |
+    var data = apis.Countries.getCountryByCallingCode(args.code)
+    ow.oJob.output(data, args)

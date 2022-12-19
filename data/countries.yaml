@@ -1,0 +1,38 @@
+# Author: Nuno Aguiar
+help:
+  text   : Get information about a country
+  expects: 
+  - name     : country
+    desc     : The name of the country
+    example  : USA
+    mandatory: false
+  - name     : code
+    desc     : The code of a country
+    example  : PT
+    mandatory: false
+
+todo:
+- Get country info
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  - APIs  : 20220515
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - apis.js
+
+jobs:
+# -----------------------
+- name : Get country info
+  check:
+    in:
+      country: isString.default(__)
+      code   : isString.default(__)
+  exec : |
+    var data
+    if (isDef(args.country)) data = apis.Countries.getCountry(args.country)
+    if (isDef(args.code)) data = apis.Countries.getCountryByCode(args.code)
+
+    ow.oJob.output(data, args)
