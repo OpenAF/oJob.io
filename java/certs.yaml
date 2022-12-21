@@ -1,0 +1,312 @@
+# Author: Nuno Aguiar
+help:
+  text   : Tests SSL connectivity to a host and a port will and verifies if the TLS certificate is already trusted or not. If not, it will retrieve the corresponding TLS certificate and add it to the current Java jssecacerts. If there isn't permissions to change the current Java jssecacerts it will create the jssecacerts files in the current folder.
+  expects: 
+  - name     : op
+    desc     : The operation to perform (e.g. list, test, add)
+    example  : list
+    mandatory: false
+  - name     : keystore
+    desc     : The keystore that will be used. Defaults to existing jssecacerts or "new_jssecacerts" if a new is created.
+    example  : jssecacerts
+    mandatory: false
+  - name     : host
+    desc     : When op=test or op=add the host to test connectivity to
+    example  : a.sample.host
+    mandatory: false
+  - name     : port
+    desc     : When op=test or op=add the port to test connectivity to
+    example  : 443
+    mandatory: false
+  - name     : timeout
+    desc     : When op=test or op=add the timeout (in ms) connecting to host and port to test and retrieve the certificate (defaults to 10000ms)
+    example  : 10000
+    mandatory: false
+  - name     : pass
+    desc     : The keystore password if one is defined (defaults to "changeit")
+    example  : changeit
+    mandatory: false
+  - name     : notall
+    desc     : Forces not to include all known certificates (this should only be used in very specific situations)
+    example  : "false"
+    mandatory: false
+
+todo:
+- name: Choose operation
+- when: list
+  name: List keystore
+- when: test
+  name: Test target with key store
+- when: add
+  name: Adding certificate
+
+ojob:
+  opacks      :
+  - openaf: 20220822
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+  log         :
+    async: false
+        
+
+jobs:
+# -----------------------
+- name : Choose operation
+  check:
+    in:
+      op: isString.oneOf(["list","test","add"]).default("list")
+  exec : | 
+    ow.oJob.setState(args.op)
+
+# ------------------------
+- name : Load main cacerts
+  exec : |
+    if (isUnDef(global.mainca)) {
+      global.mainca = $job("List certificates from key store", { keystore: ow.format.getJavaHome() + "/lib/security/cacerts" })
+    }
+
+# ---------------------------------
+- name : Get default certs filepath
+  exec : |
+    if (isUnDef(args.keystore)) {
+      // Find java certs
+      /*var fcerts = "jssecacerts"
+      if (!io.fileExists(fcerts)) {
+        var _f = ow.format.getJavaHome() + "/lib/security"
+        if (io.fileExists(_f + "/" + fcerts)) {
+          fcerts = _f + "/" + fcerts
+        } else {
+          fcerts = _f + "/cacerts"
+        }
+      }*/
+      args.keystore = __
+      log("Keystore set to default Java chain.")
+    }
+
+# ---------------------------------------
+- name : List certificates from key store
+  from : Load key store
+  check:
+    in:
+      pass    : isString.default("changeit")
+      keystore: isString.default(__)
+  exec : |
+    var res = []
+    var it = args.ks.aliases()
+    while(it.hasMoreElements()) {
+      var alias = it.nextElement()
+      var c = args.ks.getCertificate(alias)
+      res.push({
+          alias       : String(alias),
+          issuerDN    : String(c.getIssuerDN()),
+          subjectDN   : String(c.getSubjectDN()),
+          notBefore   : ow.format.fromDate(new Date(c.getNotBefore().toGMTString()), "yyyy-MM-dd HH:mm:ss zzz"),
+          notAfter    : ow.format.fromDate(new Date(c.getNotAfter().toGMTString()), "yyyy-MM-dd HH:mm:ss zzz"),
+          alternatives: (!isNull(c.getSubjectAlternativeNames())) ? af.fromJavaArray( c.getSubjectAlternativeNames().toArray() ).map(af.fromJavaArray).map(r=>r[1]).join(", ") : "n/a"
+      })
+    }
+
+    return res
+
+# --------------------------------
+- name : Compare with main cacerts
+  from : Load main cacerts
+  check:
+    in:
+      keystore: isString.default(__)
+  exec : |
+    if (isDef(args.keystore)) {
+      args.list = $job("List certificates from key store", { keystore: args.keystore })
+    } else {
+      args.list = global.mainca
+      args.keystore = ow.format.getJavaHome() + "/lib/security/cacerts"
+    }
+
+# --------------------
+- name : List keystore
+  from : Compare with main cacerts
+  check: 
+    in:
+      keystore: isString.default(__)
+      all     : toBoolean.isBoolean.default(false)
+  exec : |
+    if (!args.all) {
+      log("Listing different certificates, from cacerts, in " + io.fileInfo(args.keystore).canonicalPath + ":")
+      args.list = $from(args.list).except(global.mainca).select()
+    } else {
+      log("Listing all certificates in " + io.fileInfo(args.keystore).canonicalPath + ":")
+    }
+
+    ow.oJob.output(args.list, args)
+
+# ---------------------
+- name : Load key store
+  check:
+    in:
+      pass    : isString.default("changeit")
+      keystore: isString.default(__)
+  exec : |
+    // Load key store to use
+    args.ks = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+    var is, loadDefault = true
+    if (isDef(args.keystore)) {
+      if (!io.fileExists(args.keystore)) {
+        if (ow.oJob.getState() != "add") throw "File '" + args.keystore + "' not found!"
+      } else {
+        log("Loading Java key store " + io.fileInfo(args.keystore).canonicalPath + "...")
+        is = io.readFileStream(args.keystore)
+        args.ks.load(is, (new java.lang.String(Packages.openaf.AFCmdBase.afc.dIP(args.pass))).toCharArray())
+        is.close()
+        loadDefault = false
+      }
+    }
+
+    if (loadDefault) {
+      var _t = ow.format.getJavaHome() + "/lib/security/jssecacerts"
+      if (io.fileExists(_t)) {
+        log("Loading Java key store " + io.fileInfo(_t).canonicalPath + "...")
+        is = io.readFileStream(_t)
+        args.ks.load(is, (new java.lang.String(Packages.openaf.AFCmdBase.afc.dIP(args.pass))).toCharArray())
+        is.close()
+      } else {
+        _t = ow.format.getJavaHome() + "/lib/security/cacerts"
+        if (io.fileExists(_t)) {
+          log("Loading Java key store " + io.fileInfo(_t).canonicalPath + "...")
+          is = io.readFileStream(_t)
+          args.ks.load(is, (new java.lang.String(Packages.openaf.AFCmdBase.afc.dIP(args.pass))).toCharArray())
+          is.close()
+        } else {
+          throw "Can't use " + _t
+        }
+      }
+    }
+      
+    var context = javax.net.ssl.SSLContext.getInstance("TLS")
+    var tmf = javax.net.ssl.TrustManagerFactory.getInstance(javax.net.ssl.TrustManagerFactory.getDefaultAlgorithm())
+    tmf.init(args.ks)
+
+    var defaultTrustManager = tmf.getTrustManagers()[0]
+
+    // Alternative trust manager
+    args.tm = new JavaAdapter(javax.net.ssl.X509TrustManager, {
+      getAcceptedIssuers: function() {
+        return [ new JavaAdapter(java.security.cert.X509Certificate, {}) ]
+      },
+      checkClientTrusted: function(chain, authType) {
+        throw new javax.net.ssl.UnsupportedOperationException()
+      },
+      checkServerTrusted: function(chain, authType) {
+        this.chain = chain
+        defaultTrustManager.checkServerTrusted(chain, authType)
+      }
+    })
+    context.init(null, [ args.tm ], null)
+    args.factory = context.getSocketFactory()
+
+# ------------------------
+- name : Verify cert chain
+  exec : | 
+    // Verify chain
+    args.chain = args.tm.chain
+    if (args.chain == null) {
+      logErr("Could not obtain server certificate chain")
+      return
+    }
+    log("Server sent " + args.chain.length + " certificate(s):")
+
+    // List chain
+    ow.oJob.output(args.chain.map(cert => {
+      var mcert = {
+        issuerDN : String(cert.getIssuerDN()),
+        subjectDN: String(cert.getSubjectDN()),
+        notBefore: ow.format.fromDate(new Date(cert.getNotBefore().toGMTString()), "yyyy-MM-dd HH:mm:ss zzz"),
+        notAfter : ow.format.fromDate(new Date(cert.getNotAfter().toGMTString()), "yyyy-MM-dd HH:mm:ss zzz")
+      }
+      if (!isNull(cert.getSubjectAlternativeNames())) mcert.alternatives = af.fromJavaArray( cert.getSubjectAlternativeNames().toArray() ).map(af.fromJavaArray).map(r=>r[1]).join(", ")
+
+      return mcert
+    }), args)
+
+    log("To add the certificate(s) rerun the same command with 'op=add'")
+
+# ---------------------------------
+- name : Test target with key store
+  from : 
+  - Load key store
+  to   :
+  - Verify cert chain
+  check:
+    in:
+      host       : isString
+      port       : toNumber.isNumber
+      timeout    : isNumber.default(10000)
+  exec : |
+    // Testing
+    tlog("Opening connection to {{host}}:{{port}}...", args)
+
+    var _continue = true
+    var socket = args.factory.createSocket(args.host, args.port)
+    socket.setSoTimeout(args.timeout)
+
+    try {
+      tlog("Starting SSL handshake to {{host}}:{{port}}...", args)
+      socket.startHandshake()
+      socket.close()
+      tlog("Certificate from {{host}}:{{port}} is already trusted.", args)
+      _continue = false
+    } catch(e) {
+      if (String(e.javaException).indexOf("unable to find valid certification path") > 0)
+        tlogWarn("Certificate from {{host}}:{{port}} seems NOT to be trusted yet...", args)
+      else
+        throw e
+    }
+
+    if (!_continue) return
+
+# -------------------------
+- name : Adding certificate
+  from : Test target with key store
+  check:
+    in:
+      notall: toBoolean.isBoolean.default(false)
+  exec : |
+    for(icert in args.chain) {
+      var cert = args.chain[icert]
+      args.alias = _$(args.alias, "alias").isString().default(args.host + "-" + args.port) + "-" + Number(icert + 1)
+
+      if (args.keystore == ow.format.getJavaHome() + "/lib/security/cacerts") {
+        args.keystore = ow.format.getJavaHome() + "/lib/security/jssecacerts"
+      }
+      var javaTarget = _$(args.keystore, "keystore").isString().default(ow.format.getJavaHome() + "/lib/security/jssecacerts")
+      if (!io.fileExists(javaTarget)) {
+        if (args.notall) {
+          args.ks = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+          args.ks.load(null, (new java.lang.String(Packages.openaf.AFCmdBase.afc.dIP(args.pass))).toCharArray())
+          logWarn("Not including original cacerts.")
+        }
+      }
+      args.ks.setCertificateEntry(args.alias, cert)
+   
+      try {
+        var os = io.writeFileStream(javaTarget)
+        args.ks.store(os, (new java.lang.String(args.pass)).toCharArray())
+        os.close()
+      } catch(e) {
+        logWarn("No permissions to create/update " + javaTarget + ". Creating on the current folder.")
+        javaTarget = "new_jssecacerts"
+        if (!io.fileExists(javaTarget)) {
+          if (!args.all) {
+            args.ks = java.security.KeyStore.getInstance(java.security.KeyStore.getDefaultType())
+            args.ks.load(null, (new java.lang.String(Packages.openaf.AFCmdBase.afc.dIP(args.pass))).toCharArray())
+          } else {
+            logWarn("Including all known certificates.")
+          }
+        }
+        args.ks.setCertificateEntry(args.alias, cert)
+        var os = io.writeFileStream(javaTarget)
+        args.ks.store(os, (new java.lang.String(args.pass)).toCharArray())
+        os.close()
+      }
+
+      tlog("Added certificate from {{host}}:{{port}} to keystore '" + io.fileInfo(javaTarget).canonicalPath + "' using alias '" + args.alias + "'", args)
+    }
