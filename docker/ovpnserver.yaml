@@ -43,6 +43,10 @@ help:
     example  : somepass
     mandatory: false
 
+init:
+  #img: kylemanna/openvpn
+  img: nmaguiar/openvpn
+
 todo:
 - Generate server
 - Generate start script
@@ -55,9 +59,9 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210412
+  - openaf: 20220822
   catch       : |
-    logErr(exception);
+    logErr(exception)
   logToConsole: true   # to change when finished
   sequential  : true
 
@@ -66,6 +70,7 @@ jobs:
 - name: Build container if ARM
   exec: |
     var plat = String(java.lang.System.getProperty("os.arch"));
+    // Disable ARM container build
     if (plat == "aarch64") {
       // Determine package manager
       var os = [{ name: "RedHat", cmd: "yum",     tmpl: "yum -y install {{package}}"},
@@ -87,20 +92,21 @@ jobs:
  
       logWarn("Need to build container for arm...");
       //$sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/kylemanna/docker-openvpn.git")
-      $sh("docker build -f Dockerfile.aarch64 -t kylemanna/openvpn https://github.com/nmaguiar/docker-openvpn.git")
+      $sh("docker build -f Dockerfile.aarch64 -t " + args.init.img + " https://github.com/nmaguiar/docker-openvpn.git")
       .prefix("build")
       .get();
     }
    
-# ---------------------
-- name: Generate server
-  from:
-  - Build container if ARM
-  exec: |
-    ow.loadFormat();
-    
-    args.path   = _$(args.path, "path").default(".");
-    args.nat    = _$(args.nat, "nat").default("true"); 
+# ----------------------
+- name : Generate server
+  check:
+    in:
+      path: default(".")
+      nat : default("true")
+  #from:
+  #- Build container if ARM
+  exec : |
+    ow.loadFormat()
     
     global.url = _$(args.url, "url").default("udp://" + ow.format.getPublicIP().ip);
     global.keysize = _$(args.keysize, "keysize").default(4096);
@@ -120,8 +126,8 @@ jobs:
     }
 
     log("Generating openvpn configuration for " + global.url + "...");
-    //res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig -N -d -s 10.200.0.0/16 -C 'AES-256-CBC' -a 'SHA384' -u " + global.url).prefix("config").get(0);
-    var cmd = "docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_genconfig ";
+    //res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm " + args.init.img + " ovpn_genconfig -N -d -s 10.200.0.0/16 -C 'AES-256-CBC' -a 'SHA384' -u " + global.url).prefix("config").get(0);
+    var cmd = "docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm " + args.init.img + " ovpn_genconfig ";
     cmd += "-C 'AES-256-CBC' -a 'SHA384' -b ";
     if (!toBoolean(args.default)) cmd += "-d ";
     if (toBoolean(args.nat))      cmd += "-N ";
@@ -135,11 +141,11 @@ jobs:
 
     log("Initializing PKI...");
     if (isDef(args.pass)) {
-      res = $sh("expect <<END\nspawn docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki\nexpect \"Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Re-Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Common Name (eg: your user, host, or server name) \"\nsend VPN\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nwait\nEND\n")
+      res = $sh("expect <<END\nspawn docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " " + args.init.img + " ovpn_initpki\nexpect \"Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Re-Enter New CA Key Passphrase:\"\nsend " + args.pass + "\\r\nexpect \"Common Name (eg: your user, host, or server name) \"\nsend VPN\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nexpect \"Enter pass phrase for \"\nsend " + args.pass + "\\r\nwait\nEND\n")
             .prefix("init pki")
             .exec(0)
     } else {
-      res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " kylemanna/openvpn ovpn_initpki")
+      res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm -ti -e EASYRSA_KEY_SIZE=" + global.keysize + " " + args.init.img + " ovpn_initpki")
             .prefix("init pki")
             .exec(0)
     }
@@ -148,13 +154,14 @@ jobs:
     args.__format = _$(args.__format).default("pm");
     ow.oJob.output(args, args);
 
-# ---------------------
-- name: Generate script
-  exec: |
-    _$(args.text, "text").$_();
-    args.path = _$(args.path, "path").default(".");
-    args.file = _$(args.file, "file").$_();
-
+# ----------------------
+- name : Generate script
+  check:
+    in:
+      text: isString
+      path: isString.default(".")
+      file: isString
+  exec : |
     var isWin = false;
     if (isDef(args.isWin) && args.isWin.toLowerCase() == "true") {
        isWin = true;
@@ -172,7 +179,7 @@ jobs:
     } else {
       text = text.replace("docker volume rm openvpn", "docker volume rm "+ global.volume);
     }
-    text = text.replace("-e EASYRSA_KEY_SIZE", "-e " + global.keysize);
+    text = templify(text, merge(args, { EASYRSA_KEY_SIZE: global.keysize }))
 
     io.writeFileString(args.path + "/" + args.file, text);
     if (!isWin) $sh("chmod u+x " + args.path + "/" + args.file).exec();
@@ -187,10 +194,10 @@ jobs:
     file: openvpn_start.sh
     text: |
       #!/bin/sh
-      docker run -v openvpn:/etc/openvpn -d -p 1194:1194/tcp --restart=always --cap-add=NET_ADMIN --name openvpn kylemanna/openvpn
+      docker run -v openvpn:/etc/openvpn -d -p 1194:1194/tcp --restart=always --cap-add=NET_ADMIN --name openvpn {{init.img}}
     winText: |
       @echo off
-      docker run -v openvpn:/etc/openvpn -d -p 1194:1194/tcp --restart=always --cap-add=NET_ADMIN --name openvpn kylemanna/openvpn
+      docker run -v openvpn:/etc/openvpn -d -p 1194:1194/tcp --restart=always --cap-add=NET_ADMIN --name openvpn {{init.img}}
 
 # --------------------------
 - name: Generate stop script
@@ -222,8 +229,8 @@ jobs:
       if [ -z "$1" ]; then
         echo "Please provide an username."
       else
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE kylemanna/openvpn easyrsa build-client-full $1 nopass
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_getclient $1 > $1.ovpn
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e {{EASYRSA_KEY_SIZE}} {{init.img}} easyrsa build-client-full $1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_getclient $1 > $1.ovpn
         echo "Created file $1.ovpn"
       fi
     winText: |
@@ -231,8 +238,8 @@ jobs:
         echo "Please provide an username."
       ) ELSE (
         @echo off
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE kylemanna/openvpn easyrsa build-client-full %1 nopass
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_getclient %1 > %1.ovpn
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e {{EASYRSA_KEY_SIZE}} {{init.img}} easyrsa build-client-full %1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_getclient %1 > %1.ovpn
         echo "Created file %1.ovpn"
       )
 
@@ -249,14 +256,14 @@ jobs:
       if [ -z "$1" ]; then
         echo "Please provide a name."
       else
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -ti kylemanna/openvpn ovpn_revokeclient $1
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -ti {{init.img}} ovpn_revokeclient $1
       fi
     winText: |
       IF "%1"=="" (
         echo "Please provide an username."
       ) ELSE (
         @echo off
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -ti kylemanna/openvpn ovpn_revokeclient %1
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -ti {{init.img}} ovpn_revokeclient %1
       )
 
 # --------------------------
@@ -269,12 +276,12 @@ jobs:
     file: openvpn_list.sh
     text: |
       #!/bin/sh
-      #docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
-      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
+      #docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients
+      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
     winText: |
       @echo off
-      #docker run -v openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients
-      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm kylemanna/openvpn ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
+      #docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients
+      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
 
 # -----------------------------
 - name: Generate destroy script
