@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Generates a quick docker-compose with minio
   expects: 
   - name     : cluster
@@ -8,7 +8,6 @@ help: &HELP
     example  : 2
 
 init:
-  help: *HELP
   dc  : |
     version : '3'
 
@@ -80,10 +79,6 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------------------------
 - name : Generate docker-compose 
   check:

@@ -1,0 +1,65 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a docker-compose for Redis
+  expects: 
+  - name     : path
+    desc     : Path to persist data
+    example  : /my/path
+    mandatory: false
+  - name     : save
+    desc     : If defined will persist data every 'save' seconds
+    example  : "20"
+    mandatory: false
+
+todo:
+- Check for docker
+- Generate docker-compose
+
+include:
+- ojob.io/docker/_common
+- ojob.io/common/ojob
+
+init:
+  dc  : &DC |
+    version : '3'
+
+    networks:
+      redis:
+        driver: bridge
+
+    services:
+      redis:
+        image         : redis
+        restart       : always
+        container_name: redis
+        {{#if save}}command       : redis-server --save {{save}} 1
+        {{/if}}ports         :
+        - "6379:6379"
+        volumes :
+        - {{$$ path 'redisdata'}}:/data
+        networks:
+        - redis
+    {{#if path}}
+    
+    volumes:
+      redisdata:
+        driver: local
+    {{/if}}
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ------------------------------
+- name : Generate docker-compose
+  to   :
+  - ojob template
+  - ojob print
+  args :
+    __key   : args
+    __out   : args
+    template: *DC
+    msg     : "{{{output}}}"
