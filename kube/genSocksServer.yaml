@@ -14,6 +14,10 @@ help:
     desc     : If nodeport is defined then the corresponding service yaml will also be output (e.g. nodeport=31080)
     example  : 31080
     mandatory: false
+  - name     : onlylocal
+    desc     : Deploy the socks proxy server only accepting connections to private network ip addresses
+    example  : "true"
+    mandatory: false
 
 todo:
 - Generate socks server deploy
@@ -63,6 +67,11 @@ init:
           - image: nmaguiar/socksd
             imagePullPolicy: IfNotPresent
             name: oaf
+            {{#if onlylocal}}
+            env:
+            - name : ONLY_LOCAL
+              value: "true"
+            {{/if}}
             ports:
             - containerPort: {{port}}
               protocol: TCP
@@ -74,9 +83,10 @@ jobs:
 - name : Generate socks server deploy
   check:
     in:
-      name    : isString.default("socks-server")
-      port    : toNumber.isNumber.default(1080)
-      nodeport: toNumber.isNumber.default(__)
+      name     : isString.default("socks-server")
+      port     : toNumber.isNumber.default(1080)
+      nodeport : toNumber.isNumber.default(__)
+      onlylocal: toBoolean.isBoolean.default(false)
   exec : |
     print( templify(args.init.deploy, args) )
     if (isDef(args.nodeport)) {
