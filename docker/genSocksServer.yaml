@@ -10,18 +10,22 @@ help:
     desc     : If defined it will use the corresponding network name
     example  : mynet
     mandatory: false
+  - name     : onlylocal
+    desc     : Deploy the socks proxy server only accepting connections to private network ip addresses
+    example  : "true"
+    mandatory: false
 
 todo:
 - name: ojob options
   args:
-    optionOn : cmdline
-    lowerCase: true
-    todos    :
+    __optionOn : cmdline
+    __lowerCase: true
+    __todos    :
       "true" :
       - Generate docker
       "false":
       - Generate docker-compose
-    default  :
+    __default  :
     - Generate docker-compose
 
 ojob:
@@ -37,7 +41,7 @@ jobs:
 # ----------------------
 - name : Generate docker
   exec :
-    tprint("docker run --pull always --rm -ti -p 1080:1080 {{#if network}}--network {{network}} {{/if}}openaf/oaf:nightly -c \"includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()\"", args)
+    tprint("docker run --pull always --rm -ti -p 1080:1080 {{#if onlylocal}}-e ONLY_LOCAL=true {{/if}}{{#if network}}--network {{network}} {{/if}}openaf/oaf:nightly -c \"includeOPack('SocksServer');loadLib('socksServer.js');(new SocksServer()).start(1080);ow.loadServer().daemon()\"", args)
 
 # ------------------------------
 - name : Generate docker-compose
@@ -54,6 +58,10 @@ jobs:
           {{#if network}}
           networks:
           - {{network}}
+          {{/if}}
+          {{#if onlylocal}}
+          environment:
+          - ONLY_LOCAL=true
           {{/if}}
           command :
           - /openaf/oaf
