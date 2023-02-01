@@ -229,7 +229,7 @@ jobs:
       if [ -z "$1" ]; then
         echo "Please provide an username."
       else
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e {{EASYRSA_KEY_SIZE}} {{init.img}} easyrsa build-client-full $1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE={{EASYRSA_KEY_SIZE}} {{init.img}} easyrsa build-client-full $1 nopass
         docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_getclient $1 > $1.ovpn
         echo "Created file $1.ovpn"
       fi
@@ -238,7 +238,7 @@ jobs:
         echo "Please provide an username."
       ) ELSE (
         @echo off
-        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e {{EASYRSA_KEY_SIZE}} {{init.img}} easyrsa build-client-full %1 nopass
+        docker run -v openvpn:/etc/openvpn --log-driver=none --rm -it -e EASYRSA_KEY_SIZE={{EASYRSA_KEY_SIZE}} {{init.img}} easyrsa build-client-full %1 nopass
         docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_getclient %1 > %1.ovpn
         echo "Created file %1.ovpn"
       )
