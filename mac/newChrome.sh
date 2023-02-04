@@ -3,12 +3,19 @@
 # Start a socks5 proxied (or not) clean Chrome instance
 # Usage: newChrome.sh somename localhost:1080
 
+NODELETE=${NODELETE:-no}
+
 NAME=$1
 if [ -z $NAME ]; then
     NAME=default
 fi
 
-TMPNAME="$TMPDIR/chrome_$NAME"
+if [ ${NAME::1} == "/" ]; then
+    TMPNAME=$NAME;
+    NODELETE=yes
+else
+    TMPNAME="$TMPDIR/chrome_$NAME"
+fi
 
 HOSTPORT=$2
 PROXYARG=
@@ -17,7 +24,7 @@ if [ ! -z $HOSTPORT ]; then
 fi
 
 if [ -d "$TMPNAME/Default" ]; then
-    if [ ! -L "$TMPNAME/SingletonLock" ]; then
+    if [ ! -L "$TMPNAME/SingletonLock" ] && [ ! "$NODELETE" == "yes" ]; then
         echo Deleting previous temporary user data for $NAME...
         rm -rf "$TMPNAME"
     else
@@ -30,7 +37,7 @@ echo $TMPNAME
 "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir="$TMPNAME" $PROXYARG
 
 if [ -d "$TMPNAME/Default" ]; then
-    if [ ! -L "$TMPNAME/SingletonLock" ]; then
+    if [ ! -L "$TMPNAME/SingletonLock" ] && [ ! "$NODELETE" == "yes" ]; then
         echo Deleting temporary user data for $NAME...
         rm -rf "$TMPNAME"
     else
