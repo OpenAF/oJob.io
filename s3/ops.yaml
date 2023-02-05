@@ -1,147 +1,165 @@
 # Author: Nuno Aguiar
-init:
-  help:
-  - op     : buckets
-    text   : List the available buckets.
-    example: ojob ojob.io/s3 ... op=buckets
-  - op     : mkbucket
-    text   : Creates a new bucket.
-    example: ojob ojob.io/s3 ... op=mkbucket bucket=mynewbucket
-  - op     : rmbucket
-    text   : Remove an existing a bucket.
-    example: ojob ojob.io/s3 ... op=rmbucket bucket=myoldbucket
-  - op     : ls
-    text   : List objects in a bucket (optionally 'remote' prefix and full metadata (slower))
-    example: ojob ojob.io/s3 ... op=ls bucket=mybucket remote=my/folder/ full=yes
-  - op     : put
-    text   : Put a file in a bucket.
-    example: ojob ojob.io/s3 ... op=put bucket=mybucket local=my/folder/file.txt remote=my/list/file.txt
-  - op     : get
-    text   : Get an object from a bucket.
-    example: ojob ojob.io/s3 ... op=get bucket=mybucket remote=my/list/file.txt local=my/folder/file.txt 
-  - op     : mput
-    text   : Put several files in a bucket.
-    example: ojob ojob.io/s3 ... op=mput bucket=mybucket local=list remote=my/list 
-  - op     : mget
-    text   : Get several files from a bucket.
-    example: ojob ojob.io/s3 ... op=mget bucket=mybucket remote=my/list local=list
-  - op     : cp
-    text   : Copies an object from a source bucket to a target bucket (can be the same using the bucket argument).
-    example: ojob ojob.io/s3 ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
-  - op     : mv
-    text   : Moves an object from a source bucket to a target bucket (can be the same using the bucket argument).
-    example: ojob ojob.io/s3 ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
-  - op     : rm
-    text   : Removes an object from a bucket.
-    example: ojob ojob.io/s3 ... op=rm bucket=mybucket remote=my/list/file.txt
-  - op     : rmdir
-    text   : Removes objects based on prefix from a bucket.
-    example: ojob ojob.io/s3 ... op=rm bucket=mybucket remote=my/list
-  - op     : stat
-    text   : Retrieves the object metadata.
-    example: ojob ojob.io/s3 ... op=stat bucket=mybucket remote=my/lisT/file.txt
-  - authentication: |
-      $sec for an S3 object:
-        
+help:
+  text   : |
+    Performs a S3 operation over the provided server connection details. 
+    Available operations:
+
+      buckets     - List the available buckets.
+                    ojob ojob.io/s3/ops ... op=buckets
+
+      mkbucket    - Creates a new bucket.
+                    ojob ojob.io/s3/ops ... op=mkbucket bucket=mynewbucket
+
+      rmbucket    - Remove an existing a bucket.
+                    ojob ojob.io/s3/ops ... op=rmbucket bucket=myoldbucket
+
+      ls          - List objects in a bucket (optionally 'remote' prefix and full metadata (slower))
+                    ojob ojob.io/s3/ops ... op=ls bucket=mybucket remote=my/folder/ full=true recursive=true
+
+      put         - Put a file in a bucket.
+                    ojob ojob.io/s3/ops ... op=put bucket=mybucket local=my/folder/file.txt remote=my/list/file.txt
+
+      get         - Get an object from a bucket.
+                    ojob ojob.io/s3/ops ... op=get bucket=mybucket remote=my/list/file.txt local=my/folder/file.txt
+
+      mput        - Put several files in a bucket.
+                    ojob ojob.io/s3/ops ... op=mput bucket=mybucket local=list remote=my/list 
+
+      mget        - Get several files from a bucket.
+                    ojob ojob.io/s3/ops ... op=mget bucket=mybucket remote=my/list local=list
+
+      cp          - Copies an object from a source bucket to a target bucket (can be the same using the bucket argument).
+                    ojob ojob.io/s3/ops ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
+
+      mv          - Moves an object from a source bucket to a target bucket (can be the same using the bucket argument).
+                    ojob ojob.io/s3/ops ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
+
+      rm          - Removes an object from a bucket.
+                    ojob ojob.io/s3/ops ... op=rm bucket=mybucket remote=my/list/file.txt
+
+      rmdir       - Removes objects based on prefix from a bucket.
+                    ojob ojob.io/s3/ops ... op=rm bucket=mybucket remote=my/list/
+
+      syncRemote  - Syncs files on a local folder with a remote prefix on a target bucket (deleting/overwriting remotely as needed) 
+                    ojob ojob.io/s3/ops ... op=syncremote bucket=mybucket local=. remote=my/list go=true
+
+      syncLocal   - Syncs files on to a local folder from a remote prefix on a target bucket (deleting/overwriting locally as needed)
+                    ojob ojob.io/s3/ops ... op=synclocal bucket=mybucket local=. remote=my/list go=true
+
+      sync        - Syncs files between a local folder and a remote prefix on a target bucket (overwrites locally and remotely as needed)
+                    ojob ojob.io/s3/ops ... op=sync bucket=mybucket local=. remote=my/list go=true
+
+      stat        - Retrieves the object metadata.
+                    ojob ojob.io/s3/ops ... op=stat bucket=mybucket remote=my/lisT/file.txt
+
+    Authentication:
+
+      Use a $sec for an S3 object:
       ojob ojob.io/s3/ops secrepo=... secbucket=... secpass=... seckey=... 
 
-      to set a new:
-
+      Set a new $sec for an S3 object:
       ojob ojob.io/sec/ops op=setobj secobj=s3.s3 secbucket=... seckey=... secrepo=... secpass=...
+
+      Use directly (not secure):
+      ojob ojob.io/s3/ops url=... accessKey=... secret=... region=...
+
+  expects:
+  - name     : op
+    desc     : The operation to perform
+    example  : help
+    mandatory: true
 
 todo:
 - S3
 
 ojob:
   opacks      :
-  - openaf: 20210412
+  - openaf: 20221216
   - S3
+  - oJob-common
   loadLibs    :
   - s3.js
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : S3 operations
+include:
+- ojob.yaml
 
-# ----------------
+jobs:
+# -----------------
 - name : S3 connect
-  catch: logErr(exception);
   exec : |
     if (isDef(args.seckey)) {
-      if (isDef(args.secrepo)) args.secretpass = askDef(args.secretpass, "Sec repo pass: ", true); 
-      global.s3 = $sec(args.secrepo, askDef(args.secbucket, "Sec bucket: "), askDef(args.secpass, "Sec bucket pass: ", true), args.secretpass).getObj(args.seckey);
+      if (isDef(args.secrepo)) args.secretpass = askDef(args.secretpass, "Sec repo pass: ", true)
+      global.s3 = $sec(args.secrepo, askDef(args.secbucket, "Sec bucket: "), askDef(args.secpass, "Sec bucket pass: ", true), args.secretpass).getObj(args.seckey)
     } else {
-      _$(args.url, "url").$_();
-      _$(args.accessKey, "accessKey").$_();
-      _$(args.region, "region").$_();
+      _$(args.url, "url").$_()
+      _$(args.accessKey, "accessKey").$_()
+      _$(args.region, "region").default("us-east-1")
 
-      global.s3 = new S3(args.url, args.accessKey, askDef(args.secret, "Sec bucket pass: ", true), args.region);
+      global.s3 = new S3(args.url, args.accessKey, askDef(args.secret, "Sec bucket pass: ", true), args.region)
     }
 
-    global.out = {};
+    $set("out", {})
 
 # -------------------
 - name: S3 disconnect
   exec: |
-    $await("s3").notify();
-
-# -------------
-- name: S3 help
-  exec: |
-    global.out = args.init.help;
-    $await("s3").notify();
+    global.s3 = __
 
 # ---------------------
 - name: S3 list buckets
   from: S3 connect
   to  : S3 disconnect
   exec: |
-    global.out = global.s3.listBuckets();
+    $set("out", global.s3.listBuckets())
 
 # --------------
 - name : S3 list
   from : S3 connect
   to   : S3 disconnect
-  catch: logErr(exception);
+  check:
+    in:
+      bucket   : isString
+      remote   : isString.default("")
+      full     : toBoolean.isBoolean.default(false) 
+      recursive: toBoolean.isBoolean.default(false) 
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").default("");
-
+    var out = {}
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      global.out = global.s3.listObjects(args.bucket, args.remote, (isString(args.full) ? args.full.substr(0, 1) : void 0));
-      global.out = $from(global.out).sort("-isDirectory", "filename").select();
-      global.out = global.out.map(r => {
-        if (isDef(r.createdTime)) r.createdTime = (new Date(r.createdTime)).toISOString();
-        if (isDef(r.lastModified)) r.lastModified = (new Date(r.lastModified)).toISOString();
-        delete r.isFile;
-        delete r.isDirectory;
-        delete r.filename;
-        delete r.filepath;
-        delete r.contentType;
-        return r;
-      }); 
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      out = global.s3.listObjects(args.bucket, args.remote, args.full, args.recursive)
+      out = $from(out).sort("-isDirectory", "filename").select()
+      out = out.map(r => {
+        if (isDef(r.createdTime)) r.createdTime = (new Date(r.createdTime)).toISOString()
+        if (isDef(r.lastModified)) r.lastModified = (new Date(r.lastModified)).toISOString()
+        delete r.isFile
+        delete r.isDirectory
+        delete r.filename
+        delete r.filepath
+        delete r.contentType
+        return r
+      })
     } catch(e) {
-      logErr("List error: " + e);
+      logErr("List error: " + e)
     }
+
+    $set("out", out)
 
 # -------------
 - name : S3 get
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString
+      local : isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-    args.local  = _$(args.local, "local").$_();
-
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist.";
-      global.out = global.s3.getObject(args.bucket, args.remote, args.local);
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist."
+      global.s3.getObject(args.bucket, args.remote, args.local)
     } catch(e) {
       logErr("Get error: " + e);
     }
@@ -150,228 +168,332 @@ jobs:
 - name : S3 mget
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString
+      local : isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-    args.local  = _$(args.local, "local").$_();
-
+    var out = {}
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (!io.fileExists(args.local)) io.mkdir(args.local);
-      if (io.fileInfo(args.local).isFile) throw "Path '" + args.local + "' not a folder.";
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (!io.fileExists(args.local)) io.mkdir(args.local)
+      if (io.fileInfo(args.local).isFile) throw "Path '" + args.local + "' not a folder."
 
-      global.out.transfer = [];
-      global.s3.listObjects(args.bucket, args.remote).map(file => {
+      out.transfer = []
+      var _m = args.remote.substring(0, args.remote.lastIndexOf("/") + 1)
+      global.s3.listObjects(args.bucket, _m, __, true).forEach(file => {
         try {
-          if (file.isFile) {
-            var f = file.filepath.replace(new RegExp("^" + args.remote + "/"), "");
-            if (f.indexOf("/") > 0) io.mkdir(args.local + "/" + f.replace(/^(.+)\/.+$/, "$1"));
-            global.s3.getObject(args.bucket, file.canonicalPath, args.local + "/" + f);
-            global.out.transfer.push({ local: args.local + "/" + f, remote: file.catnonicalPath });
+          if (file.isFile && ow.format.string.wildcardTest(file.filepath, args.remote)) {
+            var f = file.filepath.replace(_m, "")
+            if (f.indexOf("/") > 0) io.mkdir(args.local + "/" + _m)
+            global.s3.getObject(args.bucket, file.canonicalPath, args.local + "/" + f)
+            out.transfer.push({ local: args.local + "/" + f, remote: file.canonicalPath })
           }
         } catch(e2) {
-          logErr("Get error: " + e2);
+          logErr("Get error: " + e2)
         }
-      });
+      })
+
+      $set("out", out)
     } catch(e) {
-      logErr("MGet error: " + e);
+      logErr("MGet error: " + e)
     }
 
 # --------------
 - name : S3 copy
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      target: isString
+      source: isString
   exec : |
-    args.target  = _$(args.target, "target").$_();
-    args.source  = _$(args.source, "source").$_();
-
     try {
-      if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found.";
-      if (isDef(args.targetBucket) && !global.s3.bucketExists(args.targetBucket)) throw "Bucket '" + args.targetBucket + "' not found.";
+      if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found."
+      if (isDef(args.targetBucket) && !global.s3.bucketExists(args.targetBucket)) throw "Bucket '" + args.targetBucket + "' not found."
 
-      if (isUnDef(args.sourceBucket)) args.sourceBucket = args.bucket;
-      if (isUnDef(args.targetBucket)) args.targetBucket = args.bucket;
+      if (isUnDef(args.sourceBucket)) args.sourceBucket = args.bucket
+      if (isUnDef(args.targetBucket)) args.targetBucket = args.bucket
 
-      if (isUnDef(args.sourceBucket) && isUnDef(args.targetBucket)) throw "No bucket, sourceBucket or tbucket defined.";
+      if (isUnDef(args.sourceBucket) && isUnDef(args.targetBucket)) throw "No bucket, sourceBucket or tbucket defined."
 
-      global.out = global.s3.copyObject(args.sourceBucket, args.source, args.targetBucket, args.target);
+      global.s3.copyObject(args.sourceBucket, args.source, args.targetBucket, args.target)
     } catch(e) {
-      logErr("Get error: " + e);
+      logErr("Get error: " + e)
     }  
 
 # --------------
 - name : S3 move
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      target: isString
+      source: isString
   exec : |
-    args.target  = _$(args.target, "target").$_();
-    args.source  = _$(args.source, "source").$_();
-
     try {
-      if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found.";
-      if (isDef(args.targetBucket) && !global.s3.bucketExists(args.targetBucket)) throw "Bucket '" + args.targetBucket + "' not found.";
+      if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found."
+      if (isDef(args.targetBucket) && !global.s3.bucketExists(args.targetBucket)) throw "Bucket '" + args.targetBucket + "' not found."
 
-      if (isUnDef(args.sourceBucket)) args.sourceBucket = args.bucket;
-      if (isUnDef(args.targetBucket)) args.targetBucket = args.bucket;
+      if (isUnDef(args.sourceBucket)) args.sourceBucket = args.bucket
+      if (isUnDef(args.targetBucket)) args.targetBucket = args.bucket
 
-      if (isUnDef(args.sourceBucket) && isUnDef(args.targetBucket)) throw "No bucket, sourceBucket or tbucket defined.";
+      if (isUnDef(args.sourceBucket) && isUnDef(args.targetBucket)) throw "No bucket, sourceBucket or tbucket defined."
 
-      global.s3.copyObject(args.sourceBucket, args.source, args.targetBucket, args.target);
-      global.out = global.s3.removeObject(args.sourceBucket, args.source);
+      global.s3.copyObject(args.sourceBucket, args.source, args.targetBucket, args.target)
+      global.s3.removeObject(args.sourceBucket, args.source)
     } catch(e) {
-      logErr("Get error: " + e);
+      logErr("Get error: " + e)
     }
 
 # -------------
 - name : S3 put
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString.default("")
+      local : isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-    args.local  = _$(args.local, "local").$_();
-
     try {
-      if (!io.fileExists(args.local)) throw "File '" + args.local + "' doesn't exists.";
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      global.out = global.s3.putObject(args.bucket, args.remote, args.local);
+      if (!io.fileExists(args.local)) throw "File '" + args.local + "' doesn't exists."
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      global.s3.putObject(args.bucket, args.remote, args.local)
     } catch(e) {
-      logErr("Get error: " + e);
+      logErr("Get error: " + e)
     }
 
 # --------------
 - name : S3 mput
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString.default("")
+      local : isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-    args.local  = _$(args.local, "local").$_();
-
+    var out = {}
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (io.fileInfo(args.local).isFile) throw "Path '" + args.local + "' not a folder.";
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      var _m = args.local.substring(0, args.local.lastIndexOf("/") + 1)
+      if (io.fileInfo(_m).isFile) throw "Path '" + args.local + "' not a folder."
 
-      global.out.transfer = [];
-      listFilesRecursive(args.local).map(file => {
+      out.transfer = []
+      listFilesRecursive(_m).forEach(file => {
         try {
-          if (file.isFile) {
-            var f = file.filepath.replace(new RegExp("^" + args.local + "/"), "");
-            global.s3.putObject(args.bucket, args.remote + "/" + f, file.canonicalPath);
-            global.out.transfer.push({ remote: args.remote + "/" + f, local: file.canonicalPath });
+          if (file.isFile && ow.format.string.wildcardTest(file.filepath, args.local)) {
+            var f = file.filepath.replace(_m, "")
+            global.s3.putObject(args.bucket, args.remote + "/" + f, file.canonicalPath)
+            out.transfer.push({ remote: args.remote + "/" + f, local: file.canonicalPath })
           }
         } catch(e2) {
-          logErr("Put error: " + e2);
+          logErr("Put error: " + e2)
         }
       });
     } catch(e) {
-      logErr("MPut error: " + e);
+      logErr("MPut error: " + e)
     }
+
+    $set("out", out)
 
 # --------------
 - name : S3 stat
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-
+    var out
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist.";
-      global.out = global.s3.statObject(args.bucket, args.remote);
-      global.out.createdTime = (new Date(global.out.createdTime)).toISOString();
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist."
+      out = global.s3.statObject(args.bucket, args.remote)
+      out.createdTime = (new Date(out.createdTime)).toISOString()
     } catch(e) {
-      logErr("Get error: " + e);
+      logErr("Get error: " + e)
     }
+    $set("out", out)
 
 # ------------
 - name : S3 rm
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist.";
-      global.out = global.s3.removeObject(args.bucket, args.remote);
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist."
+      global.s3.removeObject(args.bucket, args.remote)
     } catch(e) {
-      logErr("Get error: " + e);
+      logErr("Get error: " + e)
     }
 
 # ---------------
 - name : S3 rmdir
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in: 
+      bucket: isString
+      remote: isString.default("")
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    args.remote = _$(args.remote, "remote").$_();
-
+    var out
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      global.out = global.s3.listObjects(args.bucket, args.remote);
-      global.out = global.out.map(r => {
-        global.s3.removeObject(args.bucket, r.filepath);
-        return r.filepath;
-      }); 
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      out = global.s3.listObjects(args.bucket, args.remote, __, full)
+      out = out.map(r => {
+        global.s3.removeObject(args.bucket, r.filepath)
+        return r.filepath
+      })
     } catch(e) {
-      logErr("rmdir error: " + e);
+      logErr("rmdir error: " + e)
     }
+    $set("out", out)
 
 # --------------------
-- name: S3 make bucket
+- name : S3 make bucket
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    
     try {
-      if (global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' already exists.";
-      global.out = global.s3.makeBucket(args.bucket);
+      if (global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' already exists."
+      global.s3.makeBucket(args.bucket)
     } catch(e) {
-      logErr("Make bucket: " + e);
+      logErr("Make bucket: " + e)
     }
 
-# ------------------
+# -------------------
 - name : S3 rm bucket
   from : S3 connect
   to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
   exec : |
-    args.bucket = _$(args.bucket, "bucket").$_();
-    
     try {
-      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found.";
-      global.out = global.s3.removeBucket(args.bucket);
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      global.s3.removeBucket(args.bucket)
     } catch(e) {
-      logErr("Remove bucket: " + e);
+      logErr("Remove bucket: " + e)
     }
 
-# --------
-- name: S3
-  exec: |
-    args.bucket = _$(args.bucket, "bucket").default(void 0);
-    args.op     = _$(args.op, "op").default("help");
-
-    switch(args.op) {
-    case "buckets" : oJobRunJob("S3 list buckets", args); args.__format = _$(args.__format).default("table"); break;
-    case "ls"      : oJobRunJob("S3 list", args); args.__format = _$(args.__format).default("table"); break;
-    case "put"     : oJobRunJob("S3 put", args); break;
-    case "get"     : oJobRunJob("S3 get", args); break;
-    case "mput"    : oJobRunJob("S3 mput", args); break;
-    case "mget"    : oJobRunJob("S3 mget", args); break;
-    case "cp"      : oJobRunJob("S3 copy", args); break;
-    case "mv"      : oJobRunJob("S3 move", args); break;
-    case "rm"      : oJobRunJob("S3 rm", args); break;
-    case "rmdir"   : oJobRunJob("S3 rmdir", args); break;
-    case "stat"    : oJobRunJob("S3 stat", args); break;
-    case "rmbucket": oJobRunJob("S3 rm bucket", args); break;
-    case "mkbucket": oJobRunJob("S3 make bucket", args); break;
-    default: oJobRunJob("S3 help", args);
+# --------------
+- name : S3 sync
+  from : S3 connect
+  to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      local : isString
+      remote: isString.default("")
+      go    : toBoolean.isBoolean.default(false)
+  exec : |
+    try {
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (args.go) {
+        global.s3.execActions(global.s3.syncActions(args.bucket, args.remote, args.local))
+      } else {
+        $set("out", global.s3.syncActions(args.bucket, args.remote, args.local))
+      }
+    } catch(e) {
+      logErr("Sync error: " + e)
     }
 
-    $await("s3").wait();
-    ow.oJob.output(global.out, args);
+# --------------------
+- name : S3 sync local
+  from : S3 connect
+  to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      local : isString
+      remote: isString.default("")
+      go    : toBoolean.isBoolean.default(false)
+  exec : |
+    try {
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (args.go) {
+        global.s3.execActions(global.s3.squashLocalActions(args.bucket, args.remote, args.local))
+      } else {
+        $set("out", global.s3.squashLocalActions(args.bucket, args.remote, args.local))
+      }
+    } catch(e) {
+      logErr("Sync error: " + e)
+    }
+
+# ---------------------
+- name : S3 sync remote
+  from : S3 connect
+  to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      local : isString
+      remote: isString.default("")
+      go    : toBoolean.isBoolean.default(false)
+  exec : |
+    try {
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      if (args.go) {
+        global.s3.execActions(global.s3.squashRemoteActions(args.bucket, args.remote, args.local))
+      } else {
+        $set("out", global.s3.squashRemoteActions(args.bucket, args.remote, args.local))
+      }
+    } catch(e) {
+      logErr("Sync error: " + e)
+    }
+
+# -----------------------
+- name : Set format table
+  exec : |
+    if (args.op.toLowerCase() == "buckets" || args.op.toLowerCase() == "ls") args.__format = "table"
+
+# -----------
+- name : stop
+  exec : exit(0)
+
+# ---------
+- name : S3
+  check:
+    in:
+      bucket: isString.default(__)
+      op    : isString.oneOf(["buckets","ls","put","get","mput","mget","cp","mv","rm","rmdir","stat","rmbucket","mkbucket"])
+  to   : 
+  - ojob options
+  - Set format table
+  - ojob output
+  - stop
+  args :
+    __key      : out
+    __optionOn : op
+    __lowerCase: true
+    __todos    :
+      buckets   : S3 list buckets
+      ls        : S3 list
+      put       : S3 put
+      get       : S3 get
+      mput      : S3 mput
+      mget      : S3 mget
+      cp        : S3 copy
+      mv        : S3 move
+      rm        : S3 rm
+      rmdir     : S3 rmdir
+      stat      : S3 stat
+      rmbucket  : S3 rm bucket
+      mkbucket  : S3 make bucket
+      sync      : S3 sync
+      synclocal : S3 sync local
+      syncremote: S3 sync remote
