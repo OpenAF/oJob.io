@@ -1,0 +1,33 @@
+# Author: Nuno Aguiar
+help:
+  text   : Opens a text-only browser using Carbonyl using docker.
+  expects: 
+  - name     : url
+    desc     : The url to open
+    example  : https://google.com
+    mandatory: true
+
+todo:
+- Check for docker
+- Deploy container
+
+include:
+- ojob.io/docker/_common
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : Deploy container
+  check:
+    in:
+      url: isString
+  exec : |
+    $sh("docker run -ti --rm --pull always fathyb/carbonyl " + args.url)
+    .exec()
+    
