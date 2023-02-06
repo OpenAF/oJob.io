@@ -88,8 +88,8 @@ include:
 jobs:
 # -----------------
 - name : S3 connect
-  from : ojob sec get
   exec : |
+    if (isDef(args.secKey)) args = $job("ojob sec get", args)
     if (isDef(args._args)) {
       args.url = args._args.aURL
       args.accessKey = args._args.aAccessKey
@@ -100,10 +100,11 @@ jobs:
       if (args.region == "") args.region = __
     }
     _$(args.url, "url").$_()
-    _$(args.accessKey, "accessKey").$_()
-    _$(args.region, "region").default("us-east-1")
+    args.accessKey = _$(args.accessKey, "accessKey").default(__)
+    args.secret    = _$(args.secret, "secret").default(__)
+    args.region    = _$(args.region, "region").default("us-east-1")
 
-    global.s3 = new S3(args.url, args.accessKey, askDef(args.secret, "Sec bucket pass: ", true), args.region, args.useVersion1)
+    global.s3 = new S3(args.url, args.accessKey, args.secret, args.region, args.useVersion1)
 
     $set("out", {})
 
