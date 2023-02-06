@@ -17,13 +17,13 @@ $ ojob ojob.io/sec/ops op=setobj secobj=s3.s3 secbucket=myEnv seckey=s3
 you can reference it like this:
 
 ````bash
-ojob ojob.io/s3/ops secbucket=myEnv seckey=s3 ...
+ojob ojob.io/s3/ops secBucket=myEnv secKey=s3 ...
 ````
 
 To use all possible "$sec" variables:
 
 ````bash
-ojob ojob.io/s3/ops secrepo=aRepo secbucket=aBucket secpass=pass123
+ojob ojob.io/s3/ops secRepo=aRepo secBucket=aBucket secPass=pass123
 ````
 
 ## Available operations
@@ -85,7 +85,7 @@ ojob ojob.io/s3/ops ... op=ls bucket=bucket2list remote=my/folder/in/bucket
 And include all metadata for each object with the "full" option:
 
 ````bash
-ojob ojob.io/s3/ops ... op=ls bucket=bucket2list remote=my/folder/in/bucket full=y
+ojob ojob.io/s3/ops ... op=ls bucket=bucket2list remote=my/folder/in/bucket full=true recursive=true
 ````
 
 ### put

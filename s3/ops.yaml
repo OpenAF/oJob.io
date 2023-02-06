@@ -55,7 +55,7 @@ help:
     Authentication:
 
       Use a $sec for an S3 object:
-      ojob ojob.io/s3/ops secrepo=... secbucket=... secpass=... seckey=... 
+      ojob ojob.io/s3/ops secRepo=... secBucket=... secPass=... secKey=... 
 
       Set a new $sec for an S3 object:
       ojob ojob.io/sec/ops op=setobj secobj=s3.s3 secbucket=... seckey=... secrepo=... secpass=...
@@ -88,17 +88,22 @@ include:
 jobs:
 # -----------------
 - name : S3 connect
+  from : ojob sec get
   exec : |
-    if (isDef(args.seckey)) {
-      if (isDef(args.secrepo)) args.secretpass = askDef(args.secretpass, "Sec repo pass: ", true)
-      global.s3 = $sec(args.secrepo, askDef(args.secbucket, "Sec bucket: "), askDef(args.secpass, "Sec bucket pass: ", true), args.secretpass).getObj(args.seckey)
-    } else {
-      _$(args.url, "url").$_()
-      _$(args.accessKey, "accessKey").$_()
-      _$(args.region, "region").default("us-east-1")
+    if (isDef(args._args)) {
+      args.url = args._args.aURL
+      args.accessKey = args._args.aAccessKey
+      args.secret = args._args.aSecret
+      args.region = args._args.aRegion
+      args.useVersion1 = args._args.useVersion1
 
-      global.s3 = new S3(args.url, args.accessKey, askDef(args.secret, "Sec bucket pass: ", true), args.region)
+      if (args.region == "") args.region = __
     }
+    _$(args.url, "url").$_()
+    _$(args.accessKey, "accessKey").$_()
+    _$(args.region, "region").default("us-east-1")
+
+    global.s3 = new S3(args.url, args.accessKey, askDef(args.secret, "Sec bucket pass: ", true), args.region, args.useVersion1)
 
     $set("out", {})
 
@@ -350,7 +355,7 @@ jobs:
     var out
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
-      out = global.s3.listObjects(args.bucket, args.remote, __, full)
+      out = global.s3.listObjects(args.bucket, args.remote, __, true)
       out = out.map(r => {
         global.s3.removeObject(args.bucket, r.filepath)
         return r.filepath
@@ -459,7 +464,9 @@ jobs:
 # -----------------------
 - name : Set format table
   exec : |
-    if (args.op.toLowerCase() == "buckets" || args.op.toLowerCase() == "ls") args.__format = "table"
+    if (args.op.toLowerCase() == "lsbuckets" ||
+        args.op.toLowerCase() == "buckets" || 
+        args.op.toLowerCase() == "ls") args.__format = "table"
 
 # -----------
 - name : stop
@@ -470,7 +477,7 @@ jobs:
   check:
     in:
       bucket: isString.default(__)
-      op    : isString.oneOf(["buckets","ls","put","get","mput","mget","cp","mv","rm","rmdir","stat","rmbucket","mkbucket"])
+      op    : isString.oneOf(["lsbuckets","buckets","ls","put","get","mput","mget","cp","mv","rm","rmdir","stat","rmbucket","mkbucket"])
   to   : 
   - ojob options
   - Set format table
@@ -482,6 +489,7 @@ jobs:
     __lowerCase: true
     __todos    :
       buckets   : S3 list buckets
+      lsbuckets : S3 list buckets
       ls        : S3 list
       put       : S3 put
       get       : S3 get

@@ -1,22 +1,21 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Gets/Sets OpenAF's sBuckets.
-    expects: 
-    - name   : op
-      desc   : "Provides the operation to perform: list; getbucket; setbucket; unsetbucket; set; setfn; setobj; setmap; unset"
-      example: list
-    - name   : secrepo
-      desc   : The sBucket security repository (or don't define for default)
-    - name   : secbucket
-      desc   : The sBucket security bucket.
-    - name   : seckey
-      desc   : The sBucket security bucket key.
-    - name   : bucket
-      desc   : The bucket string when op=setbucket
-    - name   : mapEntries
-      desc   : When op=setmap you can provide a list of map entries separated by commas
-      example: host, port, login, pass
+help:
+  text   : Gets/Sets OpenAF's sBuckets.
+  expects: 
+  - name   : op
+    desc   : "Provides the operation to perform: list; getbucket; setbucket; unsetbucket; set; setfn; setobj; setmap; unset"
+    example: list
+  - name   : secrepo
+    desc   : The sBucket security repository (or don't define for default)
+  - name   : secbucket
+    desc   : The sBucket security bucket.
+  - name   : seckey
+    desc   : The sBucket security bucket key.
+  - name   : bucket
+    desc   : The bucket string when op=setbucket
+  - name   : mapEntries
+    desc   : When op=setmap you can provide a list of map entries separated by commas
+    example: host, port, login, pass
 
 todo:
 - Choose operation
@@ -24,236 +23,256 @@ todo:
 ojob:
   opacks      :
   - openaf: 20210327
+  - oJob-common
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
+include:
+- ojob.yaml
+
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-  
-# ----------------------
-- name: Choose operation
+# -----------------
+- name : Set format
+  exec : |
+    if (args.op.toLowerCase() == "getbucket") args.__format = "yaml"
+    if (isUnDef($get(args.__key))) $set(args.__key, {})
+
+# -----------------------
+- name : Choose operation
+  check:
+    in:
+      op: isString
+  to   : 
+  - ojob options
+  - Set format
+  - ojob output
+  args :
+    __key      : out
+    __optionOn : op
+    __lowerCase: true
+    __todos    :
+      list       : SBucket List
+      getbucket  : SBucket Get Bucket
+      setbucket  : SBucket Set Bucket
+      unsetbucket: SBucket UnSet Bucket
+      setfn      : SBucket SetFn
+      setmap     : SBucket SetMap
+      set        : SBucket Set
+      get        : SBucket Get
+      setobj     : SBucket SetObj
+      unset      : SBucket UnSet
   exec: |
-    args.op = _$(args.op, "op").default("help");
     if (isDef(args.secrepo) && String(args.secrepo).length > 0) {
-      args.secpass = askDef(args.secpass, "Sec repo '" + args.secrepo + "' pass: ", true);
+      args.secmainpass = askDef(args.secmainpass, "Sec repo '" + args.secrepo + "' pass: ", true);
     }
 
-    switch(args.op.toLowerCase()) {
-    case "list"       : args = $job("SBucket List", args); break;
-    case "getbucket"  : args = $job("SBucket Get Bucket", args); args.__format = _$(args.__format).default("yaml"); break; 
-    case "setbucket"  : args = $job("SBucket Set Bucket", args); break;
-    case "unsetbucket": args = $job("SBucket UnSet Bucket", args); break;
-    case "setfn"      : args = $job("SBucket SetFn", args); break;
-    case "setmap"     : args = $job("SBucket SetMap", args); break;
-    case "set"        : args = $job("SBucket Set", args); break;
-    case "setobj"     : args = $job("SBucket SetObj", args); break;
-    case "unset"      : args = $job("SBucket UnSet", args); break;
-    case "help"       : args.output = args.init.help; break;
-    }
-
-    ow.oJob.output(args.output, args);
-
-# ------------------
-- name: SBucket List
-  exec: |
-    args.secbucket = _$(args.secbucket, "secbucket").default(__);
+# -------------------
+- name : SBucket List
+  check:
+    in:
+      secbucket: isString.default(__)
+  exec : |
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
     if (isDef(args.secbucket)) {
-      args.output = $sec(args.secrepo, __, __, args.secpass).list(args.secbucket, args.secbucketpass);
-      if (isDef(args.output[args.secbucket])) args.output = args.output[args.secbucket].sort();
+      args.output = $sec(args.secrepo, __, __, args.secmainpass).list(args.secbucket, args.secpass)
+      if (isDef(args.output[args.secbucket])) args.output = args.output[args.secbucket].sort()
     } else {
-      args.output = Object.keys($sec(args.secrepo, __, __, args.secpass).list()).sort();
+      args.output = Object.keys($sec(args.secrepo, __, __, args.secmainpass).list()).sort()
     }
+
+    $set("out", args.output)
 
 # -----------------
 - name: SBucket Get
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
-    args.output = $sec(args.secrepo, __, __, args.secpass).get(args.seckey, args.secbucket, args.secbucketpass);
+    args.output = $sec(args.secrepo, __, __, args.secmainpass).get(args.seckey, args.secbucket, args.secpass)
+    $set("out", args.output)
 
 # -------------------
 - name: SBucket GetFn
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
-    args.output = $sec(args.secrepo, __, __, args.secpass).getFn(args.seckey, args.secargs, args.secbucket, args.secbucketpass);
+    args.output = $sec(args.secrepo, __, __, args.secmainpass).getFn(args.seckey, args.secargs, args.secbucket, args.secpass)
+
+    $set("out", args.output)
 
 # -----------------
 - name: SBucket Set
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
 
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
-    args.secargs = ask(" value: ");
-    var t = jsonParse(args.secargs, true); 
-    if (isMap(t)) args.secargs = t;
+    args.secargs = askDef(args.secargs, " value: ")
+    var t = jsonParse(args.secargs, true);
+    if (isMap(t)) args.secargs = t
 
-    log("Setting '" + args.seckey + "' on bucket '" + args.secbucket + "'...");
+    log("Setting '" + args.seckey + "' on bucket '" + args.secbucket + "'...")
     
-    $sec(args.secrepo, __, __, args.secpass).set(args.seckey, args.secargs, args.secbucket, args.secbucketpass);
+    $sec(args.secrepo, __, __, args.secmainpass).set(args.seckey, args.secargs, args.secbucket, args.secpass)
 
 # -------------------
 - name: SBucket UnSet
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
 
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
 
-    log("Unsetting '" + args.seckey + "' on bucket '" + args.secbucket + "'...");
+    log("Unsetting '" + args.seckey + "' on bucket '" + args.secbucket + "'...")
 
-    $sec(args.secrepo, __, __, args.secpass).unset(args.seckey, args.secbucket, args.secbucketpass);~
+    $sec(args.secrepo, __, __, args.secmainpass).unset(args.seckey, args.secbucket, args.secpass)
 
 # --------------------
 - name: SBucket SetMap
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
 
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
     if (isUnDef(args.mapEntries)) {
-      args.mapEntries = ask("Provide map entries divided by commas: ");
+      args.mapEntries = ask("Provide map entries divided by commas: ")
     }
 
     var entries = {};
-    _$(args.mapEntries, "mapEntries").isString().$_();
+    _$(args.mapEntries, "mapEntries").isString().$_()
 
     args.mapEntries.trim().split(/ *, */).forEach(entry => {
       if (entry.indexOf("secret") >= 0 || entry.indexOf("pass") >= 0 || entry.indexOf("password") >= 0) {
-        $$(entries).set(entry, askEncrypt("  " + entry + ": "));
+        $$(entries).set(entry, askEncrypt("  " + entry + ": "))
       } else {
-        $$(entries).set(entry, ask("  " + entry + ": "));
+        $$(entries).set(entry, ask("  " + entry + ": "))
       }
     });
 
-    log("Setting '" + args.seckey + "' with entries (" + args.mapEntries + ") on bucket '" + args.secbucket + "'...");
-    $sec(args.secrepo, __, __, args.secpass).set(args.seckey, entries, args.secbucket, args.secbucketpass);
+    log("Setting '" + args.seckey + "' with entries (" + args.mapEntries + ") on bucket '" + args.secbucket + "'...")
+    $sec(args.secrepo, __, __, args.secmainpass).set(args.seckey, entries, args.secbucket, args.secpass)
 
 # --------------------
 - name: SBucket SetObj
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
 
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
     if (isUnDef(args.secobj)) {
-      args.secobj = ask("Sec Obj: ");
+      args.secobj = ask("Sec Obj: ")
     }
     try {
-      log("Trying to find help odoc for '" + args.secobj + "'...");
-      var ags, hsearch;
+      log("Trying to find help odoc for '" + args.secobj + "'...")
+      var ags, hsearch
       try {
-        ags = $fnDef4Help(args.secobj);
-        hsearch = searchHelp(args.secobj);
+        ags = $fnDef4Help(args.secobj)
+        hsearch = searchHelp(args.secobj)
       } catch(e) {
-        ags = $fnDef4Help(args.secobj + "." + args.secobj);
-        hsearch = searchHelp(args.secobj + "." + args.secobj);
+        ags = $fnDef4Help(args.secobj + "." + args.secobj)
+        hsearch = searchHelp(args.secobj + "." + args.secobj)
       }
       if (args.secobj.match(/(\w+)\.(\1)/)) {
-        args.secobj = args.secobj.substr(0, args.secobj.indexOf("."));
+        args.secobj = args.secobj.substr(0, args.secobj.indexOf("."))
       }
 
       if (isArray(ags)) {
         if (isArray(hsearch) && hsearch.length > 0) {
-          print("-- " + hsearch[0].fullkey + "\n-- " + (repeat(hsearch[0].fullkey.length, "-")) + "\n-- " + hsearch[0].text + "\n");
+          print("-- " + hsearch[0].fullkey + "\n-- " + (repeat(hsearch[0].fullkey.length, "-")) + "\n-- " + hsearch[0].text + "\n")
         } else {
-          print("\n" + args.secobj + "(" + ags.join(", ") + ")");
+          print("\n" + args.secobj + "(" + ags.join(", ") + ")")
         }
-        args.secargs = {};
+        args.secargs = {}
         for(var param in ags) {
-          var agss = ags[param].toLowerCase().trim();
+          var agss = ags[param].toLowerCase().trim()
           if (agss.indexOf("secret") >= 0 || agss.indexOf("pass") >= 0 || agss.indexOf("password") >= 0)
-            args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ");
+            args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ")
           else
-            args.secargs[ags[param]] = ask(" " + ags[param] + ": ");
+            args.secargs[ags[param]] = ask(" " + ags[param] + ": ")
         }
-        print("");
+        print("")
       }
     } catch(e) {
     }
-    log("Setting object '" + args.seckey + "' with arguments for '" + args.secobj + "' on bucket '" + args.secbucket + "'...");
-    $sec(args.secrepo, __, __, args.secpass).setObj(args.seckey, args.secobj, args.secargs, args.secbucket, args.secbucketpass);
+    log("Setting object '" + args.seckey + "' with arguments for '" + args.secobj + "' on bucket '" + args.secbucket + "'...")
+    $sec(args.secrepo, __, __, args.secmainpass).setObj(args.seckey, args.secobj, args.secargs, args.secbucket, args.secpass)
     
 # -------------------
 - name: SBucket SetFn
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.seckey    = _$(askDef(args.seckey, "Sec key: "), "seckey").$_()
 
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
     if (isUnDef(args.secfn)) {
-      args.secfn = ask("Sec Fn: ");
+      args.secfn = ask("Sec Fn: ")
     }
     try {
-      log("Trying to find help odoc for '" + args.secfn + "'...");
-      var ags = $fnDef4Help(args.secfn);
+      log("Trying to find help odoc for '" + args.secfn + "'...")
+      var ags = $fnDef4Help(args.secfn)
       if (args.secfn.match(/(\w+)\.(\1)/)) {
-        args.secfn = args.secfn.substr(0, args.secfn.indexOf("."));
+        args.secfn = args.secfn.substr(0, args.secfn.indexOf("."))
       }
       if (isArray(ags)) {
-        print("\n" + args.secfn + "(" + ags.join(", ") + ")");
-        args.secargs = {};
+        print("\n" + args.secfn + "(" + ags.join(", ") + ")")
+        args.secargs = {}
         for(var param in ags) {
-          var agss = ags[param].toLowerCase().trim();
+          var agss = ags[param].toLowerCase().trim()
           if (agss.indexOf("secret") >= 0 || agss.indexOf("pass") >= 0 || agss.indexOf("password") >= 0)
-            args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ");
+            args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ")
           else
-            args.secargs[ags[param]] = ask(" " + ags[param] + ": ");
+            args.secargs[ags[param]] = ask(" " + ags[param] + ": ")
         }
-        print("");
+        print("")
       }
     } catch(e) {
     }
-    log("Setting '" + args.seckey + "' with arguments for '" + args.secfn + "' on bucket '" + args.secbucket + "'...");
-    $sec(args.secrepo, __, __, args.secpass).setFn(args.seckey, args.secfn, args.secargs, args.secbucket, args.secbucketpass);
+    log("Setting '" + args.seckey + "' with arguments for '" + args.secfn + "' on bucket '" + args.secbucket + "'...")
+    $sec(args.secrepo, __, __, args.secmainpass).setFn(args.seckey, args.secfn, args.secargs, args.secbucket, args.secpass)
     
 # ------------------------
 - name: SBucket Get Bucket
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
-    args.output = $sec(args.secrepo, __, __, args.secpass).getBucket(args.secbucket, args.secbucketpass);
+    args.output = $sec(args.secrepo, __, __, args.secmainpass).getBucket(args.secbucket, args.secpass)
+    $set("out", args.output)
 
 # ------------------------s
 - name: SBucket Set Bucket
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
-    args.bucket    = _$(askDef(args.bucket, "Bucket data: "), "bucket").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
+    args.bucket    = _$(askDef(args.bucket, "Bucket data: "), "bucket").$_()
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
-    args.output = $sec(args.secrepo, __, __, args.secpass).setBucket(args.bucket, args.secbucket, args.secbucketpass);
+    $sec(args.secrepo, __, __, args.secmainpass).setBucket(args.bucket, args.secbucket, args.secpass)
 
 # --------------------------
 - name: SBucket UnSet Bucket
   exec: |
-    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_();
+    args.secbucket = _$(askDef(args.secbucket, "Sec bucket: "), "secbucket").$_()
     if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
-      args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
+      args.secpass = askDef(args.secpass, "Sec bucket '" + args.secbucket + "' pass: ", true)
     }
 
-    args.output = $sec(args.secrepo, __, __, args.secpass).unsetBucket(args.secbucket, args.secbucketpass);
+    $sec(args.secrepo, __, __, args.secmainpass).unsetBucket(args.secbucket, args.secpass)
