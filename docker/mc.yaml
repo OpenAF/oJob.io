@@ -1,4 +1,12 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Opens an openaf container running midnight commander over a specific volume 
+  expects: 
+  - name     : volumes
+    desc     : "A volume name or a list of volume names separated by a comma."
+    example  : myvolume,/my/folder
+    mandatory: false
+
 include:
 - ojob.io/docker/_common
 
@@ -13,14 +21,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Opens an openaf container running midnight commander over a specific volume 
-    expects: 
-    - name: volumes
-      desc: "A volume name or a list of volume names separated by a comma."
-
 # ----------------------
 - name: Deploy container 
   deps:
