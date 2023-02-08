@@ -99,7 +99,7 @@ jobs:
 
       if (args.region == "") args.region = __
     }
-    _$(args.url, "url").$_()
+    args.url = _$(args.url, "url").default("https://s3.amazonaws.com")
     args.accessKey = _$(args.accessKey, "accessKey").default(__)
     args.secret    = _$(args.secret, "secret").default(__)
     args.region    = _$(args.region, "region").default("us-east-1")
