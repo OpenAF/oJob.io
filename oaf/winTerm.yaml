@@ -1,4 +1,6 @@
 # Nuno Aguiar
+help:
+  text: Setup OpenAF console in the installed Microsoft Windows Terminal (needs to be executed in Windows)
 
 todo:
 #- Download font
