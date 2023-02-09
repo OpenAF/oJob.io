@@ -1,0 +1,93 @@
+# Nuno Aguiar
+help:
+  text: Setup OpenAF console in the installed Microsoft Windows Terminal (needs to be executed in Windows)
+
+todo:
+#- Download font
+- Set Windows Terminal
+- Replace shortcut
+- Start Windows Terminal
+
+jobs:
+# ------------------------
+- name: Show OpenAF folder
+  exec: |
+    $sh("start " + getOpenAFPath()).exec();
+
+# ----------------------------
+- name: Start Windows Terminal
+  exec: |
+    $sh("start wt -p \"OpenAF Console\"").exec();
+
+# -------------------
+- name: Download font
+  exec: |
+    log("Please click on install font...");
+    $rest().get2File("Cascadia.ttf", "https://github.com/microsoft/cascadia-code/releases/download/v1911.21/Cascadia.ttf");
+    $sh("start Cascadia.ttf").exec(0);
+
+# ----------------------
+- name: Replace shortcut
+  exec: |
+    var curDir = getOpenAFPath().replace(/\//g, "\\");
+    var binDir = getEnvs().LOCALAPPDATA + "\\Microsoft\\WindowsApps\\wt.exe";
+    $sh([
+        "powershell", 
+        "\"$sh=New-Object -COM WScript.Shell;$s=$sh.CreateShortcut('" + curDir + "\\OpenAF CONSOLE.lnk');$s.TargetPath='" + binDir + "';$s.Arguments='-p \\\"OpenAF Console\\\"';$s.Description='OpenAF Console';$s.IconLocation='" + curDir + "\\openaf.ico';$s.WorkingDirectory='" + curDir + "';$s.save()\""
+    ]).exec();
+
+# --------------------------
+- name: Set Windows Terminal
+  exec: |
+    var found = false, profilePath;
+    io.listFiles(getEnvs().LOCALAPPDATA + "/Packages").files.map(r => {
+      if (r.isDirectory && r.filename.indexOf(".WindowsTerminal_") > 0)
+        profilePath = r.canonicalPath + "/LocalState";
+    });
+
+    if (isUnDef(profilePath)) {
+      logErr("Couldn't found Windows Terminal configuration.");
+    } else {
+      var fname = profilePath + "/settings.json";
+      log("Reading from '" + fname + "'...");
+      var f = jsonParse(io.readFileString(fname), true);
+      
+      var fnameBak = fname + "-" + nowUTC() + ".bak";
+      log("Making a backup on '" + fnameBak + "'...");
+      io.writeFileJSON(fnameBak, f)
+
+      var m, ow = -1, me = $from(f.profiles.list).equals("name", "OpenAF Console");
+      for(var ii in f.profiles.list) {
+          m = f.profiles.list[ii];
+          if (m.name == "OpenAF Console") ow = ii;
+      }
+
+      m = {
+          guid             : (ow >= 0 ? m.guid : "{" + genUUID() + "}"),
+          hidden           : false,
+          name             : "OpenAF Console",
+          fontFace         : "Consolas",
+          fontSize         : 10,
+          commandline      : getOpenAFPath().replace(/\\/, "/") + "openaf-console.bat",
+          icon             : getOpenAFPath().replace(/\\/, "/") + "openaf.ico",
+          useAcrylic       : true,
+          acrylicOpacity   : 0.85,
+          startingDirectory: (ow >= 0 ? m.startingDirectory : "%USERPROFILE%"),
+          closeOnExit      : true,
+          colorScheme      : "Campbell",
+          //cursorColor      : "#FFFFFF",
+          cursorShape      : "bar",
+          antialiasingMode : "cleartype"
+      }
+
+      if (ow >= 0) {
+          delete f.profiles.list[ow];
+          f.profiles.list[ow] = m;
+      } else {
+          f.profiles.list.push(m);
+      }
+
+      log("Writing on " + fname + "...");
+      io.writeFileJSON(fname, f);
+      $sh("start " + profilePath).exec();
+    }
