@@ -10,6 +10,10 @@ help:
     desc     : Boolean value to indicate that the result should the jar files that are not included in openaf
     example  : "true"
     mandatory: false   
+  - name     : remove
+    desc     : Boolean value to indicate that the resulting files should be removed from path
+    example  : "true"
+    mandatory: false
 
 todo:
 - Check OAF Jars
@@ -57,6 +61,7 @@ jobs:
     in:
       path   : isString
       reverse: toBoolean.isBoolean.default(false)
+      remove : toBoolean.isBoolean.default(false)
   exec : |
     var data, oafData, localData
 
@@ -72,6 +77,10 @@ jobs:
     oafData = $job("Get artifacts & versions", { list: ar })
 
     if (args.reverse) 
-      ow.oJob.output($from(localData).except(oafData).select(), args)
+      data = $from(localData).except(oafData).select()
     else
-      ow.oJob.output($from(localData).intersect(oafData).select(), args)
+      data = $from(localData).intersect(oafData).select()
+
+    if (args.remove) data.forEach(r => io.rm(args.path + "/" + r.filename))
+
+    ow.oJob.output(data, args)
