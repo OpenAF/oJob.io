@@ -1,0 +1,77 @@
+# Author: Nuno Aguiar
+help:
+  text   : Check the jars on a provided path against the jars included in OpenAF returning a list with the included jars including any version difference
+  expects: 
+  - name     : path
+    desc     : The path containing the jars to be compared with.
+    example  : some/path
+    mandatory: true
+  - name     : reverse
+    desc     : Boolean value to indicate that the result should the jar files that are not included in openaf
+    example  : "true"
+    mandatory: false   
+
+todo:
+- Check OAF Jars
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -------------------------------
+- name : Get artifacts & versions
+  check:
+    in:
+      list   : isArray
+  exec : |
+    var data = []
+
+    $from( args.list )
+    .ends("filename", ".jar")
+    .select(r => {
+      var ar = r.filename.match(/(.+)-(([\w\d]+\.?)+)\.jar$/)
+      if (!isNull(ar) && ar.length > 2) {
+        data.push({
+          filename: r.filename,
+          artifact: ar[1],
+          version : ar[2]
+        })
+      } else {
+        data.push({
+          filename: r.filename,
+          artifact: r.filename.replace(".jar", ""),
+          version : __
+        })
+      }
+    })
+
+    return data
+
+# ---------------------
+- name : Check OAF Jars
+  check:
+    in:
+      path   : isString
+      reverse: toBoolean.isBoolean.default(false)
+  exec : |
+    var data, oafData, localData
+
+    localData = $job("Get artifacts & versions", { list: listFilesRecursive(args.path) })
+
+    plugin("ZIP")
+    var zip = new ZIP()
+    var ar = $m4a(zip.list(getOpenAFJar() + ".orig")).map(r => {
+      r.filename = r.name.substring(r.name.lastIndexOf("/") + 1)
+      return r
+    })
+
+    oafData = $job("Get artifacts & versions", { list: ar })
+
+    if (args.reverse) 
+      ow.oJob.output($from(localData).except(oafData).select(), args)
+    else
+      ow.oJob.output($from(localData).intersect(oafData).select(), args)
