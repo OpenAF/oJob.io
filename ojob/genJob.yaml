@@ -42,6 +42,11 @@ jobs:
       include: isString.default(__)
   exec : |
     var jobs = $ch("oJob::jobs").getAll()
+    jobs = $from(jobs)
+           .notEquals("name", "Produce output")
+           .notEquals("name", "Retrieve job")
+           .notEquals("name", "Include other oJobs")
+           .select()
 
     if (isDef(args.include)) {
       var ini = jobs.length
