@@ -52,9 +52,9 @@ jobs:
   to  : ojob options
   deps: Check for docker
   args:
-    optionOn : op 
-    lowerCase: true
-    todos    :
+    __optionOn : op 
+    __lowerCase: true
+    __todos    :
       pdf: &DEFAULT
       - Build docker
       - Convert from html to pdf
@@ -63,7 +63,7 @@ jobs:
       - Convert from html to png
       rm:
       - Remove docker
-    default: *DEFAULT
+    __default: *DEFAULT
 
 
 # ------------------

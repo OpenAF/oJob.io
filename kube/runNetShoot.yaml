@@ -18,9 +18,9 @@ help:
 todo:
 - name: ojob options 
   args:
-    optionOn : mode
-    lowerCase: true
-    todos    :
+    __optionOn : mode
+    __lowerCase: true
+    __todos    :
       normal :
       - more information
       - netshoot normal
@@ -30,7 +30,7 @@ todo:
       debug:
       - more information
       - netshoot debug
-    default:
+    __default:
     - more information
     - netshoot normal
 
