@@ -1,0 +1,41 @@
+# Author: Nuno Aguiar
+help:
+  text   : Compiles and start vitetries in a container 
+  expects: 
+  - name     : cmd
+    desc     : Extra commands to provide 
+    example  : "--help"
+    mandatory: false
+  - name     : force
+    desc     : Boolean to indicate, if true, that the container should be rebuilt
+    example  : "true"
+
+include:
+- ojob.io/docker/_common
+
+todo:
+- Check for docker
+- Start vitetries
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name : Start vitetries
+  check: 
+    in:
+      cmd: isString.default("")
+      force: toBoolean.isBoolean.default(false)
+  exec : |
+    var res 
+    if (!args.force) res = $sh("docker start tetris && docker attach tetris").exec(0)
+    if (isDef(res) && res.exitcode != 0) args.force = true
+    if (args.force)
+      $sh('docker stop tetris && docker rm tetris')
+      .sh('docker run --name tetris -it --pull always openaf/oaf -c \'$sh("sudo apk add ncurses ncurses-dev musl-dev gcc make git").sh("git clone https://github.com/nmaguiar/vitetris.git").sh("cd vitetris && ./configure && make && ./tetris ' + args.cmd + ' ").exec()\'')
+      .exec()

@@ -2,6 +2,8 @@
 # Author: Nuno Aguiar
 # Start a socks5 proxied (or not) clean Chrome instance
 # Usage: newChrome.sh somename localhost:1080
+#
+# If "somename" is a folder (e.g. /some/folder) it won't be deleted in the end (this can be reversed setting "NODELETE=yes")
 
 NODELETE=${NODELETE:-no}
 

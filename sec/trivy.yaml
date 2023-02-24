@@ -14,6 +14,10 @@ help:
     desc     : Extra options to provide to trivy
     example  : --insecure
     mandatory: false
+  - name     : localdocker
+    desc     : Boolean to indicate if the local docker registry should be used by trivy
+    example  : "true"
+    mandatory: false
   - name     : nodocker
     desc     : Don't use trivy through docker (defaults to false)
     example  : "true"
@@ -66,11 +70,16 @@ jobs:
       path         : isString.default(__)
       image        : isString.default(__)
       dockerOptions: isString.default("")
+      localdocker  : toBoolean.isBoolean.default(false)
       report       : toBoolean.isBoolean.default(false)
   exec : |
     if (args.report) {
       args.options += "--format template --template \"@contrib/html.tpl\""
       args.noparse = true
+    }
+
+    if (ow.oJob.getState() == "docker" && args.localdocker) {
+      args.dockerOptions += " -v /var/run/docker.sock:/var/run/docker.sock "
     }
 
     // path

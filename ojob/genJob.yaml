@@ -1,0 +1,96 @@
+# Author: Anonymous
+help:
+  text   : Generates the yaml oJob entry for a specific job with it's arguments commented.
+  expects: 
+  - name     : job
+    desc     : The target job for which to produce the entry
+    example  : ojob\ output
+    mandatory: false
+  - name     : include
+    desc     : A comma delimited list of oJob includes
+    example  : ojob.io/common/ojob,ojob.io/common/oJobEmail
+    mandatory: false
+    
+todo:
+- Include other oJobs
+- Retrieve job
+- Produce output
+
+ojob:
+  opacks      :
+  - openaf: 20230218
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  sharedArgs  : true
+  includeOJob : true 
+
+init:
+  expTmpl: |
+    {{cHelp}}
+    # {{headSpace}}
+    - name: {{{name}}}
+      args:
+      {{#each help.expects}}
+        {{name}}{{space}}: # {{{desc}}}
+      {{/each}}
+
+jobs:
+# --------------------------
+- name : Include other oJobs
+  check:
+    in:
+      include: isString.default(__)
+  exec : |
+    var jobs = $ch("oJob::jobs").getAll()
+    jobs = $from(jobs)
+           .notEquals("name", "Produce output")
+           .notEquals("name", "Retrieve job")
+           .notEquals("name", "Include other oJobs")
+           .select()
+
+    if (isDef(args.include)) {
+      var ini = jobs.length
+      args.include.split(",").forEach(j => {
+        var _jobs = ow.oJob.__loadFile(j.trim(), true, true)
+        if (isDef(_jobs) && isDef(_jobs.jobs)) jobs = jobs.concat(_jobs.jobs)
+        var nini = jobs.length
+        ini = nini
+      })
+    }
+
+    $set("jobs", jobs)
+
+# -------------------
+- name : Retrieve job
+  check:
+    in:
+      job: isString.default(__)
+  exec : |
+    if (isDef(args.job)) {
+      var job = $from($get("jobs")).equals("name", args.job).at(0)
+      if (isUnDef(job)) logWarn("Job '" + args.job + "' not found.")
+      $set("job", job)
+    } else {
+      ow.oJob.output($from($get("jobs")).sort("name").select(r => r.name), args)
+    }
+
+# --------------------
+- name: Produce output
+  exec: |
+    var j = $get("job")
+    if (isUnDef(j)) return
+    if (isMap(j.help)) {
+      j.cHelp = j.help.text.split("\n").map(r => "# " + r).join("\n")
+      j.headSpace = repeat(j.name.length + 6, '-')
+      if (isArray(j.help.expects)) {
+        var maxSize = $from(j.help.expects).attach("expectSize", r => r.name.length).max("expectSize").expectSize
+        j.help.expects.forEach(r => {
+          r.space = repeat(maxSize - r.name.length, " ")
+        })
+      }
+      tprint(args.init.expTmpl, j)
+    } else {
+      print(j.help.split("\n").map(r => "# " + r).join("\n"))
+      print("# " + repeat(j.name.length + 6, '-'))
+      print("- name: " + j.name)
+    }

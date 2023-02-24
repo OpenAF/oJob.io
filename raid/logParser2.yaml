@@ -113,6 +113,7 @@ jobs:
 
     var buf = __
     var parseLine = (line, os) => {
+      line = String(line)
       metrics.origLines++
       if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
       if (isDef(buf)) {

@@ -1,0 +1,101 @@
+# Author: Nuno Aguiar
+help:
+  text   : Starts a docker based sshd server helpfull for tunneling network connections.
+  expects: 
+  - name     : user
+    desc     : A user to create
+    example  : user
+    mandatory: false
+  - name     : pass
+    desc     : A password to assigned to the created user.
+    example  : abc123
+    mandatory: false
+  - name     : port
+    desc     : In which port the sshd will be exposed.
+    example  : 12345
+    mandatory: false
+  - name     : bg
+    desc     : Boolean indicating if the sshd docker should be launched in background as a daemon
+    example  : "true"
+    mandatory: false
+  - name     : allowRoot
+    desc     : Boolean indicating if it should be allowed to sudo to root (default is false)
+    example  : "true"
+    mandatory: false
+ 
+include:
+- ojob.io/docker/_common
+
+todo:
+- Check for docker
+- SSHd docker
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------
+- name : SSHd docker
+  check:
+    in:
+      user     : isString.default(__)
+      pass     : isString.default(__)
+      port     : isString.default(__)
+      bg       : toBoolean.isBoolean.default(false)
+      allowRoot: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadNet()
+    if (isUnDef(args.user)) args.user = ow.format.string.genPass(8, ["lowercase"])
+    if (isUnDef(args.pass)) args.pass = ow.format.string.genPass(64, ["lowercase","uppercase","numbers"])
+
+    if (isUnDef(args.port)) args.port = findRandomOpenPort()
+
+    args.host = ow.net.getIP2Host(ow.net.getPublicIP().ip)
+    args.cmd  = "ssh -p " + args.port + " user@" + args.host
+
+    var subcmds = [
+      "sudo apk update",
+      "sudo apk add openssh openssh-server tinyproxy net-tools",
+      "sudo adduser -D " + args.user,
+      "echo \\\"" + args.user + ":" + args.pass + "\\\" | sudo chpasswd",
+      "sudo ssh-keygen -A",
+      "sudo sed -i \\\"s/AllowTcpForwarding no/AllowTcpForwarding yes/g\\\" /etc/ssh/sshd_config",
+      "sudo sed -i \\\"s/GatewayPorts no/GatewayPorts yes/g\\\" /etc/ssh/sshd_config",
+      (args.allowRoot ? "sudo sh -c 'echo \\\"" + args.user + " ALL=(ALL) NOPASSWD: ALL\\\" > /etc/sudoers.d/user'" : "echo"),
+      "sudo /usr/sbin/sshd",
+      "echo",
+      "echo READY!",
+      "tail -f /dev/null"
+    ]
+
+    var cmds = [ 
+      "docker", 
+      "run",
+      "--pull", "always", 
+      "--rm", 
+      "-ti",
+      "-p", args.port + ":22"
+    ]
+
+    if (args.bg) cmds.push("-d")
+
+    cmds = cmds.concat([
+      "openaf/oaf:nightly", 
+      "-c", 
+      "$sh(\"" + subcmds.join(" && ") + "\").exec()"
+    ])
+
+    ow.oJob.output({
+      user: args.user,
+      pass: args.pass,
+      port: args.port,
+      host: args.host,
+      cmd : args.cmd
+    }, args)
+    print("")
+
+    $sh(cmds).exec()

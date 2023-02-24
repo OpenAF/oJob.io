@@ -1,0 +1,60 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a piped input of a JSON log will try to convert it to a human-readable format.
+  expects: 
+  - name     : inception
+    desc     : "If inception=true it will handle cases where JSON is included in the message field (default: inception=true)"
+    example  : "true"
+    mandatory: false
+
+todo:
+- Parse log
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------
+- name : Parse log
+  args:
+    inception: toBoolean.isBoolean.default(true)
+  exec : |
+    var buf = __
+    var _proc = line => {
+      line = String(line)
+      if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
+      if (isDef(buf)) {
+        if (line.length != 0 && !line.trim().endsWith("}")) { buf += line.trim(); return }
+        if (buf.length > 0) { line = buf + line; buf = __ }
+      }
+      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { 
+        print(line) 
+        buf = __
+        return 
+      }
+
+      var data, go = true
+      try { 
+        data = jsonParse(line, true)
+        // Test for "inception"
+        if (args.inception && isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) data = jsonParse(data.message)
+
+        if (isString(data["@timestamp"]) && 
+            data["@timestamp"].indexOf("T") > 0 && 
+            data["@timestamp"].indexOf(".") > 0 && 
+            data["@timestamp"].endsWith("Z")) 
+              data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    
+        try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
+
+        tprint("{{_time}} | {{#if level}}{{level}} |{{/if}} {{{message}}}", data)
+      } catch(e) { 
+        sprintErr(e) 
+      }
+    }
+
+    io.pipeLn(_proc)
