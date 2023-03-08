@@ -69,7 +69,7 @@ jobs:
       if (_info.isFile) {
         zip.streamPutFileStream(tmp, _info.filename, io.readFileStream(_info.filepath))
       } else {
-        $from(io.listFiles(args.path).files)
+        $from(listFilesRecursive(args.path))
         .equals("isFile", true)
         .select(r => {
           zip.streamPutFileStream(tmp, r.filename, io.readFileStream(r.filepath))
@@ -91,7 +91,7 @@ jobs:
       args.lst = [ { name: (isDef(args.zip) ? args.zip : args.path), full: args.path } ]
     } else {
       // It's a folder
-      var _lst = io.listFiles(args.path).files
+      var _lst = listFilesRecursive(args.path)
 
       if ($from(_lst).equals("isFile", true).sum("size") > (1024*1024))
         logWarn("Set of files is bigger than 1MB")
