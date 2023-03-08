@@ -119,11 +119,17 @@ jobs:
 # ---------------------------
 - name: Output configmap yaml
   exec: |
-    yprint(merge({
+    var out = merge({
       apiVersion: "v1",
       kind      : "ConfigMap",
       metadata: {
         name: args.name,
         namespace: args.namespace
       }
-    }, args.config))
+    }, args.config)
+
+    if (isUnDef(args.__format)) {
+      yprint(out)
+    } else {
+      ow.oJob.output(out, args)
+    }
