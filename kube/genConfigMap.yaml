@@ -72,7 +72,7 @@ jobs:
         $from(listFilesRecursive(args.path))
         .equals("isFile", true)
         .select(r => {
-          zip.streamPutFileStream(tmp, r.filename, io.readFileStream(r.filepath))
+          zip.streamPutFileStream(tmp, r.filename.replace(args.path, ""), io.readFileStream(r.filepath.replace(args.path, "")))
         })
       }   
 
@@ -96,7 +96,7 @@ jobs:
       if ($from(_lst).equals("isFile", true).sum("size") > (1024*1024))
         logWarn("Set of files is bigger than 1MB")
 
-      args.lst = _lst.map(r => ({ name: r.filename, full: r.filepath }))
+      args.lst = _lst.map(r => ({ name: r.filepath.replace(args.path, ""), full: r.filepath.replace(args.path, "") }))
     }
 
 # --------------------------
