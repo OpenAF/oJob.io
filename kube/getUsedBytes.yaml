@@ -1,0 +1,72 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieve the ephemeral storage usage, in each node, using kubectl
+  expects: 
+  - name     : node
+    desc     : If specified will restrict to a specific node
+    example  : a-node-address-or-ip
+    mandatory: false
+
+todo:
+- Check for kubectl
+- Retrieve ephemeral storage usage
+
+ojob:
+  opacks      :
+  - openaf     : 20221216
+  - oJob-common: 20230220
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  channels    :
+    create:
+    - name: data
+
+include:
+- ojob.yaml
+
+jobs:
+# ------------------------
+- name : Check for kubectl
+  exec : |
+    var res = $sh("kubectl version").get(0)
+    if (res.exitcode != 0) throw "Couldn't successfully use kubectl."
+
+# ---------------------------------------
+- name : Retrieve ephemeral storage usage
+  deps : Check for kubectl
+  from : ojob if
+  check:
+    in:
+      node: isString.default(__)
+  args :
+    __condition: "isDef(args.node)"
+    __then     : Get node ephemeral storage
+    __else     : Get nodes ephemeral storage
+  exec : |
+    loadLodash()
+    var res = _.flatten( $ch("data").getAll() )
+    if (isUnDef(args.__format)) args.__format = "table"
+    if (isArray(res)) ow.oJob.output( $from(res).sort("node", "usedBytes").select() , args)
+
+# ---------------------------------
+- name : Get node ephemeral storage
+  check:
+    in:
+      node: isString
+  exec : |
+    var res = $sh('kubectl get --raw "/api/v1/nodes/' + args.node + '/proxy/stats/summary"').getJson(0)
+    if (res.exitcode != 0) throw res.stderr
+    res = res.stdout
+    $ch("data").set({ node: args.node }, $from(res.pods.map(r => merge({ node: args.node, name: r.podRef.name }, isDef(r["ephemeral-storage"]) ? r["ephemeral-storage"] : { time: "", availableBytes: "", capacityBytes: "", usedBytes: "", inodesFree: "", inodes: "", inodesUsed: "" } )) ).sort("usedBytes").select())
+
+# ----------------------------------
+- name : Get nodes ephemeral storage
+  each : Get node ephemeral storage
+  exec : |
+    var nodes = $sh('kubectl get nodes -o json').getJson(0).stdout
+
+    if (isDef(nodes) && isArray(nodes.items)) {
+      nodes.items.forEach(item => {
+        each( { node: item.metadata.name })
+      })
+    }
