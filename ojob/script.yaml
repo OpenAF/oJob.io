@@ -1,0 +1,61 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates an unix script that runs the embeeded ojob definition
+  expects: 
+  - name     : job
+    desc     : The job to run
+    example  : "ojob.io/envs"
+    mandatory: true
+  - name     : oafpath
+    desc     : Force the oaf oaf path
+    example  : "/usr/bin"
+    mandatory: false
+
+todo:
+- Generate script
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+init: 
+  unix: |
+    #!/bin/sh
+
+    OAF_PATH={{oafpath}}
+    if [ -z $TMPDIR]; then
+      TMPDIR=/tmp;
+    fi
+
+    TMPFILE=`mktemp $TMPDIR/script.XXXXXXXXXXXXXXXXXXXXXXXX.{{extension}}`
+    tail -n+{{numlines}} $0 > $TMPFILE
+
+    cd {{path}}
+    $OAF_PATH/ojob $TMPFILE $*
+    exit 0
+
+    {{{data}}}
+
+jobs:
+# ----------------------
+- name : Generate script
+  check:
+    in:
+      job    : isString.default(__)
+      oafpath: isString.default(getOpenAFPath())
+  exec : |
+    if (!io.fileExists(args.job)) {
+      throw "Provided job requires a file (use 'ojob.io/get airgap=true' to retrieve)"
+    }
+
+    var data = {
+      extension: args.job.substring(args.job.lastIndexOf(".") + 1),
+      numlines : args.init.unix.split("\n").length -1,
+      oafpath  : args.oafpath,
+      data     : io.readFileString(args.job),
+      path     : io.fileInfo(args.job).canonicalPath.substring(0, io.fileInfo(args.job).canonicalPath.lastIndexOf("/"))
+    }
+
+    tprint(args.init.unix, data)
