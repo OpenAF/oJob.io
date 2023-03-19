@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Reads a ndjson logs file and converts it to readable human logs (version 20230315a)
+  text   : Reads a ndjson logs file and converts it to readable human logs (version 20221212a)
   expects:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
@@ -55,7 +55,7 @@ ojob:
 jobs:
 # -----------
 - name : Init
-  exec : |
+  exec : | 
     ow.loadTemplate()
     ow.template.addFormatHelpers()
     ow.template.addOpenAFHelpers()
@@ -127,22 +127,20 @@ jobs:
         if (line.length != 0 && !line.trim().endsWith("}")) { buf += line.trim(); metrics.multiLine++; return }
         if (buf.length > 0) { line = buf + line; buf = __ }
       }
-      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") {
-        if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type) && !args.injson) global._p(line, os)
+      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { 
+        if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type) && !args.injson) global._p(line, os) 
         buf = __
         metrics.nonJson++
-        return
+        return 
       }
 
       var data, go = true
-      try {
+      try { 
         data = jsonParse(line)
         // Test for "inception"
-        if (args.inception) {
-           while(isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) { data = jsonParse(data.message) }
-        }
-      } catch(e) {
-        sprintErr(e)
+        if (args.inception && isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) data = jsonParse(data.message)
+      } catch(e) { 
+        sprintErr(e) 
       }
       if (!isMap(data)) { if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type) && !args.injson) global._p(data, os); return }
       if (isString(args.filter)) {
@@ -172,7 +170,7 @@ jobs:
         }
       }
 
-      if (isDef(args.type) && data.logger_name != args.type) go = false
+      if (isDef(args.type) && data.logger_name != args.type) go = false 
       if (isUnDef(args.type) && data.logger_name == "AuditLogger") { metrics.auditLines++; go = false }
 
       if (go) {
@@ -181,9 +179,9 @@ jobs:
         case "AuditLogger":
           try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
           data.thread_name = data.thread_name.substr(-20)
-          if (args.injson)
+          if (args.injson) 
             ow.oJob.output(data, args)
-          else
+          else 
             global._p(tmplAudit(data), os)
           metrics.auditLines++
           metrics.convertedLines++
@@ -193,18 +191,18 @@ jobs:
             if (isUnDef(data.code) || isUnDef(data.thread_name)) {
               try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
               if (isDef(data["thread_name"])) data.message = "[" + data["thread_name"] + "] " + data.message
-              if (args.injson)
+              if (args.injson) 
                 ow.oJob.output(data, args)
-              else
+              else 
                 global._p(tmplDefault(data), os)
               metrics.defaultLines++
               metrics.convertedLines++
             } else {
               try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
               data.thread_name = data.thread_name.substr(-20)
-              if (args.injson)
+              if (args.injson) 
                 ow.oJob.output(data, args)
-              else
+              else 
                 global._p(tmplRegular(data), os)
               metrics.regularLines++
               metrics.convertedLines++
@@ -225,7 +223,7 @@ jobs:
       $set("metrics_" + args.file, metrics)
     } else {
       io.pipeLn(parseLine)
-    }
+    } 
 
 # -------------------
 - name : Main process
@@ -285,3 +283,5 @@ jobs:
     } else {
       $job("Parse ndjson", args)
     }
+
+
