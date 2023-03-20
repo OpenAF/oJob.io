@@ -1,0 +1,102 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses a map json or yaml input into different outputs optionally filtering and sorting.
+  expects: 
+  - name     : format
+    desc     : Specifies the format of the input (json (default), yaml)
+    example  : "yaml"
+    mandatory: false
+  - name     : sortkeys
+    desc     : Boolean to indicate that map keys should be sorted
+    example  : "true"
+    mandatory: false
+  - name     : path
+    desc     : Applies a JMESPath ($path) query to the output
+    example  : "@"
+    mandatory: false
+  - name     : showkeys
+    desc     : Boolean to indicate that a list of detected keys should display
+    example  : "true"
+    mandatory: false
+ 
+todo:
+- Map convert
+
+ojob:
+  opacks      :
+  - openaf: 20221216
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------
+- name : Map convert
+  check:
+    in:
+      format  : isString.oneOf(["yaml", "json"]).default("json")
+      sortkeys: toBoolean.isBoolean.default(false)
+      path    : isString.default(__)
+      showkeys: toBoolean.isBoolean.default(false)
+  exec : |
+    var _buf = "", _keys = {}, _clean = false, _show = true
+
+    var _showFn = m => {
+      if (args.showkeys) {
+        traverse(m, (aK, aV, aP, aO) => {
+          if (isMap(aV) || isArray(aV)) return
+          var __t = $$(_keys).get(aP + "." + aK)
+          if (isUnDef(__t))
+            $$(_keys).set(aP + "." + aK, 1)
+          else
+            $$(_keys).set(aP + "." + aK, __t + 1)
+        })
+        m = _keys
+      }
+      if (isDef(args.path)) {
+        var _r = $path(m, args.path)
+        if (isNull(_r) && isMap(m)) _r = $path(m, "[@]|" + args.path + "|[0]")
+        if (isNull(_r)) return; else m = _r
+      }
+      if (args.sortkeys) {
+        if (isArray(m)) {
+          m = sortMapKeys({ _m: m })._m
+        } else {
+          m = sortMapKeys(m)
+        }
+      }
+      if (_show) {
+        ow.oJob.output(m, args)
+      }
+    }
+
+    var _fn = line => {
+      _buf += line + "\n"
+      var _data
+      if (args.format.toLowerCase() == "json") {
+        _data = jsonParse(_buf, true)
+        _clean = true
+      }
+      if (isMap(_data) && _clean) {
+        _buf = ""
+        _clean = false
+        _showFn(_data)
+      }
+    }
+
+    if (args.showkeys) _show = false
+
+    addOnOpenAFShutdown(() => {
+      switch(args.format.toLowerCase()) {
+      case "yaml":
+        var _data = af.fromYAML(_buf)
+        _showFn(_data)
+        break
+      }
+
+      if (args.showkeys) {
+        _show = true
+        _showFn(_keys)
+      }
+    })
+    io.pipeLn(_fn)
