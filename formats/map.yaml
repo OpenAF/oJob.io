@@ -77,7 +77,7 @@ jobs:
         _data = jsonParse(_buf, true)
         _clean = true
       }
-      if (isMap(_data) && _clean) {
+      if ((isMap(_data) || isArray(_data)) && _clean) {
         _buf = ""
         _clean = false
         _showFn(_data)
