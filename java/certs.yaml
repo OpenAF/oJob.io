@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Tests if the SSL/TLS certificate in a host:port is trusted or not for an optional provided keystore. If not, it will retrieve the corresponding certificate and add it to a Java keystore.
+  text   : Tests if the SSL/TLS certificate in a host:port is trusted or not for an optional provided keystore. If not, it will retrieve the corresponding certificate and add it to a Java keystore. Optionally you can provide the file certificate to add.
   expects: 
   - name     : op
     desc     : The operation to perform (e.g. list, test, add)
@@ -17,6 +17,10 @@ help:
   - name     : port
     desc     : When op=test or op=add the port to test connectivity to
     example  : 443
+    mandatory: false
+  - name     : file
+    desc     : If provided will use the certificate on the provided file
+    example  : "somecert.cer"
     mandatory: false
   - name     : timeout
     desc     : When op=test or op=add the timeout (in ms) connecting to host and port to test and retrieve the certificate (defaults to 10000ms)
@@ -213,9 +217,13 @@ jobs:
 - name : Verify cert chain
   exec : | 
     // Verify chain
-    args.chain = args.tm.chain
+    if (isDef(args.host) && isDef(args.port)) {
+      args.chain = args.tm.chain
+    } else if (isDef(args.file)) {
+      args.chain = args.fchain
+    }
     if (args.chain == null) {
-      logErr("Could not obtain server certificate chain")
+      logErr("Could not obtain certificate chain")
       return
     }
     log("Server sent " + args.chain.length + " certificate(s):")
@@ -243,33 +251,43 @@ jobs:
   - Verify cert chain
   check:
     in:
-      host       : isString
-      port       : toNumber.isNumber
+      host       : isString.default(__)
+      port       : toNumber.isNumber.default(__)
+      file       : isString.default(__)
       timeout    : isNumber.default(10000)
   exec : |
-    // Testing
-    tlog("Opening connection to {{host}}:{{port}}...", args)
+    if (isDef(args.host) && isDef(args.port)) {
+      // Testing
+      tlog("Opening connection to {{host}}:{{port}}...", args)
 
-    var _continue = true
-    var socket = args.factory.createSocket(args.host, args.port)
-    socket.setSoTimeout(args.timeout)
+      var _continue = true
+      var socket = args.factory.createSocket(args.host, args.port)
+      socket.setSoTimeout(args.timeout)
 
-    try {
-      tlog("Starting SSL handshake to {{host}}:{{port}}...", args)
-      socket.startHandshake()
-      socket.close()
-      tlog("Certificate from {{host}}:{{port}} is already trusted.", args)
-      args.needAdding = false
-      _continue = false
-    } catch(e) {
-      if (String(e.javaException).indexOf("ValidatorException") > 0) {
-        tlogErr("Certificate from {{host}}:{{port}} seems to be NOT TRUSTED yet!", args)
-        args.needAdding = true
-      } else
-        throw e
+      try {
+        tlog("Starting SSL handshake to {{host}}:{{port}}...", args)
+        socket.startHandshake()
+        socket.close()
+        tlog("Certificate from {{host}}:{{port}} is already trusted.", args)
+        args.needAdding = false
+        _continue = false
+      } catch(e) {
+        if (String(e.javaException).indexOf("ValidatorException") > 0) {
+          tlogErr("Certificate from {{host}}:{{port}} seems to be NOT TRUSTED yet!", args)
+          args.needAdding = true
+        } else
+          throw e
+      }
+
+      if (!_continue && ow.oJob.getState() != "test") return
+    } else if (isDef(args.file)) {
+      var cf = java.security.cert.CertificateFactory.getInstance("X509")
+      var is = io.readFileStream(args.file)
+
+      args.fchain = [ cf.generateCertificate(is) ]
+      is.close()
     }
 
-    if (!_continue && ow.oJob.getState() != "test") return
 
 # -------------------------
 - name : Adding certificate
@@ -283,7 +301,11 @@ jobs:
       if (isDef(args.addn) && Number(icert) != args.addn) continue
 
       var cert = args.chain[icert]
-      var _alias = _$(args.alias, "alias").isString().default(args.host + "-" + args.port) + "-" + Number(Number(icert) + 1)
+      var _alias
+      if (isDef(args.host) && isDef(args.port))
+        _alias = _$(args.alias, "alias").isString().default(args.host + "-" + args.port) + "-" + Number(Number(icert) + 1)
+      else
+        _alias = _$(args.alias, "alias").isString().default(args.file + "-" + Number(Number(icert) + 1))
 
       if (args.keystore == ow.format.getJavaHome() + "/lib/security/cacerts") {
         args.keystore = ow.format.getJavaHome() + "/lib/security/jssecacerts"
