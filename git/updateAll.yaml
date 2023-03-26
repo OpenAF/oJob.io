@@ -1,44 +1,62 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Tries to git pull all the repositories under the current (or provided) path. 
+  expects: 
+  - name     : path
+    desc     : The path to look for repositories (defaults to ".")
+    example  : "."
+    mandatory: false
+  - name     : user
+    desc     : The git user to use if necessary
+    example  :
+    mandatory: false
+  - name     : pass
+    desc     : The git password/key to use if necessary
+    example  :
+    mandatory: false
 
 todo:
 - Identify repositories
-- Pull repository 
+- Pull repositories
 
 ojob:
-  sequential  : true
   opacks      :
-  - openaf: 20200523
-  catch       : logErr(exception);
+  - openaf: 20220325
+  catch       : &CATCH printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Tries to git pull all the repositories under the current (or provided) path. 
-    expects: 
-    - name: path
-      desc: The path to look for repositories (defaults to ".")
-    - name: user
-      desc: The git user to use if necessary
-    - name: pass
-      desc: The git password/key to use if necessary
+# ----------------------------
+- name : Identify repositories
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    global.path = args.path
 
-# ---------------------------
-- name: Identify repositories
-  exec: |
-    args.path = _$(args.path, "path").default(".");
-    global.path = args.path;
+# ----------------------
+- name : Pull repository
+  exec : |
+    plugin("GIT")
+    tlog("Pulling {{canonicalPath}}...", args)
+    try {
+      var git = new GIT(args.canonicalPath, args.user, args.pass)
+      git.pull()
+    } catch(e) {
+      printErr(args.filename + " | " + e)
+    }    
 
-# ---------------------
-- name: Pull repository
-  args: |
+# ------------------------
+- name : Pull repositories
+  each : Pull repository
+  exec : |
     $from( io.listFiles(global.path).files )
     .equals("isFile", false)
     .where(f => io.fileExists(f.canonicalPath + "/.git"))
-    .select()
-  exec: |
-    plugin("GIT");
-    log("Pulling " + args.canonicalPath + "...");
-    var git = new GIT(args.canonicalPath, args.user, args.pass);
-    git.pull();    
+    .select(r => {
+      try {
+        each(merge(r, args))
+      } catch(e) {
+        sprintErr(e)
+      }
+    })
