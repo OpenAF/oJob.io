@@ -12,7 +12,6 @@ help:
     example  : 2
 
 init:
-  help: *HELP
   dc  : |
     version : '3'
 
