@@ -7,9 +7,6 @@ help:
     example  : FG
     mandatory: false
 
-init:
-  help: *HELP
-
 todo:
 - Color Map
 

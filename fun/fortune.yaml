@@ -23,12 +23,10 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Provides the online unix fortune result detecting the fatest server for it.
+help: 
+  text   : Provides the online unix fortune result detecting the fatest server for it.
 
+jobs:
 - name: Find nearest server
   exec: |
     ow.loadFormat();

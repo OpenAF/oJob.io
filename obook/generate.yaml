@@ -1,9 +1,8 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Generates a sample oBook
 
 init:
-  help: *HELP
   md  : |
     # This is an oBook test
 
@@ -65,11 +64,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ----------------------------
 - name : Generate sample oBook
   exec : |
