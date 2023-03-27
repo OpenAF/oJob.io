@@ -1,11 +1,10 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Install docker in Amazon Linux 2
-    #expects:
-    #- name   : something
-    #  desc   : To do stuff
-    #  example: aValueExample
+help: 
+  text   : Install docker in Amazon Linux 2
+  #expects:
+  #- name   : something
+  #  desc   : To do stuff
+  #  example: aValueExample
 
 todo:
 - Check Amazon Linux 2

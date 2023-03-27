@@ -1,4 +1,14 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Generates a oneliner from yaml and js files on a path provided.
+  expects: 
+  - name   : path
+    desc   : The path from where the .yaml, js, .yml should be read and converted into an oneliner
+    example: .
+  - name   : outpath
+    desc   : The output folder that should be created when the generated oneliner runs (defaults to 'out')
+    example: out
+
 init:
   job: 
     init:
@@ -32,18 +42,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Generates a oneliner from yaml and js files on a path provided.
-    expects: 
-    - name   : path
-      desc   : The path from where the .yaml, js, .yml should be read and converted into an oneliner
-      example: .
-    - name   : outpath
-      desc   : The output folder that should be created when the generated oneliner runs (defaults to 'out')
-      example: out
-
 # -----------------------
 - name: Generate oneliner
   exec: |

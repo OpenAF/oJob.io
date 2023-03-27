@@ -20,22 +20,19 @@ ojob:
 todo:
 - Docsify live server
 
+help:
+  text: Provides a docsify live server that will refresh content upon file save.
+  expects:
+  - name: port
+    desc: Define the port where the server will run (defaults to 8090)
+  - name: path
+    desc: Define the path from which markdown files will be served and where to keep and eye for live changes (defaults to .)
+  - name: langs
+    desc: Defines a list of comma separated syntax-highlight languages (defaults to yaml,markdown,docker,json,sql,python,css,javascript,bash,java)
+  - name: noside
+    desc: If "true" the navigation bar on the sidebar won't be displayed by default.
+
 jobs:
-# ----------
-- name: Help
-  help:
-    text: Provides a docsify live server that will refresh content upon file save.
-    expects:
-    - name: port
-      desc: Define the port where the server will run (defaults to 8090)
-    - name: path
-      desc: Define the path from which markdown files will be served and where to keep and eye for live changes (defaults to .)
-    - name: langs
-      desc: Defines a list of comma separated syntax-highlight languages (defaults to yaml,markdown,docker,json,sql,python,css,javascript,bash,java)
-    - name: noside
-      desc: If "true" the navigation bar on the sidebar won't be displayed by default.
-
-
 # -------------------------
 - name: Docsify live server
   exec: |

@@ -1,4 +1,21 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Uses PasteBin to copy+paste content between two places via internet. 
+  expects:
+  - name: op
+    desc: "(default: list) Select the option to perform (list, copy, delete, paste, reset (credentials))"
+  - name: file
+    desc: The file to copy from or paste into
+  - name: key
+    desc: The pastebin key to use
+  - name: expire
+    desc: The expire period on copy
+  - name: userKey
+    desc: The API user key
+  - name: user
+    desc: The PasteBin user
+  - name: pass
+    desc: The PasteBin password
 
 todo:
 - Pastebin
@@ -6,7 +23,7 @@ todo:
 ojob:
   sequential  : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20221216
   - PasteBin
   loadLibs    :
   - pastebin.js
@@ -17,26 +34,6 @@ include:
 - ojob.io/_common
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Uses PasteBin to copy+paste content between two places via internet. 
-    expects:
-    - name: op
-      desc: "(default: list) Select the option to perform (list, copy, delete, paste, reset (credentials))"
-    - name: file
-      desc: The file to copy from or paste into
-    - name: key
-      desc: The pastebin key to use
-    - name: expire
-      desc: The expire period on copy
-    - name: userKey
-      desc: The API user key
-    - name: user
-      desc: The PasteBin user
-    - name: pass
-      desc: The PasteBin password
-
 # -----------------
 - name: Load config
   from: oJobIO configuration

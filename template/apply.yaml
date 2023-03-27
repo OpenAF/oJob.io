@@ -1,4 +1,17 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Generates new content based on a template (HandleBars (https://handlebarsjs.com)) and a data file. Conditional helpers from https://assemble.io/helpers/helpers-comparison.html, "debug", "stringify", "stringifyInLine", "toYAML", "env", "escape" and "owFormat_" are also available.
+  expects: 
+  - name   : data
+    desc   : The data file to apply (use the key "_file" to specify an output file and/or "_template" for a template file to use for each data entry)
+    example: data.yaml
+  - name   : template
+    desc   : The default HandleBars template to use (ignored if "_template" is provided)
+    example: something.hbs
+  - name   : file
+    desc   : If specified will save the generated output to the corresponding file (ignored if the key "_file" is found on data in an array)
+    example: outputFile
+
 todo:
 - name: Check input
 - name: Apply data
@@ -6,27 +19,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210412
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
   depsTimeout : 1000
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Generates new content based on a template (HandleBars (https://handlebarsjs.com)) and a data file. Conditional helpers from https://assemble.io/helpers/helpers-comparison.html, "debug", "stringify", "stringifyInLine", "toYAML", "env", "escape" and "owFormat_" are also available.
-    expects: 
-    - name   : data
-      desc   : The data file to apply (use the key "_file" to specify an output file and/or "_template" for a template file to use for each data entry)
-      example: data.yaml
-    - name   : template
-      desc   : The default HandleBars template to use (ignored if "_template" is provided)
-      example: something.hbs
-    - name   : file
-      desc   : If specified will save the generated output to the corresponding file (ignored if the key "_file" is found on data in an array)
-      example: outputFile
-
 # ----------------
 - name: Apply data
   deps: Check input

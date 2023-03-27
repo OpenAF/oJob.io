@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Imports to the provided H2 database from a backup script
   expects: 
   - name     : url
@@ -19,9 +19,6 @@ help: &HELP
     example  : backup.sql
     mandatory: true
 
-init:
-  help: *HELP
-
 todo:
 - Import H2 DB
 
@@ -33,11 +30,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ------------------
 - name: Import H2 DB
   exec: |

@@ -1,31 +1,25 @@
 # Author: Get temperature
-init:
-  help: &HELP
-    text   : Get PI's current CPU temperature
-    expects: 
-    - name   : samples
-      desc   : Number of samples to retrieve (defaults to 1)
-      example: 5
-    - name   : wait
-      desc   : Time to wait between samples in ms (defaults to 1000ms)
-      example: 1000
+help: 
+  text   : Get PI's current CPU temperature
+  expects: 
+  - name   : samples
+    desc   : Number of samples to retrieve (defaults to 1)
+    example: 5
+  - name   : wait
+    desc   : Time to wait between samples in ms (defaults to 1000ms)
+    example: 1000
 
 todo:
 - Get temperature
 
 ojob:
   opacks      :
-  - openaf: 20210721
+  - openaf: 20221216
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
   logToConsole: true   # to change when finished
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ---------------------
 - name: Get temperature
   exec: |

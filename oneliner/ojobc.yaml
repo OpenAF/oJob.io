@@ -1,4 +1,9 @@
 # Author: Nuno Aguiar
+help: 
+  text   : |
+    Generates, and copies to your clipboard, one-liner openaf code to create a directory oJob-common with a copy
+    of just of the oJob-common yaml files ready to be installed as an opack (e.g. "opack install oJob-common").
+
 init:
   job: 
     init:
@@ -33,13 +38,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : |
-      Generates, and copies to your clipboard, one-liner openaf code to create a directory oJob-common with a copy
-      of just of the oJob-common yaml files ready to be installed as an opack (e.g. "opack install oJob-common").
-
 # -----------------------------------------------
 - name: One liner to generate a ojob-common opack
   exec: |

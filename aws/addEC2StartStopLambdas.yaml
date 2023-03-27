@@ -1,28 +1,28 @@
 # Author: Nuno Aguiar
+help: 
+  text   : |
+    Tries to add a lambda to start or stop a list of provided ec2 instances. Do reuse or create a role with AWSLambdaBasicExecutionRole and the following policy:
+
+      {
+          "Version": "2012-10-17",
+          "Statement": [
+              { "Effect": "Allow", "Action": [ "ec2:DescribeInstances", "ec2:Start*", "ec2:Stop*" ], "Resource": "*" },
+              { "Effect": "Allow", "Action": [ "logs:CreateLogStream", "logs:CreateLogGroup", "logs:PutLogEvents" ], "Resource": "arn:aws:logs:*:*:*" }
+          ]
+      }
+  expects: 
+  - name   : secKey
+    desc   : The sBucket security bucket key with the AWS credentials (if not provided it will try the default access)
+  - name   : region
+    desc   : The AWS region where the lambda will be added
+    example: eu-west-1
+  - name   : role
+    desc   : The AWS ARN role to use to execute this lambda (you need to provide an ARN role that has AWS Lambda and EC2 List/Start/Stop permissions)
+  - name   : name
+    desc   : The lambda function name (defaults to 'StartStopEC2Instances')
+    example: StartStopEC2Instances
+
 init:
-  help: &HELP
-    text   : |
-      Tries to add a lambda to start or stop a list of provided ec2 instances. Do reuse or create a role with AWSLambdaBasicExecutionRole and the following policy:
-
-        {
-            "Version": "2012-10-17",
-            "Statement": [
-                { "Effect": "Allow", "Action": [ "ec2:DescribeInstances", "ec2:Start*", "ec2:Stop*" ], "Resource": "*" },
-                { "Effect": "Allow", "Action": [ "logs:CreateLogStream", "logs:CreateLogGroup", "logs:PutLogEvents" ], "Resource": "arn:aws:logs:*:*:*" }
-            ]
-        }
-    expects: 
-    - name   : secKey
-      desc   : The sBucket security bucket key with the AWS credentials (if not provided it will try the default access)
-    - name   : region
-      desc   : The AWS region where the lambda will be added
-      example: eu-west-1
-    - name   : role
-      desc   : The AWS ARN role to use to execute this lambda (you need to provide an ARN role that has AWS Lambda and EC2 List/Start/Stop permissions)
-    - name   : name
-      desc   : The lambda function name (defaults to 'StartStopEC2Instances')
-      example: StartStopEC2Instances
-
   pyCode: |
     import json
     import re
@@ -87,11 +87,6 @@ include:
 - oJobBasics.yaml
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # -----------------------
 - name: Connecting to AWS
   from: oJob Sec Get

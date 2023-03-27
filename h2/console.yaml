@@ -9,15 +9,13 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Invokes the H2 web browser console. 
-    expects:
-    - name: jars
-      desc: "Path to JDBC jars (e.g. '.')"
+help: 
+  text   : Invokes the H2 web browser console. 
+  expects:
+  - name: jars
+    desc: "Path to JDBC jars (e.g. '.')"
 
+jobs:
 # ------------------
 - name: Show console
   exec: |

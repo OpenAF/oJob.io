@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Generates a config map with a file or the top-level files on a folder
   expects:
   - name     : name
@@ -19,9 +19,6 @@ help: &HELP
     example  : default
     mandatory: false
 
-init:
-  help: *HELP
-
 todo:
 - Generate config map
 
@@ -33,11 +30,6 @@ ojob:
 
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # -------------------------
 - name: Generate config map
   from:

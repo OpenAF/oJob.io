@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Test the provided cron expression a provides a list of dates of occurrence.
   expects: 
   - name   : cron
@@ -26,11 +26,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # -------------------
 - name: Evaluate cron
   exec: |

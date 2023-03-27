@@ -1,5 +1,5 @@
 # Author: Anonymous
-help: &HELP
+help: 
   text   : Given an excel sheet will try to convert it into an array of maps
   expects: 
   - name     : file
@@ -23,9 +23,6 @@ help: &HELP
     example  : "1"
     mandatory: false    
 
-init:
-  help: *HELP
-
 todo:
 - From XLS
 
@@ -38,10 +35,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # --------------
 - name: From XLS
   exec: |

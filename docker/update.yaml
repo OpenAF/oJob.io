@@ -15,15 +15,13 @@ ojob:
   catch       : logErr(exception);
   logToConsole: true
 
-jobs:
-# ----------
-- name: Help
-  help:
-    text   : Updates existing docker images given a prefix.
-    expects: 
-    - name: prefix
-      desc: Docker image prefix (e.g. 'openaf/')
+help:
+  text   : Updates existing docker images given a prefix.
+  expects: 
+  - name: prefix
+    desc: Docker image prefix (e.g. 'openaf/')
 
+jobs:
 # ---------------------
 - name: Get images list
   to  :

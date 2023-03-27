@@ -6,18 +6,18 @@ init:
   uri : &URI  "/"
   pid : &PID  easyHTTPd.pid
 
-  help: &HELP
-    text   : Create a quick tiny web server using Docsify
-    expects: 
-    - name   : port
-      desc   : The port where it should run (defaults to 8090)
-    - name   : uri
-      desc   : The uri where to put requests (defaults to /)
-    - name   : path
-      desc   : Where to read the files (defaults to .)
-    - name   : langs
-      desc   : Docsify supported languages divided with commas
-      example: yaml,markdown,docker,json,sql,python,css,javascript,bash,java
+help: 
+  text   : Create a quick tiny web server using Docsify
+  expects: 
+  - name   : port
+    desc   : The port where it should run (defaults to 8090)
+  - name   : uri
+    desc   : The uri where to put requests (defaults to /)
+  - name   : path
+    desc   : Where to read the files (defaults to .)
+  - name   : langs
+    desc   : Docsify supported languages divided with commas
+    example: yaml,markdown,docker,json,sql,python,css,javascript,bash,java
 
 
 ojob:
@@ -36,10 +36,6 @@ include:
   - oJobHTTPd.yaml
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ----------
 - name: Init
   exec: |

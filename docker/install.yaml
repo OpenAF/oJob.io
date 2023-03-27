@@ -11,12 +11,10 @@ ojob:
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Tries to install docker on an unix system
+help: 
+  text   : Tries to install docker on an unix system
 
+jobs:
 # --------------------
 - name: Install docker 
   exec: |

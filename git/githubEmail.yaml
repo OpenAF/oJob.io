@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Sets the current GitHub noreply email for email address privacy. 
   expects: 
   - name     : user
@@ -18,9 +18,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
 
 # ------------------------------
 - name: Set GitHub noreply email

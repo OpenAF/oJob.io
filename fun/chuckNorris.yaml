@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text: Gets a random Chuck Norris joke.  
 
 todo:
@@ -14,9 +14,6 @@ ojob:
   logToConsole: false
 
 jobs:
-- name: Help
-  help: *HELP 
-
 # ------------------------------
 - name: Tell a Chuck Norris joke
   exec: |

@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Generates a quick docker-compose with etcd
   expects: 
   - name     : cluster

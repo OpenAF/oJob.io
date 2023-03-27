@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Get a HTTPS host SSL certificate dates
   expects: 
   - name     : host
@@ -10,9 +10,6 @@ help: &HELP
     desc     : The HTTPS host port (default 443) 
     example  : "443"
     mandatory: true
-
-init:
-  help: *HELP
 
 todo:
 - Get SSL certificates
@@ -25,11 +22,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # --------------------------
 - name: Get SSL certificates 
   exec: |

@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Imports the contents of previously exported ndjson files into a OpenAF MVS file
   expects: 
   - name     : mvs
@@ -15,9 +15,6 @@ help: &HELP
     example  : default
     mandatory: false
 
-init:
-  help: *HELP
-
 todo:
 - Importing data
 
@@ -29,11 +26,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # --------------------
 - name: Importing data
   exec: |

@@ -32,21 +32,20 @@ todo:
   - name: Prepare healthz
   - name: Prepare default
 
+help:
+  text: |
+    Deploys a simple service with three endpoints: /now, /ping and /healthz. 
+    '/now' will return the current time from the service perspective. 
+    '/ping' will return whatever is provided as data on the request.
+    '/healthz' will return the current healthz of the service.
+  expects:
+  - name: port
+    desc: The port on which the service will run (defaults to 8080)
+
 ###########################################################
 # The code
 
 jobs:
-  - name: Help
-    help:
-      text: |
-        Deploys a simple service with three endpoints: /now, /ping and /healthz. 
-        '/now' will return the current time from the service perspective. 
-        '/ping' will return whatever is provided as data on the request.
-        '/healthz' will return the current healthz of the service.
-      expects:
-      - name: port
-        desc: The port on which the service will run (defaults to 8080)
-
   # ---------------------
   - name: Prepare healthz
     to  : REST Healthz

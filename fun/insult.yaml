@@ -10,12 +10,10 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Provides a random insult
+help: 
+  text   : Provides a random insult
 
+jobs:
 # ----------------
 - name: Get insult
   exec: |

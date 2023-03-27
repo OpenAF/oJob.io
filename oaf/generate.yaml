@@ -49,7 +49,7 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-help: &HELP
+help:
   text   : Generates a javascript library file.
   expects: 
   - name: name
@@ -60,10 +60,6 @@ help: &HELP
     desc: A comma delimited list of functions (defaults to "example")
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------------
 - name: Generate JS
   exec: |

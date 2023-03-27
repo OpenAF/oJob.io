@@ -1,4 +1,9 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Check the syntax of a YAML file by trying to read it.
+  expects: 
+  - name: file
+    desc: The YAML file to check
 
 todo:
 - Check YAML 
@@ -11,14 +16,6 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Check the syntax of a YAML file by trying to read it.
-    expects: 
-    - name: file
-      desc: The YAML file to check
-
 # ----------------
 - name: Check YAML 
   exec: |

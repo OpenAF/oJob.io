@@ -1,14 +1,13 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Converts input __pm into a yaml stdout or file
-    expects: 
-    - name   : file
-      desc   : YAML file to store the output
-      example: output.yaml
-    - name   : delete
-      desc   : If delete=false the __pm output won't be deleted (defaults to true)
-      example: "true"
+help: 
+  text   : Converts input __pm into a yaml stdout or file
+  expects: 
+  - name   : file
+    desc   : YAML file to store the output
+    example: output.yaml
+  - name   : delete
+    desc   : If delete=false the __pm output won't be deleted (defaults to true)
+    example: "true"
 
 todo:
 - To YAML
@@ -21,10 +20,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -------------
 - name: To YAML
   exec: |

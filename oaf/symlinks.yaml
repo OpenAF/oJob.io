@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Setups scripts to call OpenAF unix commands (e.g. oaf, oafc, ojob, opack, etc...)
   expects: 
   - name     : UNINSTALL
@@ -35,10 +35,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ----------
 - name: Init
   exec: |

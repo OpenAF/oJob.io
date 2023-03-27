@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Tries to build a openaf branch.
   expects: 
   - name: branch
@@ -18,10 +18,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -------------------
 - name: Verifications
   exec: |

@@ -1,15 +1,12 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Compile the corresponding oPacks or all 
   expects: 
   - name     : opacks
     desc     : List of opacks separated by commas
     example  : myPack1,myPack2
     mandatory: false
-
-init:
-  help: *HELP
-
+    
 todo:
 - Compile oPacks
 

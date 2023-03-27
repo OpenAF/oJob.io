@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Converts an existing Asciidoc into other formats
   expects: 
   - name     : file
@@ -10,9 +10,6 @@ help: &HELP
     desc     : The output format (e.g. pdf, epub3)
     example  : pdf
     mandatory: false
-
-init:
-  help: *HELP
 
 todo:
 - Check for docker
@@ -29,11 +26,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # -------------------------------------
 - name : Convert adoc in another format
   check: 

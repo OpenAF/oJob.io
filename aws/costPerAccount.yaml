@@ -14,19 +14,17 @@ ojob:
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves the daily or monthly cost per AWS organization account. 
-    expects: 
-    - name: accesskey
-      desc: The AWS API access key
-    - name: secretkey
-      desc: The AWS API secret key
-    - name: period
-      desc: The period of analysis (e.g. daily or monthly) (defaults to monthly)
-      
+help: 
+  text   : Retrieves the daily or monthly cost per AWS organization account. 
+  expects: 
+  - name: accesskey
+    desc: The AWS API access key
+  - name: secretkey
+    desc: The AWS API secret key
+  - name: period
+    desc: The period of analysis (e.g. daily or monthly) (defaults to monthly)
+
+jobs: 
 # -----------------------
 - name: Get organizations
   exec: |

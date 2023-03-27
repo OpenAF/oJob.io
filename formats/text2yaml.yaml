@@ -9,17 +9,15 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Converts a text file to a YAML entry.
-    expects: 
-    - name: file 
-      desc: A text file
-    - name: yaml
-      desc: A YAML file (defaults to stdout)
+help: 
+  text   : Converts a text file to a YAML entry.
+  expects: 
+  - name: file 
+    desc: A text file
+  - name: yaml
+    desc: A YAML file (defaults to stdout)
 
+jobs:
 # ------------------
 - name: Text to YAML
   exec: |

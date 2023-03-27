@@ -1,4 +1,12 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Generates a markdown documentation for a given job.
+  expects: 
+  - name: job
+    desc: Given a job it generates the corresponding markdown documentation.
+  - name: output
+    desc: If defined it will output to a file provided.
+
 init:
   md: |
     # {{name}}
@@ -37,16 +45,6 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Generates a markdown documentation for a given job.
-    expects: 
-    - name: job
-      desc: Given a job it generates the corresponding markdown documentation.
-    - name: output
-      desc: If defined it will output to a file provided.
-
 # ------------------
 - name: Generate MD
   exec: |

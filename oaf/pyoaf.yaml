@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Generates a pyoaf script to execute python scripts with OpenAF.
   expects: 
   - name: example
@@ -46,10 +46,6 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # --------------------
 - name: Generate pyOAF
   exec: |

@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Generates an OJobRT kubernetes job configuration
   expects: 
   - name     : name
@@ -24,7 +24,6 @@ help: &HELP
     mandatory: false
 
 init:
-  help    : *HELP
   template: |
     apiVersion: batch/v1
     #kind: CronJob
@@ -93,11 +92,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # -------------------------
 - name: Generate job config
   exec: |

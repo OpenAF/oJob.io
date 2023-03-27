@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 
-help: &HELP
+help:
   text   : Runs a provided job in a oJobRT docker container. 
   expects: 
   - name     : job
@@ -20,9 +20,6 @@ help: &HELP
     example  : abc
     mandatory: false
 
-init:
-  help: *HELP
-
 include:
 - ojob.io/docker/_common
 
@@ -38,11 +35,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ----------------
 - name: Run oJobRT
   exec: |

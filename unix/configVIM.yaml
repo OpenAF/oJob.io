@@ -10,6 +10,7 @@ help:
     mandatory: false
 
 todo:
+- Check GIT
 - Install Vundle
 - Configure vimrc
 - Install plugins
@@ -239,3 +240,9 @@ jobs:
     var f = io.readFileString(ow.format.getUserHome() + "/.vimrc")
     f = f.replace("\" colorscheme scheakur", "colorscheme " + args.color)
     io.writeFileString(ow.format.getUserHome() + "/.vimrc", f)
+
+# ---------------
+- name: Check GIT
+  exec: |
+    var res = $sh("git version").get(0)
+    if (res.exitcode != 0) throw "'git' is required"

@@ -1,14 +1,11 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Given a markdown file will convert the first table into an array/list
   expects: 
   - name     : file
     desc     : The markdown file
     example  : myExample.md
     mandatory: true
- 
-init:
-  help: *HELP
 
 todo:
 - Convert markdown file
@@ -21,11 +18,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ---------------------------
 - name: Convert markdown file 
   exec: |

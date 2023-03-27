@@ -1,33 +1,28 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Generates cyprographic keys for other OpenAF uses 
-    expects: 
-    - name   : keysize 
-      desc   : The corresponding keysize to generate (for asymmetric keys is 2048 by default)
-      example: 2048 
-    - name   : pubkey
-      desc   : The file path to store the public key
-      example: public.key
-    - name   : privkey
-      desc   : The file path to store the private key
-      example: private.key
+help: 
+  text   : Generates cyprographic keys for other OpenAF uses 
+  expects: 
+  - name   : keysize 
+    desc   : The corresponding keysize to generate (for asymmetric keys is 2048 by default)
+    example: 2048 
+  - name   : pubkey
+    desc   : The file path to store the public key
+    example: public.key
+  - name   : privkey
+    desc   : The file path to store the private key
+    example: private.key
 
 todo:
 - Generate key pair
 
 ojob:
   opacks      :
-  - openaf: 20210721
+  - openaf: 20221216
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
   logToConsole: true   # to change when finished
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------------------
 - name: Generate key pair
   exec: |

@@ -1,17 +1,16 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Replaces or extracts code from oJob YAML.
-    expects: 
-    - name   : op
-      desc   : "Operation to perform: help, replace (from js files to an oJob code entry) and extract (from an oJob code entry to js files)"
-      example: help
-    - name   : job
-      desc   : The filepath to the oJob YAML file.
-      example: myJob.yaml
-    - name   : js
-      desc   : If op=replace a comma delimited list of OpenAF javascript files
-      example: myFirstCode.js,mySecondCode.js
+help: 
+  text   : Replaces or extracts code from oJob YAML.
+  expects: 
+  - name   : op
+    desc   : "Operation to perform: help, replace (from js files to an oJob code entry) and extract (from an oJob code entry to js files)"
+    example: help
+  - name   : job
+    desc   : The filepath to the oJob YAML file.
+    example: myJob.yaml
+  - name   : js
+    desc   : If op=replace a comma delimited list of OpenAF javascript files
+    example: myFirstCode.js,mySecondCode.js
 
 todo:
 - Check operations
@@ -23,10 +22,6 @@ ojob:
   logToConsole: false   # to change when finished
         
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------
 - name: Replace code
   exec: |

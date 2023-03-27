@@ -1,14 +1,11 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : OpenAF MVS file map listing
   expects: 
   - name     : mvs
     desc     : The MVS file to check for maps
     example  : mymap.db
     mandatory: true
-
-init:
-  help: *HELP
 
 todo:
 - MVS list
@@ -21,11 +18,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # --------------
 - name: MVS list
   exec: |

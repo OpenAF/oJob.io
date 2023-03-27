@@ -44,34 +44,32 @@ todo:
   - name: Prepare my upload
   #- name: Prepare my docs
 
+help:
+  text   : Starts a very simple HTTP server on the provided port for file upload
+  expects:
+  - name: port 
+    desc: The port to use (default to 8888)
+  - name: path
+    desc: The path from which to browse files (defaults to '.')
+  - name: uploadUri
+    desc: The default URI to use for upload (defaults to '/_upload')
+  - name: uri
+    desc: The default URI to use (defaults to '/')
+  - name: keyf
+    desc: The java keystore file to use (defaults to easyHTTPS.jks)
+  - name: keyp
+    desc: The java keystore file password (defaults to easyHTTPS).
+  - name: cn
+    desc: If provided it will generate a self-signed certificate using the canonical name (hostname of ip.address).
+  - name: keyv
+    desc: The number of minutes the self-signed certificate will be valid for (1440 minutes)
+  - name: keys
+    desc: The self-signed certificate key length to use (defaults to 4096)     
+
 ###########################################################
 # The code
 
 jobs:
-  # ----------
-  - name: Help
-    help:
-      text   : Starts a very simple HTTP server on the provided port for file upload
-      expects:
-      - name: port 
-        desc: The port to use (default to 8888)
-      - name: path
-        desc: The path from which to browse files (defaults to '.')
-      - name: uploadUri
-        desc: The default URI to use for upload (defaults to '/_upload')
-      - name: uri
-        desc: The default URI to use (defaults to '/')
-      - name: keyf
-        desc: The java keystore file to use (defaults to easyHTTPS.jks)
-      - name: keyp
-        desc: The java keystore file password (defaults to easyHTTPS).
-      - name: cn
-        desc: If provided it will generate a self-signed certificate using the canonical name (hostname of ip.address).
-      - name: keyv
-        desc: The number of minutes the self-signed certificate will be valid for (1440 minutes)
-      - name: keys
-        desc: The self-signed certificate key length to use (defaults to 4096)        
-
   # -----------------
   - name: Prepare SSL
     exec: |

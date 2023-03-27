@@ -17,14 +17,10 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-help: &HELP
+help: 
   text   : Tries to measure the network latency and download/upload bandwidth using fast.com from Netflix.
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------
 - name: Prepare URLs
   exec: |

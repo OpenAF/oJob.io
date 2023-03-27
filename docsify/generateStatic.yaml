@@ -12,21 +12,19 @@ ojob:
   - docsify.js
   sequential: true
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : "Generates a static docsify version from files and sub-folders on DIR. Options:"
-    expects:
-    - name: dir
-      desc: The default folder where to look for .md files (default to '.')
-    - name: html
-      desc: The HTML file to generate on the current folder (defaults to 'README.html')
-    - name: main
-      desc: The .md file that will be used as the root for docsify (defaults to '/README.md')
-    - name: mermaid
-      desc: A boolean to use or not Mermaid
+help: 
+  text   : "Generates a static docsify version from files and sub-folders on DIR. Options:"
+  expects:
+  - name: dir
+    desc: The default folder where to look for .md files (default to '.')
+  - name: html
+    desc: The HTML file to generate on the current folder (defaults to 'README.html')
+  - name: main
+    desc: The .md file that will be used as the root for docsify (defaults to '/README.md')
+  - name: mermaid
+    desc: A boolean to use or not Mermaid
 
+jobs:
 # -------------------------
 - name: Find markdown files
   exec: |

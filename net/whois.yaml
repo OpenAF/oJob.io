@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Retrieves the available WhoIs information of a public domain. 
   expects: 
   - name     : domain
@@ -17,10 +17,6 @@ ojob:
   logToConsole: false
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------
 - name: Whois
   exec: |

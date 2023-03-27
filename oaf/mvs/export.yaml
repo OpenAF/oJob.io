@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Exports the contents of an OpenAF MVS file
   expects: 
   - name     : mvs
@@ -10,9 +10,6 @@ help: &HELP
     desc     : The exported data file prefix
     example  : export
     mandatory: false
-
-init:
-  help: *HELP
 
 todo:
 - Exporting data
@@ -25,11 +22,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # --------------------
 - name: Exporting data
   exec: |

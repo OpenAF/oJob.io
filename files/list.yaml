@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Get a recursive list of files 
   expects: 
   - name: path  
@@ -18,10 +18,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ----------------
 - name: List files 
   exec: |

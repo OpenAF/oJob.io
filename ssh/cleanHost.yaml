@@ -1,4 +1,9 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Tries to remove a host from the .ssh/known_hosts file.
+  expects: 
+  - name: host
+    desc: the full host name to remove
 
 todo:
 - Clean entry on known_hosts
@@ -8,15 +13,6 @@ ojob:
   sequential  : true
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Tries to remove a host from the .ssh/known_hosts file.
-    expects: 
-    - name: host
-      desc: the full host name to remove
-
-
 # --------------------------------
 - name: Clean entry on known_hosts
   exec: |

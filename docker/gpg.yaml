@@ -1,23 +1,22 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : |
-      Wrapper to create a container with gpg and perform operations. You need to provide a docker volume (gpgvol) so gpg
-      can store/use the private information.
-      NOTE: For decrypt and sign operations ensure that you run it on a trusted system.
-    expects: 
-    - name   : op
-      desc   : "The operation to perform (e.g: genkey, listkeys, getpubkey, sign, verify, encrypt, decrypt)"
-      example: listkeys
-    - name   : gpgvol
-      desc   : The volume to store the gpg secure information
-      example: gnupg
-    - name   : input
-      desc   : The input file to sign or encrypt
-    - name   : output
-      desc   : The output file to verify or decrypt
-    - name   : recipient
-      desc   : When encrypting or getting the public key the intended email address of the recipient of the message or owner of the private key.
+help:
+  text   : |
+    Wrapper to create a container with gpg and perform operations. You need to provide a docker volume (gpgvol) so gpg
+    can store/use the private information.
+    NOTE: For decrypt and sign operations ensure that you run it on a trusted system.
+  expects: 
+  - name   : op
+    desc   : "The operation to perform (e.g: genkey, listkeys, getpubkey, sign, verify, encrypt, decrypt)"
+    example: listkeys
+  - name   : gpgvol
+    desc   : The volume to store the gpg secure information
+    example: gnupg
+  - name   : input
+    desc   : The input file to sign or encrypt
+  - name   : output
+    desc   : The output file to verify or decrypt
+  - name   : recipient
+    desc   : When encrypting or getting the public key the intended email address of the recipient of the message or owner of the private key.
 
 todo:
 - Check for docker
@@ -33,10 +32,6 @@ include:
 - ojob.io/docker/_common 
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # --------------------
 - name: Execute docker
   exec: |

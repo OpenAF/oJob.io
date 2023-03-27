@@ -1,7 +1,7 @@
 todo:
 - Get versions
 
-help: &HELP
+help: 
   text: Retrieves a list of the current installed oPacks and their corresponding local and central versions. Optionally it can update the oPacks that need upgrading.
   expects:
   - name: update
@@ -16,10 +16,6 @@ ojob:
     logErr(exception);
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------
 - name: Get versions
   from:

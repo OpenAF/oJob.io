@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Downloads docker-compose binary or pulls docker-compose docker image and generates an unix script to run it
   expects: 
   - name     : path
@@ -99,10 +99,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 - name : Check options
   check:
     in:

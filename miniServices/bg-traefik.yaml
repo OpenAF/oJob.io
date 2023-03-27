@@ -60,15 +60,13 @@ ojob:
   catch: logErr(exception);
   logToConsole: false
 
-jobs:
-# ----------
-- name: Help
-  help:
-    text: Generates a traefik services blue-green load-balancer sample
-    expects:
-    - name: file
-      desc: Generates to the provided file 
+help:
+  text: Generates a traefik services blue-green load-balancer sample
+  expects:
+  - name: file
+    desc: Generates to the provided file 
 
+jobs:
 # -----------------------------
 - name: Generate docker-compose
   exec: |

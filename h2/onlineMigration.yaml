@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Migrates old H2 databases (H2 < 2.x and OpenAF <= 20210721) to newer versions. Requires an internet connection.
   expects: 
   - name     : url
@@ -20,9 +20,6 @@ help: &HELP
     mandatory: false
 
 
-init:
-  help: *HELP
-
 todo:
 - Migrating database
 
@@ -34,11 +31,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ------------------------
 - name: Migrating database
   exec: |

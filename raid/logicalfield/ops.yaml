@@ -1,4 +1,17 @@
 # Author: Nuno Aguiar
+help:
+  text   : Provides quick commands to operate RAID Logical Fields (requires the OpenCli opack)
+  expects:
+  - name   : op
+    desc   : "The operation to perform between: list, get, apply/save and delete/remove. Defaults to 'op=list'"
+    example: list
+  - name: file
+    desc: The filename to save or read from.
+  - name: uuid
+    desc: The specific logical field object UUID.
+  - name: name
+    desc: The specific logical field object name.
+
 todo:
 - Check for OpenCli
 - Connect to RAID
@@ -6,7 +19,7 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20201111
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
@@ -14,20 +27,6 @@ include:
 - ojob.io/docker/_common
 
 jobs:
-- name: Help
-  help:
-    text   : Provides quick commands to operate RAID Logical Fields (requires the OpenCli opack)
-    expects:
-    - name   : op
-      desc   : "The operation to perform between: list, get, apply/save and delete/remove. Defaults to 'op=list'"
-      example: list
-    - name: file
-      desc: The filename to save or read from.
-    - name: uuid
-      desc: The specific logical field object UUID.
-    - name: name
-      desc: The specific logical field object name.
-
 # -------------
 - name: Op List
   exec: |

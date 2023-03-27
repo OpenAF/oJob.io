@@ -10,17 +10,15 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Converts a YAML file to a JSON file/content. 
-    expects: 
-    - name: yaml
-      desc: A YAML file
-    - name: json
-      desc: A JSON file (defaults to stdout)
+help: 
+  text   : Converts a YAML file to a JSON file/content. 
+  expects: 
+  - name: yaml
+    desc: A YAML file
+  - name: json
+    desc: A JSON file (defaults to stdout)
 
+jobs:
 # ---------------
 - name: Yaml2Json 
   exec: |

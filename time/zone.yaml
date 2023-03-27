@@ -1,4 +1,13 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Translate a date time value into other timezones
+  expects: 
+  - name: time
+    desc: The time to convert in the format HHmm (e.g. 1653) defaults to current time.
+  - name: to
+    desc: A comma delimited list of timezones (e.g. EST,PST) defaults to UTC
+  - name: from
+    desc: Provide a different timezone for the provided time (defaults to current)
 
 todo:
 - Timezone
@@ -6,23 +15,11 @@ todo:
 ojob:
   sequential  : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Translate a date time value into other timezones
-    expects: 
-    - name: time
-      desc: The time to convert in the format HHmm (e.g. 1653) defaults to current time.
-    - name: to
-      desc: A comma delimited list of timezones (e.g. EST,PST) defaults to UTC
-    - name: from
-      desc: Provide a different timezone for the provided time (defaults to current)
-
 # ----------------
 - name: Timezone 
   exec: |

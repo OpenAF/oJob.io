@@ -25,19 +25,17 @@ ojob:
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Outputs a docker-compose sftp docker container service configuration.
-    expects: 
-    - name: port
-      desc: "The port number where the sftp will be available (defaults: 2222)"
-    - name: volume
-      desc: "The volume where files will be stored (defaults: sftp)."
-    - name: users
-      desc: Comma delimited list of users. Passwords will be auto-generated if not provided. Optionally you can provide the password as 'aUser:aPassword'
+help: 
+  text   : Outputs a docker-compose sftp docker container service configuration.
+  expects: 
+  - name: port
+    desc: "The port number where the sftp will be available (defaults: 2222)"
+  - name: volume
+    desc: "The volume where files will be stored (defaults: sftp)."
+  - name: users
+    desc: Comma delimited list of users. Passwords will be auto-generated if not provided. Optionally you can provide the password as 'aUser:aPassword'
 
+jobs:
 # -----------------------
 - name: Setup sftp config
   exec: |

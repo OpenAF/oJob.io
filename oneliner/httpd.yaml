@@ -1,4 +1,13 @@
 # Author: Nuno Aguiar
+help:
+  text   : | 
+    Generates, and copies to your clipboard, one-liner openaf code to run a HTTPd server with file browsing and upload capabilities. 
+    You can change the port, default uri and the upload uri by changing the corresponding values on the ojob
+    json init map entry.
+  #expects:
+  #- name   : something
+  #  desc   : To do stuff
+  #  example: aValueExample
 
 init:
   job:
@@ -40,18 +49,6 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help:
-    text   : | 
-      Generates, and copies to your clipboard, one-liner openaf code to run a HTTPd server with file browsing and upload capabilities. 
-      You can change the port, default uri and the upload uri by changing the corresponding values on the ojob
-      json init map entry.
-    #expects:
-    #- name   : something
-    #  desc   : To do stuff
-    #  example: aValueExample
-
 # ------------------------------
 - name: Generate one-liner httpd
   exec: |

@@ -42,12 +42,10 @@ ojob:
   sequential  : true
   logToConsole: false
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text: Tests the socket and HTTP latency to each of the known AWS regions from the point of execution.
+help: 
+   text: Tests the socket and HTTP latency to each of the known AWS regions from the point of execution.
 
+jobs:
 # ------------------
 - name: Test regions
   exec: |

@@ -1,4 +1,6 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Opens Windows Internet Options 
 
 todo:
 - Check Windows
@@ -6,21 +8,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20200523
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
   sequential  : true
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Opens Windows Internet Options 
-    # expects: 
-    # - name   : something
-    #   desc   : To do stuff
-    #   example: aValueExample
-
 # -------------------
 - name: Check Windows
   exec: |

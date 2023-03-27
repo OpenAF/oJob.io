@@ -121,14 +121,10 @@ ojob:
   catch       : logErr(exception)
   logToConsole: false
 
-help: &HELP
+help: 
    text: Tests HTTPs latency to each of the known GCP regions from the point of execution.
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------
 - name: Test regions
   exec: |

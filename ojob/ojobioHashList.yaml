@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Returns a list of hash for each ojob in a ojob.io like site.
   expects: 
   - name     : url
@@ -25,11 +25,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ------------------------
 - name: Generate hash list
   exec: |

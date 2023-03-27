@@ -13,19 +13,17 @@ ojob:
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Installs/Uninstalls a portainer container on the local docker installation.
-    expects: 
-    - name: port
-      desc: "The port where portainer will be exposed (default port=9000)"
-    - name: agentPort 
-      desc: "If defined the agent port should be exposed (e.g. agentPort=8000). Don't set it if you don't want the agent port exposed."
-    - name: uninstall
-      desc: "To uninstall an existing portainer container just use (uninstall=true)."
+help: 
+  text   : Installs/Uninstalls a portainer container on the local docker installation.
+  expects: 
+  - name: port
+    desc: "The port where portainer will be exposed (default port=9000)"
+  - name: agentPort 
+    desc: "If defined the agent port should be exposed (e.g. agentPort=8000). Don't set it if you don't want the agent port exposed."
+  - name: uninstall
+    desc: "To uninstall an existing portainer container just use (uninstall=true)."
 
+jobs:
 # -----------------------
 - name: Install portainer
   deps:

@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Displays a 8-bit reference color map.
   expects:
   - name     : mode
@@ -20,10 +20,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ---------------
 - name: Color Map
   exec: |

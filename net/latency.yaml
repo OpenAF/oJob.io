@@ -9,7 +9,7 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-help: &HELP
+help: 
   text   : Tests the latency between the current host and a target host and port for a number of times.
   expects: 
   - name: host 
@@ -26,10 +26,6 @@ help: &HELP
     example  : "5"
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-  
 # ------------------
 - name: Test latency
   exec: |

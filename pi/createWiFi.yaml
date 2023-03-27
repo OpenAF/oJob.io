@@ -1,19 +1,18 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Creates the necessary files for a headless Raspberry Pi to boot connected to WiFi and with SSH.
-    expects: 
-    - name   : bootPath
-      desc   : The path on the current computer to the target PI boot volume (e.g. /boot)
-      example: /mnt/newPI/boot
-    - name   : country
-      desc   : Two letter country code (e.g. US)
-      example: US
-    - name   : wifiName
-      desc   : The WiFi network name (e.g. myNetwork)
-      example: myNetwork
-    - name   : wifiPswd
-      desc   : The WiFi password
+help: 
+  text   : Creates the necessary files for a headless Raspberry Pi to boot connected to WiFi and with SSH.
+  expects: 
+  - name   : bootPath
+    desc   : The path on the current computer to the target PI boot volume (e.g. /boot)
+    example: /mnt/newPI/boot
+  - name   : country
+    desc   : Two letter country code (e.g. US)
+    example: US
+  - name   : wifiName
+    desc   : The WiFi network name (e.g. myNetwork)
+    example: myNetwork
+  - name   : wifiPswd
+    desc   : The WiFi password
   
   wpa: |
     ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev
@@ -31,16 +30,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210515
+  - openaf: 20221216
   catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
   logToConsole: false   # to change when finished
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ----------------
 - name: Create ssh
   exec: |

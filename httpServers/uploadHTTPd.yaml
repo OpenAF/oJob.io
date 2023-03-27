@@ -35,24 +35,22 @@ todo:
   - name: Prepare my upload
   #- name: Prepare my docs
 
+help:
+  text   : Starts a very simple HTTP server on the provided port for file upload
+  expects:
+  - name: port 
+    desc: The port to use (default to 8080)
+  - name: path
+    desc: The path from which to browse files (defaults to '.')
+  - name: uploadUri
+    desc: The default URI to use for upload (defaults to '/_upload')
+  - name: uri
+    desc: The default URI to use (defaults to '/')
+
 ###########################################################
 # The code
 
 jobs:
-  # ----------
-  - name: Help
-    help:
-      text   : Starts a very simple HTTP server on the provided port for file upload
-      expects:
-      - name: port 
-        desc: The port to use (default to 8080)
-      - name: path
-        desc: The path from which to browse files (defaults to '.')
-      - name: uploadUri
-        desc: The default URI to use for upload (defaults to '/_upload')
-      - name: uri
-        desc: The default URI to use (defaults to '/')
-
   - name: Prepare default
     to  : HTTP Default
     exec: |

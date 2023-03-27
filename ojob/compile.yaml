@@ -1,14 +1,13 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Tries to compile a YAML oJob with OpenAF exec code into JSON oJob compressed file
-    expects: 
-    - name   : source
-      desc   : The YAML oJob file
-      example: ojob.yaml
-    - name   : target
-      desc   : The target json file
-      example: ojob.json
+help: 
+  text   : Tries to compile a YAML oJob with OpenAF exec code into JSON oJob compressed file
+  expects: 
+  - name   : source
+    desc   : The YAML oJob file
+    example: ojob.yaml
+  - name   : target
+    desc   : The target json file
+    example: ojob.json
 
 todo:
 - name: Get jobs
@@ -25,10 +24,6 @@ ojob:
     - name: jobs
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # --------------
 - name: Get jobs
   each: Compile job

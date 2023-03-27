@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : |
     Creates a small OpenAF channel file based persisted. You can access it by using $ch("example").createRemote("http://hostname:port/db").
     If sub-maps are defined you can access them each by using $ch("example-s2").createRemote("http://hostname:port/db/s2").
@@ -37,10 +37,6 @@ ojob:
   argsFromEnvs: true
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # --------------------
 - name: Initialization
   exec: |

@@ -1,5 +1,5 @@
 # Author            : Nuno Aguiar
-help: &HELP
+help: 
   text   : | 
     Launches a simple service to execute a job with the provided arguments where __ojob is the job to execute.
     Example: 'curl -XPOST http://my.service:8787 -H "Content-Type: application/json" -d "{ \"__ojob\": \"ojob.io/hello/world\" }"'
@@ -36,10 +36,6 @@ todo:
 - name: Prepare default
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ---------------------
 - name: Prepare Healthz
   to  : REST Healthz

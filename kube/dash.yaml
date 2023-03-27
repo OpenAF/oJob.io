@@ -1,4 +1,11 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Does stuff. 
+  expects: 
+  - name: config
+    desc: Complete path and filename for a kubeconfig file.
+  - name: uninstall
+    desc: If uninstall=true it will be uninstalled if existing and installed previously by this tool.
 
 todo:
 - Check if kube dash is deployed
@@ -16,16 +23,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Does stuff. 
-    expects: 
-    - name: config
-      desc: Complete path and filename for a kubeconfig file.
-    - name: uninstall
-      desc: If uninstall=true it will be uninstalled if existing and installed previously by this tool.
-
 # ------------------------------------
 - name: Check if kube dash is deployed
   exec: |

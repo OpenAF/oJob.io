@@ -1,11 +1,33 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Tries to reach a RAID portal or instance and measure the round-trip.
+  expects: 
+  - name   : af
+    desc   : URL to access the RAID Portal or instance
+    example: http://user:password@a.server:1234/#/a/path/for/a/mashup
+  - name   : num
+    desc   : Number of times to try to reach (defaults to 4)
+    example: 4
+  - name   : wait
+    desc   : Time to wait between executions in ms (defaults to 1000)
+    example: 1000
+  - name   : size
+    desc   : Payload size for each execution (defaults to 32 bytes)
+    example: 32
+  - name   : timeout
+    desc   : Connection timeout for each execution (defaults to 10000ms)
+    example: 10000
+  - name   : threads 
+    desc   : Number of threads per each execution (defaults to 1)
+    example: 4
+
 todo:
 - Check for OpenCli 
 - Execute ping
 
 ojob:
   opacks      :
-  - openaf: 20201111
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
@@ -13,30 +35,6 @@ include:
 - ojob.io/docker/_common
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Tries to reach a RAID portal or instance and measure the round-trip.
-    expects: 
-    - name   : af
-      desc   : URL to access the RAID Portal or instance
-      example: http://user:password@a.server:1234/#/a/path/for/a/mashup
-    - name   : num
-      desc   : Number of times to try to reach (defaults to 4)
-      example: 4
-    - name   : wait
-      desc   : Time to wait between executions in ms (defaults to 1000)
-      example: 1000
-    - name   : size
-      desc   : Payload size for each execution (defaults to 32 bytes)
-      example: 32
-    - name   : timeout
-      desc   : Connection timeout for each execution (defaults to 10000ms)
-      example: 10000
-    - name   : threads 
-      desc   : Number of threads per each execution (defaults to 1)
-      example: 4
-
 # ------------------
 - name: Execute ping
   from: Init

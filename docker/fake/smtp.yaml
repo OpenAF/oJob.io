@@ -24,15 +24,13 @@ ojob:
   catch       : logErr(exception);
   logToConsole: true   # to change when finished
 
-jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Pulls, deploys and undeploys a fake SMTP server for testing.
-    expects: 
-    - name: uninstall
-      desc: If "true" it will try to stop and remove a previously deployed container (default "false")
+help: 
+  text   : Pulls, deploys and undeploys a fake SMTP server for testing.
+  expects: 
+  - name: uninstall
+    desc: If "true" it will try to stop and remove a previously deployed container (default "false")
 
+jobs:
 # -----------------
 - name: Pull latest
   exec: |

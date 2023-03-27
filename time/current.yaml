@@ -1,4 +1,9 @@
 # Author: Nuno Aguiar
+help: 
+  text   : Retrieves the current atomic clock time through (https/http).
+  expects: 
+  - name: alternative
+    desc: Instead of using worldtimeapi.org (through https) it uses worldclockapi.com (through http)
 
 todo:
 - Current time
@@ -6,19 +11,11 @@ todo:
 ojob:
   sequential  : true
   opacks      :
-  - openaf: 20200523
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: false  # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : Retrieves the current atomic clock time through (https/http).
-    expects: 
-    - name: alternative
-      desc: Instead of using worldtimeapi.org (through https) it uses worldclockapi.com (through http)
-
 # ------------------
 - name: Current time
   exec: |

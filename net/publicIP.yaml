@@ -1,5 +1,5 @@
 // Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Provides public IP information from the current internet connection or a provided ip address.
   expects: 
   - name     : ip
@@ -16,10 +16,6 @@ ojob:
   - openaf: 20210721
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ------------------------
 - name: Get public IP info
   exec: |

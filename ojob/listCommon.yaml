@@ -1,4 +1,9 @@
 # Author: Nuno Aguiar
+help: 
+   text   : List all job names from oJob-common package 
+   #expects: 
+   #- name: something
+   #  desc: To do stuff
 
 todo:
 - List jobs
@@ -12,14 +17,6 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: 
-    text   : List all job names from oJob-common package 
-    #expects: 
-    #- name: something
-    #  desc: To do stuff
-
 # ----------------
 - name: List jobs
   exec: |

@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Tries to download the kubectl client
   expects: 
   - name     : path
@@ -12,7 +12,6 @@ help: &HELP
     mandatory: false
 
 init:
-  help: *HELP
   urls: 
     windows : "https://dl.k8s.io/release/{{version}}/bin/windows/amd64/kubectl.exe"
     macos   : "https://dl.k8s.io/release/{{version}}/bin/darwin/amd64/kubectl"
@@ -31,10 +30,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # ----------------------
 - name: Download kubectl
   from: 

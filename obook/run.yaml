@@ -1,14 +1,11 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Given a local oBook markdown file will execute it on a OpenAF console
   expects: 
   - name     : obook
     desc     : The oBook .md file to execute
     example  : example.obook.md
     mandatory: true
-
-init:
-  help: *HELP
 
 todo:
 - Execute oBook
@@ -21,11 +18,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # --------------------
 - name : Execute oBook
   check:

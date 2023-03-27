@@ -21,18 +21,17 @@ ojob:
 include:
   - oJobHTTPd.yaml
 
+help:
+  text   : Starts a very simple HTTP server on the provided port with a simple file browser
+  expects:
+  - name: port 
+    desc: The port to use (default to 8888)
+  - name: path
+    desc: The path from which to browse files (default to '.')
+  - name: uri
+    desc: The default URI to use (default to '/')
+
 jobs:
-# ----------
-- name: Help
-  help:
-    text   : Starts a very simple HTTP server on the provided port with a simple file browser
-    expects:
-    - name: port 
-      desc: The port to use (default to 8888)
-    - name: path
-      desc: The path from which to browse files (default to '.')
-    - name: uri
-      desc: The default URI to use (default to '/')
 
 todo:
 

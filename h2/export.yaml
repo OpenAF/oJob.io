@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Exports the provided H2 database into a script
   expects: 
   - name     : url
@@ -19,9 +19,6 @@ help: &HELP
     example  : backup.sql
     mandatory: true
 
-init:
-  help: *HELP
-
 todo:
 - Export H2 DB
 
@@ -33,11 +30,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ------------------
 - name: Export H2 DB
   exec: |

@@ -9,7 +9,7 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-help: &HELP
+help:
   text   : Tries to reach a database through a JDBC driver and measure the round-trip.
   expects: 
   - name     : jdbc
@@ -34,10 +34,6 @@ help: &HELP
 
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -----------------------
 - name: Test JDBC latency
   exec: |

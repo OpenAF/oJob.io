@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Provides a browser-based form to execute the provided oJob.
   expects: 
   - name     : job

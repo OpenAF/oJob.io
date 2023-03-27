@@ -1,4 +1,23 @@
 # Author: Nuno Aguiar
+help:
+  text   : Provides quick commands to operate RAID Mashups (requires the OpenCli opack)
+  expects:
+  - name   : op
+    desc   : "The operation to perform between: list, get, apply/save and delete/remove. Defaults to 'op=list'"
+    example: list
+  - name: file
+    desc: The filename to save or read from.
+  - name: uuid
+    desc: The specific mashup object UUID.
+  - name: name
+    desc: The specific mashup object name.
+  - name: asNew
+    desc: For apply/save will always create a new mashup instead of creating a new version (defaults to false)
+    example: "false"
+  - name: ignoreSession
+    desc: For apply/save will ignore other mashup editing sessions (defaults to false)
+    example: "false"
+
 todo:
 - Check for OpenCli
 - Connect to RAID
@@ -6,7 +25,7 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20201111
+  - openaf: 20221216
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
@@ -14,26 +33,6 @@ include:
 - ojob.io/docker/_common
 
 jobs:
-- name: Help
-  help:
-    text   : Provides quick commands to operate RAID Mashups (requires the OpenCli opack)
-    expects:
-    - name   : op
-      desc   : "The operation to perform between: list, get, apply/save and delete/remove. Defaults to 'op=list'"
-      example: list
-    - name: file
-      desc: The filename to save or read from.
-    - name: uuid
-      desc: The specific mashup object UUID.
-    - name: name
-      desc: The specific mashup object name.
-    - name: asNew
-      desc: For apply/save will always create a new mashup instead of creating a new version (defaults to false)
-      example: "false"
-    - name: ignoreSession
-      desc: For apply/save will ignore other mashup editing sessions (defaults to false)
-      example: "false"
-
 # -------------
 - name: Op List
   exec: |

@@ -1,17 +1,16 @@
 # Author: Nuno Aguiar
-init:
-  help: &HELP
-    text   : Converts input __pm into a json stdout or file
-    expects: 
-    - name   : file
-      desc   : JSON file to store the output
-      example: output.json
-    - name   : compact
-      desc   : If compact=true the output JSON will be compacted (defaults to false)
-      example: "false"
-    - name   : delete
-      desc   : If delete=false the __pm output won't be deleted (defaults to true)
-      example: "true"
+help: 
+  text   : Converts input __pm into a json stdout or file
+  expects: 
+  - name   : file
+    desc   : JSON file to store the output
+    example: output.json
+  - name   : compact
+    desc   : If compact=true the output JSON will be compacted (defaults to false)
+    example: "false"
+  - name   : delete
+    desc   : If delete=false the __pm output won't be deleted (defaults to true)
+    example: "true"
 
 todo:
 - To JSON
@@ -24,10 +23,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -------------
 - name: To JSON
   exec: |

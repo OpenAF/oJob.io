@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP
+help:
   text   : Moves a Windows WSL to a target folder
   expects: 
   - name     : wsl
@@ -11,9 +11,6 @@ help: &HELP
     example  : "d:\\something\\somewhere"
     mandatory: true
 
-init:
-  help: *HELP
-
 todo:
 - List WSLs
 - Stop WSL
@@ -24,17 +21,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20211101
+  - openaf: 20221216
   catch       : "logErr(exception);"
   logToConsole: true   # to change when finished
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ---------------
 - name: List WSLs
   lang: shell

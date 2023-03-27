@@ -1,14 +1,11 @@
 # Author: Nuno Aguiar
-help: &HELP
+help: 
   text   : Converts an existing markdown document into an Asciidoc
   expects: 
   - name     : file
     desc     : The existing markdown file
     example  : somefile.md
     mandatory: true
-
-init:
-  help: *HELP
 
 todo:
 - Check for docker
@@ -25,11 +22,6 @@ ojob:
         
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # ---------------------------------
 - name : Convert markdown into adoc
   check: 
