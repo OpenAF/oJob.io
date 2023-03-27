@@ -11,9 +11,6 @@ help:
     example  : .openaf_profile
     mandatory: false
 
-init:
-  help: *HELP
-
 todo:
 - Generate hash list
 

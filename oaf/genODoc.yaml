@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-help: &HELP 
+help:
    text   : Generates the odoc.db for all the .js files under a folder or a list of files.
    expects: 
    - name     : key
@@ -24,10 +24,6 @@ ojob:
   logToConsole: true   # to change when finished
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
 # -------------
 - name: GenODoc
   exec: |
