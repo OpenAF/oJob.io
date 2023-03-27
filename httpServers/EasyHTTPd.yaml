@@ -25,13 +25,13 @@ help:
   text   : Starts a very simple HTTP server on the provided port with a simple file browser
   expects:
   - name: port 
-    desc: The port to use (default to 8888)
+    desc: "The port to use (default to 8888)"
   - name: path
-    desc: The path from which to browse files (default to '.')
+    desc: "The path from which to browse files (default to '.')"
   - name: uri
-    desc: The default URI to use (default to '/')
+    desc: "The default URI to use (default to '/')"
 
-jobs:
+jobs: []
 
 todo:
 
