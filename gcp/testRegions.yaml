@@ -66,6 +66,9 @@ init:
   - name: europe-west9
     host: europe-west9-5tkroniexa-od.a.run.app
     region: Paris
+  - name: europe-west12
+    host: europe-west12-5tkroniexa-od.a.run.app
+    region: Turin
   - name: europe-southwest1
     host: europe-southwest1-5tkroniexa-no.a.run.app
     region: Madrid
