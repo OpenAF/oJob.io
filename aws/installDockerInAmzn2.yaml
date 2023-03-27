@@ -19,11 +19,6 @@ ojob:
   #depsTimeout
 
 jobs:
-# ----------
-- name: Help
-  help: *HELP
-
-
 # --------------------------
 - name: Check Amazon Linux 2
   exec: |
