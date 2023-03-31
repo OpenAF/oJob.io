@@ -1,0 +1,68 @@
+# Author: Nuno Aguiar
+help:
+  text   : Helper to download and use VSCode tunnel functionality
+  expects: 
+  - name     : path
+    desc     : The path where vscode-cli will be copied to
+    example  : "."
+    mandatory: true
+  - name     : name
+    desc     : The tunnel name
+    example  : "myname"
+    mandatory: false
+
+init:
+  urls:
+    linux-x86  : https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-x64
+    linux-arm  : https://code.visualstudio.com/sha/download?build=stable&os=cli-alpine-arm64
+    macos-x86  : https://code.visualstudio.com/sha/download?build=stable&os=cli-darwin-x64
+    macos-arm  : https://code.visualstudio.com/sha/download?build=stable&os=cli-darwin-arm64
+    windows-x86: https://code.visualstudio.com/sha/download?build=stable&os=cli-win32-x64
+    windows-arm: https://code.visualstudio.com/sha/download?build=stable&os=cli-win32-arm64
+
+todo:
+- Install cli
+- Run cli
+
+ojob:
+  opacks      :
+  - openaf: 20230324
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+jobsInclude:
+- ojob.io/util/osArch
+
+jobs:
+# --------------
+- name : Run cli
+  check:
+    in:
+      path: isString.default(".")
+      name: isString.default(ow.format.getHostName())
+  exec : |
+    print("Use '" + args.path + "/vscode-cli tunnel -h' to see all available options")
+    print("-----")
+    print("Run 'nohup " + args.path + "/vscode-cli tunnel --accept-server-license-terms --name " + args.name + " 2>&1 > vscode-cli.out'")
+
+# ------------------
+- name : Install cli
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    var data = $job("Get current OS and Arch", { __format: "pm" })
+
+    if (isDef(args.init.urls[data.os + "-" + data.arch]) && !io.fileExists(args.path + "/vscode-cli")) {
+      // Download
+      var tmpFile = io.createTempFile("vsccli", ".tgz")
+      $rest().get2File(tmpFile, args.init.urls[data.os + "-" + data.arch])
+
+      // Untar
+      io.readFileTARStream(tmpFile, "code", true, is => {
+        var os = io.writeFileStream(args.path + "/vscode-cli")
+        ioStreamCopy(os, is)
+        os.close()
+        if (data.os != "windows") $sh("chmod a+x " + args.path + "/vscode-cli").exec()
+      })
+    }
