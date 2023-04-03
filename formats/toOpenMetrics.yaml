@@ -18,6 +18,10 @@ help:
     desc     : The JSON path to the field from where to derive the timestamp if timestamp=true (the field will be removed from the metrics data)
     example  : "__ts"
     mandatory: false
+  - name     : timeadjust
+    desc     : Number of seconds, positive or negative, to adjust the timefield value if needed.
+    example  : 1468800
+    mandatory: false
 
 todo:
 - Convert to OpenMetrics
@@ -34,17 +38,17 @@ jobs:
 - name : Parsing function
   check:
     in:
-      prefix: isString.default(__)
-      timestamp: toBoolean.isBoolean.default(false)
-      timefield: isString.default(__)
+      prefix    : isString.default(__)
+      timestamp : toBoolean.isBoolean.default(false)
+      timeadjust: toNumber.isNumber.default(0)
+      timefield : isString.default(__)
   exec : |
     ow.loadMetrics()
     global.parseData = function(data) {
       if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
 
       var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
-      if (isDef(args.timefield)) $$(data).set(args.timefield, __)
-      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, isDef(_ts) ? Math.round(_ts.getTime() / 1000) : __ )
+      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, isDef(_ts) ? Math.round(_ts.getTime() / 1000) + args.timeadjust : __ )
       
       if (isDef(args.joburl)) {
         var res = $rest().post(args.joburl, out)
