@@ -3,7 +3,7 @@ init:
   wkhtmltopdf: 
     FROM amazonlinux:2
 
-    RUN yum install -y https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.amazonlinux2.x86_64.rpm && yum install -y which gzip tar wget curl
+    RUN yum install -y https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.amazonlinux2.{{arch}}.rpm && yum install -y which gzip tar wget curl
 
 help: 
   text   : Converts a HTML file into a PDF or PNG file.
@@ -22,21 +22,10 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210515
+  - openaf: 20230325
   - oJob-common
-  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   
-  langs       :
-  - lang  : oafshell
-    langFn: |
-      var s = $sh();
-      code.split("\n").forEach(l => s = s.sh(templify(l, args)) );
-      if (isDef(job) && isDef(job.typeArgs) && isDef(job.typeArgs.shellPrefix)) {
-         s = s.prefix(job.typeArgs.shellPrefix);
-         s.get();
-      } else {
-         s.exec();
-      }
         
 include:
 - ojob.yaml
@@ -66,7 +55,7 @@ jobs:
 - name: Build docker
   exec: |
     $sh()
-    .sh("docker build -t wkhtmltopdf -", args.init.wkhtmltopdf)
+    .sh("docker build -t wkhtmltopdf -", templify(args.init.wkhtmltopdf, { arch: (ow.format.getOSArch() == "aarch64" ? "aarch64" : "x86_64") } ))
     .prefix("build")
     .get(0);
 
@@ -74,7 +63,9 @@ jobs:
 - name: Remove docker
   lang: shell
   exec: |
-    docker rmi wkhtmltopdf
+    docker rmi wkhtmltopdf 2> /dev/null
+    docker rmi wkhtmltoimage 2> /dev/null
+    echo
 
 # ------------------------------
 - name: Convert from html to pdf
@@ -98,6 +89,9 @@ jobs:
 
 # -------------
 - name: Convert
-  lang: oafshell
+  lang: shell
+  typeArgs:
+    prefix: build
   exec: |
-    docker run --pull always --rm -v {{path}}:/out wkhtmltopdf {{cmd}} /out/{{in}} /out/{{out}} {{{extra}}}
+    docker run --rm -v {{path}}:/out wkhtmltopdf {{cmd}} /out/{{in}} /out/{{out}} {{{extra}}}
+
