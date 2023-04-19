@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves Helm blog RSS
+
+todo:
+- K8s
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------
+- name: K8s
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://helm.sh/blog/index.xml
