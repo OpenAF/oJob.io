@@ -1,13 +1,13 @@
 # Author: Nuno Aguiar
 help:
-  text   : Generates a quick docker-compose with AWS OpenSearch and, optionally, kibana.
+  text   : Generates a quick docker-compose with AWS OpenSearch and, optionally, dashboards.
   expects: 
-  - name     : kibana
-    desc     : "If kibana=true kibana will be added to the docker-compose file."
+  - name     : dashboards
+    desc     : "If dashboards=true dashboards will be added to the docker-compose file."
     mandatory: false
     example  : "true"
   - name     : cluster
-    desc     : If defined will add the number of elasticsearch nodes specified.
+    desc     : If defined will add the number of opensearch nodes specified.
     mandatory: false
     example  : 2
 
@@ -16,19 +16,19 @@ init:
     version : '3'
 
     networks:
-      elastic:
+      opensearch:
         driver: bridge
 
     services:{{#if single}}
-      elastic:
+      opensearch:
         image         : opensearchproject/opensearch:latest
-        container_name: elastic
+        container_name: opensearch
         environment   :
-        - node.name=elastic
-        - cluster.name=es-cluster
+        - node.name=opensearch
+        - cluster.name=opensearch-cluster
         - discovery.type=single-node
         - bootstrap.memory_lock=true
-        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
         ulimits       :
           memlock:
             soft: -1
@@ -40,19 +40,19 @@ init:
         - "9200:9200"
         - "9600:9600"
         volumes :
-        - data:/usr/share/elasticsearch/data
+        - data:/usr/share/opensearch/data
         networks:
-        - elastic{{else}}{{#each nodes}}
-      es{{name}}:
+        - opensearch{{else}}{{#each nodes}}
+      os{{name}}:
         image         : opensearchproject/opensearch:latest
-        container_name: es{{name}}
+        container_name: os{{name}}
         environment   :
-        - node.name=es{{name}}
-        - cluster.name=es-cluster
+        - node.name=os{{name}}
+        - cluster.name=os-cluster
         - discovery.seed_hosts={{seed}}
         - cluster.initial_master_nodes={{initial}}
         - bootstrap.memory_lock=true
-        - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+        - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
         ulimits       :
           memlock:
             soft: -1
@@ -64,21 +64,20 @@ init:
         - "9200:9200"
         - "9600:9600"{{/if}}
         volumes :
-        - data{{name}}:/usr/share/elasticsearch/data
+        - data{{name}}:/usr/share/opensearch/data
         networks:
-        - elastic
-      {{/each}}{{/if}}{{#if kibana}}
+        - opensearch
+      {{/each}}{{/if}}{{#if dashboards}}
       # Default credentials: admin/admin
-      kibana:
+      dashboards:
         image         : opensearchproject/opensearch-dashboards:latest
-        container_name: kibana
+        container_name: dashboards
         ports         :
         - 5601:5601
         environment   :
-          ELASTICSEARCH_URL  : {{#if single}}https://elastic:9200{{else}}https://es01:9200{{/if}}
-          ELASTICSEARCH_HOSTS: '[{{#if single}}"https://elastic:9200"{{else}}{{{nodesList}}}{{/if}}]'
+          OPENSEARCH_HOSTS: '[{{#if single}}"https://opensearch:9200"{{else}}{{{nodesList}}}{{/if}}]'
         networks      :
-        - elastic
+        - opensearch
       {{/if}}
 
     volumes:{{#if single}}
@@ -102,14 +101,14 @@ jobs:
 # -----------------------------
 - name: Generate docker-compose 
   exec: |
-    args.kibana         = _$(args.kibana, "kibana").default("false")
+    args.dashboards     = _$(args.dashboards, "dashboards").default("false")
     args.cluster        = _$(args.cluster, "cluster").default(__)
    
     //var o = $rest().get("https://api.github.com/repos/opendistro-for-elasticsearch/opendistro-build/releases")
     //var version = $from(o).equals("prerelease", false).sort("-published_at").at(0).tag_name.match(/((\d+\.)\d)+/)[0]
 
     var data = { 
-       kibana    : toBoolean(args.kibana),
+       dashboards: toBoolean(args.dashboards),
        single    : isUnDef(args.cluster)
        //version   : version
     }
