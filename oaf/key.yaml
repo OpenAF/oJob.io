@@ -1,0 +1,34 @@
+# Author: Nuno Aguiar
+help:
+  text   : Returns the character byte representation.
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Get key
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# --------------
+- name : Get key
+  exec : |
+    print("Hit Ctrl-C twice to exit...\n")
+
+    plugin("Console")
+    var c = new Console()
+    var cont = true, last = 0
+    while(cont) {
+      var _c = c.readCharB()
+      if (last == 3 && _c == 3) cont = false
+      last = _c
+      print("char code = " + _c)
+    }
