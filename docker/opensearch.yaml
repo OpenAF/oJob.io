@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Generates a quick docker-compose with AWS OpenDistro for elasticsearch and, optionally, kibana.
+  text   : Generates a quick docker-compose with AWS OpenSearch and, optionally, kibana.
   expects: 
   - name     : kibana
     desc     : "If kibana=true kibana will be added to the docker-compose file."
@@ -21,7 +21,7 @@ init:
 
     services:{{#if single}}
       elastic:
-        image         : amazon/opendistro-for-elasticsearch:{{version}}
+        image         : opensearchproject/opensearch:latest
         container_name: elastic
         environment   :
         - node.name=elastic
@@ -44,7 +44,7 @@ init:
         networks:
         - elastic{{else}}{{#each nodes}}
       es{{name}}:
-        image         : amazon/opendistro-for-elasticsearch:{{../version}}
+        image         : opensearchproject/opensearch:latest
         container_name: es{{name}}
         environment   :
         - node.name=es{{name}}
@@ -70,7 +70,7 @@ init:
       {{/each}}{{/if}}{{#if kibana}}
       # Default credentials: admin/admin
       kibana:
-        image         : amazon/opendistro-for-elasticsearch-kibana:{{version}}
+        image         : opensearchproject/opensearch-dashboards:latest
         container_name: kibana
         ports         :
         - 5601:5601
@@ -105,14 +105,14 @@ jobs:
     args.kibana         = _$(args.kibana, "kibana").default("false")
     args.cluster        = _$(args.cluster, "cluster").default(__)
    
-    var o = $rest().get("https://api.github.com/repos/opendistro-for-elasticsearch/opendistro-build/releases")
-    var version = $from(o).equals("prerelease", false).sort("-published_at").at(0).tag_name.match(/((\d+\.)\d)+/)[0]
+    //var o = $rest().get("https://api.github.com/repos/opendistro-for-elasticsearch/opendistro-build/releases")
+    //var version = $from(o).equals("prerelease", false).sort("-published_at").at(0).tag_name.match(/((\d+\.)\d)+/)[0]
 
     var data = { 
        kibana    : toBoolean(args.kibana),
-       single    : isUnDef(args.cluster),
-       version   : version
-    };
+       single    : isUnDef(args.cluster)
+       //version   : version
+    }
 
     if (isDef(args.cluster) && isNumber(args.cluster)) {
       data.nodes = []
