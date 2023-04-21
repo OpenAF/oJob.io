@@ -1,0 +1,81 @@
+# Author: Nuno Aguiar
+help:
+  text   : Lists space used by lookups
+  expects:
+  - name     : af
+    desc     : The AF server connection
+    example  : http://adm:Password1@a.server:40353/xdt
+    mandatory: false
+  - name     : bytes
+    desc     : In bytes or abbr
+    example  : "true"
+    mandatory: false
+
+todo:
+- Get lookups info
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  - OpenCli
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+
+jobs:
+# -----------------------
+- name : Get lookups info
+  check:
+    in:
+      lookup: isString.default(__)
+      af    : isString
+      bytes : toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadWAF()
+    var server = new AF(args.af)
+
+    var convertRAIDDates = aRAIDDate => {
+       if (isUnDef(aRAIDDate)) return ""
+       return ow.format.fromDate(ow.format.fromWeDoDateToDate(aRAIDDate), "yyyy-MM-dd HH:mm:ss")
+    }
+
+    var data = [], total = { Lookup: "", Status: "TOTAL", InUse: "", Count: 0, LastUsedTime: "", LoadTime: "", TotalLoadTimeMs: "", LoadedVersion: "", IndexMemoryBytes: 0, ValuesMemoryBytes: 0, TotalMemoryBytes: 0 }
+    var listLookups = ow.waf.dp.listLookups(server).map(lk => {
+      var elk = {}, lsize = 0
+      if (lk.extraMetadata.report.status != "UNLOADED") {
+        var msg = templify("Getting info from lookup {{shortname}}...", lk)
+        printnl(repeat(lsize, " ") + "\r" + msg + "\r")
+        lsize = msg.length
+
+        elk = ow.waf.dp.getLookup(server, lk.shortname)
+
+        data.push({
+          Lookup            : lk.shortname,
+          Status            : lk.extraMetadata.report.status,
+          InUse             : isDef(elk.resourceInfo) ? elk.resourceInfo.InUse : __,
+          Count             : isDef(elk.resourceInfo) ? elk.resourceInfo.RecordCount : __,
+          LastUsedTime      : isDef(elk.resourceInfo) ? convertRAIDDates(elk.resourceInfo.LastUsedTime) : __,
+          LoadTime          : isDef(elk.resourceInfo) ? convertRAIDDates(elk.resourceInfo.LoadTime) : __,
+          TotalLoadTimeMs   : isDef(elk.resourceInfo) ? elk.resourceInfo.TotalLoadTime : __,
+          LoadedVersion     : isDef(elk.resourceInfo) ? elk.resourceInfo.LoadedLookupVersion : __,
+          IndexMemoryBytes  : isDef(elk.resourceInfo) ? (!args.bytes ? elk.resourceInfo.IdxMemoryUsage : ow.format.fromBytesAbbreviation(elk.resourceInfo.IdxMemoryUsage)) : __,
+          ValuesMemoryBytes : isDef(elk.resourceInfo) ? (!args.bytes ? elk.resourceInfo.ValMemoryUsage : ow.format.fromBytesAbbreviation(elk.resourceInfo.ValMemoryUsage)) : __,
+          TotalMemoryBytes  : isDef(elk.resourceInfo) ? (!args.bytes ? elk.resourceInfo.TotalMemoryUsage : ow.format.fromBytesAbbreviation(elk.resourceInfo.TotalMemoryUsage)) : __
+        })
+
+        total.Count += elk.resourceInfo.RecordCount
+        total.IndexMemoryBytes += ow.format.fromBytesAbbreviation(elk.resourceInfo.IdxMemoryUsage)
+        total.ValuesMemoryBytes += ow.format.fromBytesAbbreviation(elk.resourceInfo.ValMemoryUsage)
+        total.TotalMemoryBytes += ow.format.fromBytesAbbreviation(elk.resourceInfo.TotalMemoryUsage)
+      }
+    })
+
+    if (!args.bytes) {
+      total.Count = ow.format.toAbbreviation(total.Count)
+      total.IndexMemoryBytes = ow.format.toBytesAbbreviation(total.IndexMemoryBytes)
+      total.ValuesMemoryBytes = ow.format.toBytesAbbreviation(total.ValuesMemoryBytes)
+      total.TotalMemoryBytes = ow.format.toBytesAbbreviation(total.TotalMemoryBytes)
+    }
+    data.push(total)
+
+    ow.oJob.output(data, args)
