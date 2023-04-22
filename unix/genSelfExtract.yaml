@@ -62,10 +62,10 @@ jobs:
     log("Packing and compressing files...")
     global.tmp = io.createTempFile("self", "extract.tgz")
     io.writeFileTARStream(global.tmp, true, fn => {
-      listFilesRecursive(args.path).forEach(f => {
+      listFilesRecursive(args.path, true).filter(r => r.isFile).forEach(f => {
         var is = io.readFileStream(f.canonicalPath)
         log(" packing " + f.filepath)
-        fn(f.filepath.replace(args.path, ""), is)
+        fn(f.filepath.replace(args.path, ""), is, f)
         is.close()
       })
     })
@@ -85,7 +85,7 @@ jobs:
       message: args.message
     })
     script += "\n"
-    var fscript = io.fileInfo(args.path).filename + ".sh"
+    var fscript = isDef(args.file) ? args.file : io.fileInfo(args.path).filename + ".sh"
 
     log("Writing script " + fscript + "...")
     io.writeFileString(fscript, script)
