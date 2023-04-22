@@ -28,22 +28,24 @@ help:
     mandatory: false
 
 todo:
+- ojob final report
 - Prepare output folder
 - Download Java
 - Download OpenAF
-- Copy opacks
 - Installing OpenAF
+- Copy opacks
 - Build scripts
 - Cleaning up
 
 ojob:
   opacks      :
-  - openaf: 20211229
-  catch       : logErr(exception)
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
   async       : true
   log         :
     async: false
+  includeOJob : true
 
 jobs:
 # ============================
@@ -65,41 +67,26 @@ jobs:
       arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"])
       version: toNumber.isNumber.greater(7).default(17)
   exec : |
-    oJobRunFile("ojob.io/java/download", {
+    ow.oJob.runFile("ojob.io/java/download", {
       os     : args.os,
       arch   : args.arch,
       version: args.version,
       type   : "jre",
       output : args.output + "/lib/jre" + (args.os.toLowerCase() == "windows" ? ".zip" : ".tgz"),
       repack : (args.os.toLowerCase() == "windows" ? false : true)
-    }, genUUID())
+    }, now(), true, (isDef(__flags.OJOB_SHAREARGS) ? { shareArgs: false } : __))
 
     if (args.os.toLowerCase() == "windows") {
       throw "To be implemented"
     } else {
-      /*$sh()
-      .pwd(args.output)
-      .sh("tar xzf jdk.tgz")
-      .prefix("untar")
-      .get()
-
-      io.rm(args.output + "/jdk.tgz")
-      io.rm(args.output + "/lib/jre")
-
-      $sh()
-      .pwd(args.output)
-      .sh("jdk/bin/jlink --add-modules ALL-MODULE-PATH --output lib/jre --strip-debug --no-man-pages --no-header-files --compress=2")
-      .prefix("jlink")
-      .get()
-
-      io.rm(args.output + "/jdk")*/
-      
       $sh()
       .pwd(args.output + "/lib")
       .sh("tar xzf jre.tgz")
       .prefix("untar")
       .get()
     }
+
+    log("Java ready.")
 
 # ======================
 - name : Download OpenAF
@@ -116,13 +103,10 @@ jobs:
     if (args.dist != "") args.dist += "/"
 
     var ooaf = "https://openaf.io/" + args.dist + "openaf.jar"
-    //var roaf = "https://openaf.io/" + args.dist + "openaf.jar.repacked"
     var l_ooaf = ow.format.toBytesAbbreviation(ow.obj.rest.getContentLength(ooaf))
-    //var l_roaf = ow.format.toBytesAbbreviation(ow.obj.rest.getContentLength(roaf))
     log("Download OpenAF '" + ooaf + "' (" + l_ooaf + ")...")
     $rest().get2File(args.output + "/lib/openaf.jar", ooaf)
-    //log("Download OpenAF '" + roaf + "' (" + l_roaf + ")...")
-    //$rest().get2File(args.output + "/lib/openaf.jar", roaf)
+    log("OpenAF ready.")
 
 # ==================
 - name : Copy opacks
@@ -162,12 +146,6 @@ jobs:
                 .at(0)
 
     if (isUnDef(javab)) throw "No java binary found!"
-    
-    /*$sh()
-    .pwd(args.output + "/lib")
-    .sh([javab.filepath.replace(args.output + "/lib/", ""), "-jar", "openaf.jar", "--install"])
-    .prefix("oaf")
-    .get()*/
 
     $sh()
     .pwd(args.output + "/lib")
