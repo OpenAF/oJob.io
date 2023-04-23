@@ -29,9 +29,11 @@ todo:
 ojob:
   opacks      :
   - openaf: 20230325
+  - Docker: 20220422
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
-        
+  loadLibs    :
+  - dockerRegistry.js        
 
 jobs:
 # ----------------
@@ -45,21 +47,16 @@ jobs:
       bytes: toBoolean.isBoolean.default(false)
       all  : toBoolean.isBoolean.default(false)
   exec : |
-    var data = [], url = args.url + "/" + args.image + "/tags"
-    do {
-      var lst = $rest().get(url)
-      if (isMap(lst) && isArray(lst.results)) {
-        data = data.concat($from( lst.results )
-              .sort("-last_updated")
-              .select(r => ({
-                  tag  : r.name,
-                  date : r.last_updated,
-                  archs: $from(r.images).sort("architecture").select(s=>s.architecture).join(","),
-                  size : (args.bytes ? r.full_size : ow.format.toBytesAbbreviation(r.full_size))
-              })))
-        url = lst.next
-      }
-    } while(args.all && isMap(lst) && isString(url))
+    var dr = new DockerRegistry(args.url, args.user, args.pass)
+    var lst = dr.hubListTags(args.image, !args.all)
+    data = $from( lst )
+           .sort("-last_updated")
+           .select(r => ({
+              tag  : r.name,
+              date : r.last_updated,
+              archs: $from(r.images).sort("architecture").select(s=>s.architecture).join(","),
+              size : (args.bytes ? r.full_size : ow.format.toBytesAbbreviation(r.full_size))
+           }))
 
     args.__format = _$(args.__format).default("table")
     ow.oJob.output(data, args)
