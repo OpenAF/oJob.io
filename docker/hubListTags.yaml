@@ -1,0 +1,65 @@
+# Author: Nuno Aguiar
+help:
+  text   : List the tags with corresponding update dates from docker hub.
+  expects: 
+  - name     : image
+    desc     : The image on the repository
+    example  : openaf/oaf
+    mandatory: true
+  - name     : user
+    desc     : The repository authentication user
+    example  : mylogin
+    mandatory: false  
+  - name     : pass
+    desc     : The repository authentication password
+    example  : mypass
+    mandatory: false
+  - name     : bytes
+    desc     : Boolean to indicate, if true, that size should be in bytes
+    example  : "true"
+    mandatory: false
+  - name     : all
+    desc     : Paginate to get all tags and not just the latest
+    example  : "true"
+    mandatory: false
+
+todo:
+- List tags
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------
+- name : List tags
+  check:
+    in:
+      image: isString
+      url  : isString.default("https://registry.hub.docker.com/v2/repositories")
+      login: isString.default(__)
+      pass : isString.default(__)
+      bytes: toBoolean.isBoolean.default(false)
+      all  : toBoolean.isBoolean.default(false)
+  exec : |
+    var data = [], url = args.url + "/" + args.image + "/tags"
+    do {
+      var lst = $rest().get(url)
+      if (isMap(lst) && isArray(lst.results)) {
+        data = data.concat($from( lst.results )
+              .sort("-last_updated")
+              .select(r => ({
+                  tag  : r.name,
+                  date : r.last_updated,
+                  archs: $from(r.images).sort("architecture").select(s=>s.architecture).join(","),
+                  size : (args.bytes ? r.full_size : ow.format.toBytesAbbreviation(r.full_size))
+              })))
+        url = lst.next
+      }
+    } while(args.all && isMap(lst) && isString(url))
+
+    args.__format = _$(args.__format).default("table")
+    ow.oJob.output(data, args)
