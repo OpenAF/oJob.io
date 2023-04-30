@@ -1,0 +1,71 @@
+# Author: Nuno Aguiar
+help:
+  text   : Check when was the last pull and push, on docker hub, for a specific image
+  expects: 
+  - name     : image
+    desc     : The image to check (e.g. openaf/oaf)
+    example  : openaf/oaf
+    mandatory: true
+  - name     : last
+    desc     : Boolean to indicate to retrive only the latest info
+    example  : "true"
+    mandatory: false
+  - name     : url
+    desc     : The repo URL if different from Docker Hub
+    example  : https://registry.hub.docker.com/v2/repositories
+    mandatory: false
+  - name     : login
+    desc     : The repo authentication login
+    example  : myuser
+    mandatory: false
+  - name     : pass
+    desc     : The repo authentication password (if not provided and login is provided it will be asked)
+    example  : mypass
+    mandatory: false
+
+todo:
+- Check image
+
+ojob:
+  opacks      :
+  - openaf        : 20230430
+  - DockerRegistry: 20230429
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - dockerRegistry.js
+        
+jobs:
+# ------------------
+- name : Check image
+  check:
+    in:
+      image: isString
+      last : toBoolean.isBoolean.default(false)
+      url  : isString.default(__)
+      login: isString.default(__)
+      pass : isString.default(__)
+  exec : |
+    // Check image name
+    if (args.image.indexOf(":") >= 0) args.image = args.image.substring(0, args.image.indexOf(":") )
+
+    if (isDef(args.login)) args.pass = askDef(args.pass, "Password: ", true, false)
+
+    var dr = new DockerRegistry(args.url, args.login, args.pass)
+    var fnP = ow.format.string.updateLine()
+
+    fnP.line(templify("Checking on {{image}}...", args))
+    var o = dr.hubListTags(args.image, args.last)
+
+    fnP.line("Preparing data from #" + o.length + " entries...")
+    var data = $from(o.map(r => ({
+      tag: r.name,
+      lastPush: r.tag_last_pushed,
+      lastPull: r.tag_last_pulled,
+      archs: r.images.map(s => s.architecture).join(",")
+    })))
+    .sort("-lastPush").select()
+
+    args.__format = _$(args.__format).default("table")
+    fnP.end()
+    ow.oJob.output(data, args)
