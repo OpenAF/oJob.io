@@ -1,10 +1,10 @@
 # Author: Nuno Aguiar
 help:
   text   : Build AWS Lambda OAF layers
-  expects: 
+  expects:
   - name     : opacks
     desc     : Comma-delimited list of opacks to include
-    example  : oJob-common,aws,Mongo,S3,ElasticSearch,Notifications,Redis,QR,RSS,PasteBin
+    example  : oJob-common,aws,S3,ElasticSearch,Notifications,QR,RSS,DockerRegistry,Kube,BouncyCastle,PasteBin,nAttrMon
     mandatory: false
 
 todo:
@@ -20,40 +20,50 @@ ojob:
   - openaf: 20220822
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
-        
+
 
 jobs:
 # -------------------
 - name : Build layers
   check:
     in:
-      opacks: isString.default("oJob-common,aws,Mongo,S3,ElasticSearch,Notifications,Redis,QR,RSS,PasteBin")
+      opacks: isString.default("oJob-common,aws,S3,ElasticSearch,Notifications,QR,RSS,DockerRegistry,Kube,BouncyCastle,PasteBin,nAttrMon")
       pack  : isString.default("OpenAFLambdaLayers")
-      arch  : isString.default("x86_64")
+      arch  : isString.default(__)
   exec : |
     if (isUnDef(getOPackPath(args.pack))) includeOPack(args.pack)
 
     // Remove any existing zips
     io.rm("minijvm.zip")
-    io.rm("minijvmARM.zip")
     io.rm("openaf-opacks.zip")
     io.rm("openaf.zip")
+
+    args.arch = _$(args.arch).default(ow.format.getOSArch() == "aarch64" ? "aarch64" : "x64")
 
     // Build openaflambdabuilder ARM
     var path = getOPackPath(args.pack)
     $sh("docker build -t openaflambdabuilder .")
-    .sh("docker run --pull always -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder OPACKS=" + args.opacks)
-    .sh("docker build -t openaflambdabuilder_arm -f Dockerfile.arm .")
-    .sh("docker run --pull always -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder_arm OPACKS=" + args.opacks)
+    .sh("docker run -ti --rm -v " + io.fileInfo(".").canonicalPath + ":/output openaflambdabuilder arch=" + args.arch + " OPACKS=" + args.opacks)
     .pwd(path)
     .exec()
 
-# ------------------
-- name: Instructions
-  exec: |
+# -------------------
+- name : Instructions
+  check:
+    in:
+      arch : isString.default(__)
+  exec : |
+    args.arch = _$(args.arch).default(ow.format.getOSArch() == "aarch64" ? "aarch64" : "x64")
+
     print("To load them:")
-    print("  aws lambda publish-layer-version --layer-name oaf_minijvm_x86 --zip-file fileb://minijvm.zip --compatible-architectures x86_64")
-    print("  aws lambda publish-layer-version --layer-name oaf_minijvm_arm --zip-file fileb://minijvmARM.zip --compatible-architectures arm64")
-    print("  aws lambda publish-layer-version --layer-name oaf_main --zip-file fileb://openaf.zip")
-    print("  aws lambda publish-layer-version --layer-name oaf_opacks --zip-file fileb://openaf-opacks.zip")
-    print("")
+    if (args.arch == "aarch64") {
+      print("  aws lambda publish-layer-version --layer-name oaf_minijvm_arm --zip-file fileb://minijvm_aarch64.zip --compatible-architectures arm64")
+      print("  aws lambda publish-layer-version --layer-name oaf_main_arm --zip-file fileb://openaf.zip --compatible-architectures arm64")
+      print("  aws lambda publish-layer-version --layer-name oaf_opacks_arm --zip-file fileb://openaf-opacks.zip --compatible-architectures arm64")
+      print("")
+    } else {
+      print("  aws lambda publish-layer-version --layer-name oaf_minijvm_x64 --zip-file fileb://minijvm_x64.zip --compatible-architectures x86_64")
+      print("  aws lambda publish-layer-version --layer-name oaf_main_x64 --zip-file fileb://openaf.zip --compatible-architectures x86_64")
+      print("  aws lambda publish-layer-version --layer-name oaf_opacks_x64 --zip-file fileb://openaf-opacks.zip --compatible-architectures x86_64")
+      print("")
+    }
