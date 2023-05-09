@@ -52,7 +52,7 @@ jobs:
     if (isDef(args.login)) args.pass = askDef(args.pass, "Password: ", true, false)
 
     var dr = new DockerRegistry(args.url, args.login, args.pass)
-    var fnP = ow.format.string.updateLine()
+    var fnP = ow.format.string.updateLine(printErr)
 
     fnP.line(templify("Checking on {{image}}...", args))
     var o = dr.hubListTags(args.image, args.last)
