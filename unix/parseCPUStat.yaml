@@ -1,0 +1,118 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses the content of /proc/stat of a Linux operating system.
+  expects: 
+  - name     : cmd
+    desc     : Command to obtain the result of /proc/stat
+    example  : cat /proc/stat
+    mandatory: false
+  - name     : interval
+    desc     : Interval of sampling of /proc/stat
+    example  : 1000
+    mandatory: false
+
+todo:
+- Parse stat
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  channels    :
+    create:
+    - name: data 
+
+jobs:
+# ------------------
+- name : Sample data
+  from : 
+  - Get prev data
+  - Execute cmd
+  to   : 
+  - Store prev data
+  check:
+    in:
+      output: isString
+      prev  : isMap.default({})
+  exec : |
+    args.res = args.output.split("\n")
+                          .filter(l => l.startsWith("cpu"))
+                          .map(r => {
+                            var _r = r.split(/\s+/)
+                            if (isUnDef(args.prev[_r[0]])) {
+                              args.prev[_r[0]] = {
+                                total  : 0,
+                                user   : 0,
+                                nice   : 0,
+                                system : 0,
+                                idle   : 0,
+                                iowait : 0,
+                                irq    : 0,
+                                softirq: 0,
+                                steal  : 0
+                              }
+                            }
+                            return {
+                              cpu    : _r[0],
+                              total  : Number(_r[1])+Number(_r[2])+Number(_r[3])+Number(_r[4])+Number(_r[5])+Number(_r[6])+Number(_r[7])+Number(_r[8]),
+                              user   : Number(_r[1]),
+                              nice   : Number(_r[2]),
+                              system : Number(_r[3]),
+                              idle   : Number(_r[4]),
+                              iowait : Number(_r[5]),
+                              irq    : Number(_r[6]),
+                              softirq: Number(_r[7]),
+                              steal  : Number(_r[8])
+                            }
+                          })
+
+    args.data = $from(args.res)
+                .select(r => ({
+                    cpu    : r.cpu,
+                    user   : $f("%.2f", ((r.user - args.prev[r.cpu].user)*100)/(r.total - args.prev[r.cpu].total)),
+                    nice   : $f("%.2f", ((r.nice - args.prev[r.cpu].nice)*100)/(r.total - args.prev[r.cpu].total)),
+                    system : $f("%.2f", ((r.system - args.prev[r.cpu].system)*100)/(r.total - args.prev[r.cpu].total)),
+                    idle   : $f("%.2f", ((r.idle - args.prev[r.cpu].idle)*100)/(r.total - args.prev[r.cpu].total)),
+                    iowait : $f("%.2f", ((r.iowait - args.prev[r.cpu].iowait)*100)/(r.total - args.prev[r.cpu].total)),
+                    irq    : $f("%.2f", ((r.irq - args.prev[r.cpu].irq)*100)/(r.total - args.prev[r.cpu].total)),
+                    softirq: $f("%.2f", ((r.softirq - args.prev[r.cpu].softirq)*100)/(r.total - args.prev[r.cpu].total)),
+                    steal  : $f("%.2f", ((r.steal - args.prev[r.cpu].steal)*100)/(r.total - args.prev[r.cpu].total))
+                }))
+
+# ------------------
+- name : Execute cmd
+  check:
+    in:
+      cmd: isString.default("cat /proc/stat")
+  exec : |
+    args.output = $sh(args.cmd).get(0).stdout
+
+# ----------------------
+- name : Store prev data
+  check:
+    in:
+      cmd : isString.default("cat /proc/stat")
+      res : isArray
+  exec : |
+    $ch("data").set({ id: args.cmd }, { id: args.cmd, data: $a4m(args.res, "cpu") })
+
+# --------------------
+- name : Get prev data
+  exec : |
+    var _r = $ch("data").get({ id: args.cmd })
+    if (isUnDef(_r)) _r = { id: args.cmd, data: {} }
+    args.prev = _r.data
+
+# -----------------
+- name : Parse stat
+  check:
+    in:
+      cmd     : isString.default("cat /proc/stat")
+      interval: toNumber.isNumber.default(1000)
+  exec : |
+    while(1) {
+      var _d = $job("Sample data", { cmd: args.cmd, interval: args.interval })
+      ow.oJob.output(_d.data, args)
+      sleep(args.interval, true)
+    }
