@@ -1,14 +1,18 @@
 # Author: Nuno Aguiar
 help:
-  text   : Parses the content of /proc/stat of a Linux operating system.
+  text   : Parses the content of /proc/stat of a Linux operating system into a list of percentages per cpu (including a first line for the cpu overall)
   expects: 
   - name     : cmd
-    desc     : Command to obtain the result of /proc/stat
+    desc     : Command to obtain the result of /proc/stat (defaults to "cat /proc/stat")
     example  : cat /proc/stat
     mandatory: false
   - name     : interval
-    desc     : Interval of sampling of /proc/stat
+    desc     : Interval of sampling of /proc/stat in ms (defaults to 1000ms)
     example  : 1000
+    mandatory: false
+  - name     : dontShowFirst
+    desc     : Boolean to indicate that the first line should not be shown until a previous sample if collected to properly calculate the difference
+    example  : "true"
     mandatory: false
 
 todo:
@@ -67,7 +71,7 @@ jobs:
                             }
                           })
 
-    args.data = $from(args.res)
+    args.data = $from($from(args.res) 
                 .select(r => ({
                     cpu    : r.cpu,
                     user   : $f("%.2f", ((r.user - args.prev[r.cpu].user)*100)/(r.total - args.prev[r.cpu].total)),
@@ -77,8 +81,11 @@ jobs:
                     iowait : $f("%.2f", ((r.iowait - args.prev[r.cpu].iowait)*100)/(r.total - args.prev[r.cpu].total)),
                     irq    : $f("%.2f", ((r.irq - args.prev[r.cpu].irq)*100)/(r.total - args.prev[r.cpu].total)),
                     softirq: $f("%.2f", ((r.softirq - args.prev[r.cpu].softirq)*100)/(r.total - args.prev[r.cpu].total)),
-                    steal  : $f("%.2f", ((r.steal - args.prev[r.cpu].steal)*100)/(r.total - args.prev[r.cpu].total))
-                }))
+                    steal  : $f("%.2f", ((r.steal - args.prev[r.cpu].steal)*100)/(r.total - args.prev[r.cpu].total)),
+                })))
+                .attach("usage", r => $f("%.2f", Number(r.user) + Number(r.nice) + Number(r.system) + Number(r.irq) + Number(r.softirq) + Number(r.steal)))
+                .attach("nousage", r => $f("%.2f", Number(r.idle) + Number(r.iowait)))
+                .select()
 
 # ------------------
 - name : Execute cmd
@@ -108,11 +115,13 @@ jobs:
 - name : Parse stat
   check:
     in:
-      cmd     : isString.default("cat /proc/stat")
-      interval: toNumber.isNumber.default(1000)
+      cmd          : isString.default("cat /proc/stat")
+      interval     : toNumber.isNumber.default(1000)
+      dontShowFirst: toBoolean.isBoolean.default(true)
   exec : |
+    args.dontShowFirst = true
     while(1) {
       var _d = $job("Sample data", { cmd: args.cmd, interval: args.interval })
-      ow.oJob.output(_d.data, args)
+      if (!args.dontShowFirst) ow.oJob.output(_d.data, args); else args.dontShowFirst = false
       sleep(args.interval, true)
     }
