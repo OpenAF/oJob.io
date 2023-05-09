@@ -11,7 +11,7 @@ help:
     example  : "true"
     mandatory: false
   - name     : url
-    desc     : The repo URL if different from Docker Hub
+    desc     : The repo URL if different from Docker Hub (e.g. https://registry.access.redhat.com/)
     example  : https://registry.hub.docker.com/v2/repositories
     mandatory: false
   - name     : login
@@ -57,15 +57,19 @@ jobs:
     fnP.line(templify("Checking on {{image}}...", args))
     var o = dr.hubListTags(args.image, args.last)
 
-    fnP.line("Preparing data from #" + o.length + " entries...")
-    var data = $from(o.map(r => ({
-      tag: r.name,
-      lastPush: r.tag_last_pushed,
-      lastPull: r.tag_last_pulled,
-      archs: r.images.map(s => s.architecture).join(",")
-    })))
-    .sort("-lastPush").select()
+    if (isArray(o)) {
+      fnP.line("Preparing data from #" + o.length + " entries...")
+      var data = $from(o.map(r => ({
+        tag     : r.name,
+        lastPush: isUnDef(r.tag_last_pushed) ? r.last_updated : r.tag_last_pushed,
+        lastPull: isUnDef(r.tag_last_pulled) ? "" : r.tag_last_pulled,
+        archs   : isArray(r.images) ? r.images.map(s => s.architecture).join(",") : "",
+        maxSize : r.full_size
+      })))
+      .sort("-lastPush").select()
 
-    args.__format = _$(args.__format).default("table")
+      args.__format = _$(args.__format).default("table")
+    }
+
     fnP.end()
     ow.oJob.output(data, args)
