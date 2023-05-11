@@ -1,0 +1,100 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses the content of /proc/diskstats of a Linux operating system into a list of values
+  expects: 
+  - name     : cmd
+    desc     : Command to obtain the result of /proc/stat (defaults to "cat /proc/diskstats")
+    example  : cat /proc/diskstats
+    mandatory: false
+  - name     : interval
+    desc     : Interval of sampling of /proc/diskstats in ms
+    example  : 1000
+    mandatory: false
+  - name     : dontShowFirst
+    desc     : Boolean to indicate that the first line should not be shown until a previous sample if collected to properly calculate the difference
+    example  : "true"
+    mandatory: false
+
+todo:
+- Parse IO stats
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  channels    :
+    create:
+    - name: diskstats
+
+jobs:
+# ---------------------
+- name : Parse IO stats
+  check:
+    in: 
+      interval     : toNumber.isNumber.default(__)
+      dontShowFirst: toBoolean.isBoolean.default(true)
+  exec : |
+    do {
+      var _d = $job("Sample data", { cmd: args.cmd, interval: args.interval })
+      if (args.dontShowFirst && _d.isfirst) {
+        sleep(isDef(args.interval) ? args.interval : 1000, true)
+        _d = $job("Sample data", { cmd: args.cmd, interval: args.interval })
+        args.dontShowFirst = false
+      }
+      ow.oJob.output(_d.data, args)
+      if (isDef(args.interval)) sleep(args.interval, true)
+    } while(isDef(args.interval))
+    
+# ------------------
+- name : Sample data
+  check:
+    in:
+      cmd     : isString.default("cat /proc/diskstats")
+      interval: toNumber.isNumber.default(__)
+  exec : |
+    var ival = (isUnDef(args.interval) && isDef(args.__interval) ? args.__interval : __)
+    ival = _$(ival).default(1000)
+
+    var data = $sh(args.cmd).get(0).stdout
+               .split("\n")
+               .filter(line => line.trim().length > 0)
+               .map(line => {
+                  var _r = line.split(/\s+/)
+                  return {
+                    device: _r[3],
+                    reads_completed: _r[4], 
+                    reads_merged: _r[5],
+                    sectors_read: _r[6],
+                    time_reading_ms: _r[7], 
+                    writes_completed: _r[8],
+                    writes_merged: _r[9],
+                    sectors_written: _r[10],
+                    time_writing_ms: _r[11],
+                    io_in_progress: _r[12],
+                    time_io_ms: _r[13]
+                  }
+               })
+
+    var _r = $a4m(data, "device")
+    var _p = $ch("diskstats").get({ id: 1 })
+    if (isUnDef(_p)) args.isfirst = true; else args.isfirst = false
+    $ch("diskstats").set({ id: 1}, { id: 1, r: _r })
+
+    var _d = isDef(_p) ? data.map(_data => ({
+      device          : _data.device,
+      reads_completed : _data.reads_completed - _p.r[_data.device].reads_completed, 
+      reads_merged    : _data.reads_merged - _p.r[_data.device].reads_merged,
+      sectors_read    : _data.sectors_read - _p.r[_data.device].sectors_read,
+      time_reading_ms : _data.time_reading_ms - _p.r[_data.device].time_reading_ms, 
+      writes_completed: _data.writes_completed - _p.r[_data.device].writes_completed,
+      writes_merged   : _data.writes_merged - _p.r[_data.device].writes_merged,
+      sectors_written : _data.sectors_written - _p.r[_data.device].sectors_written,
+      time_writing_ms : _data.time_writing_ms - _p.r[_data.device].time_writing_ms,
+      io_in_progress  :_data.io_in_progress,
+      time_io_ms      : _data.time_io_ms - _p.r[_data.device].time_io_ms,
+      total_iops      : ((_data.reads_completed - _p.r[_data.device].reads_completed)/(ival/1000)) + ((_data.writes_completed - _p.r[_data.device].writes_completed)/(ival/1000)),
+      total_tputpersec: ((_data.sectors_read - _p.r[_data.device].sectors_read)/(ival/1000)) + ((_data.sectors_written - _p.r[_data.device].sectors_written)/(ival/1000))
+    })) : data
+
+    args.data = _d
