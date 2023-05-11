@@ -7,7 +7,7 @@ help:
     example  : cat /proc/stat
     mandatory: false
   - name     : interval
-    desc     : Interval of sampling of /proc/stat in ms (defaults to 1000ms)
+    desc     : Interval of sampling of /proc/stat in ms
     example  : 1000
     mandatory: false
   - name     : dontShowFirst
@@ -16,7 +16,7 @@ help:
     mandatory: false
 
 todo:
-- Parse stat
+- Parse CPU stats
 
 ojob:
   opacks      :
@@ -25,16 +25,16 @@ ojob:
   logToConsole: false   # to change when finished
   channels    :
     create:
-    - name: data 
+    - name: cpustats 
 
 jobs:
-# ------------------
-- name : Sample data
+# ----------------------
+- name : Sample cpu data
   from : 
-  - Get prev data
-  - Execute cmd
+  - Get prev cpu data
+  - Execute cmd to get cpu data
   to   : 
-  - Store prev data
+  - Store prev cpu data
   check:
     in:
       output: isString
@@ -87,41 +87,46 @@ jobs:
                 .attach("nousage", r => $f("%.2f", Number(r.idle) + Number(r.iowait)))
                 .select()
 
-# ------------------
-- name : Execute cmd
+# ----------------------------------
+- name : Execute cmd to get cpu data
   check:
     in:
       cmd: isString.default("cat /proc/stat")
   exec : |
     args.output = $sh(args.cmd).get(0).stdout
 
-# ----------------------
-- name : Store prev data
+# --------------------------
+- name : Store prev cpu data
   check:
     in:
       cmd : isString.default("cat /proc/stat")
       res : isArray
   exec : |
-    $ch("data").set({ id: args.cmd }, { id: args.cmd, data: $a4m(args.res, "cpu") })
+    $ch("cpustats").set({ id: args.cmd }, { id: args.cmd, data: $a4m(args.res, "cpu") })
 
-# --------------------
-- name : Get prev data
+# ------------------------
+- name : Get prev cpu data
   exec : |
-    var _r = $ch("data").get({ id: args.cmd })
-    if (isUnDef(_r)) _r = { id: args.cmd, data: {} }
+    var _r = $ch("cpustats").get({ id: args.cmd })
+    args.isfirst = false
+    if (isUnDef(_r)) { _r = { id: args.cmd, data: {} }; args.isfirst = true }
     args.prev = _r.data
 
-# -----------------
-- name : Parse stat
+# ----------------------
+- name : Parse CPU stats
   check:
     in:
       cmd          : isString.default("cat /proc/stat")
-      interval     : toNumber.isNumber.default(1000)
+      interval     : toNumber.isNumber.default(__)
       dontShowFirst: toBoolean.isBoolean.default(true)
   exec : |
-    args.dontShowFirst = true
-    while(1) {
-      var _d = $job("Sample data", { cmd: args.cmd, interval: args.interval })
-      if (!args.dontShowFirst) ow.oJob.output(_d.data, args); else args.dontShowFirst = false
-      sleep(args.interval, true)
-    }
+    do {
+      var _d = $job("Sample cpu data", { cmd: args.cmd, interval: args.interval })
+      if (args.dontShowFirst && _d.isfirst) {
+        sleep(isDef(args.interval) ? args.interval : 1000, true)
+        _d = $job("Sample cpu data", { cmd: args.cmd, interval: args.interval })
+        args.dontShowFirst = false
+      }
+      ow.oJob.output(_d.data, args)
+      if (isDef(args.interval)) sleep(args.interval, true)
+    } while(isDef(args.interval))
