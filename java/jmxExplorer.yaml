@@ -1,0 +1,134 @@
+# Author: Nuno Aguiar
+help:
+  text   : JMX Explorer enables the querying of a Java JMX target to explore existing data or to retrieve all available data
+  expects: 
+  - name     : op
+    desc     : "Select one of the possible operations: help, domains. query, get and all"
+    example  : all
+    mandatory: true 
+  - name     : url
+    desc     : The JMX url to connecto to
+    example  : service:jmx:rmi:///jndi/rmi://127.0.0.1:9999/jmxrmi
+    mandatory: true
+  - name     : query
+    desc     : The JMX query or complete object reference for op=query and op=get
+    example  : "java.lang:*"
+    mandatory: false
+  - name     : user
+    desc     : The user when accessing JMX through an authenticated access.
+    example  : myuser
+    mandatory: false
+  - name     : pass
+    desc     : The password when accessing JMX through an authenticated access.
+    example  : mypassword
+    mandatory: false
+  - name     : provider
+    desc     : A specific JMX provider class.
+    example  : com.my.jmxProvider
+    mandatory: false
+
+todo:
+- JMX Explorer
+
+ojob:
+  opacks      :
+  - openaf: 20230416
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  includeOJob : true
+
+jobs:
+# ----------------------------
+- name : Connect to JMX target
+  check:
+    in:
+      url     : isString
+      user    : isString.default(__)
+      pass    : isString.default(__)
+      provider: isString.default(__)
+  exec : |
+    plugin("JMX")
+    ow.loadJava()
+
+    args.jmx = new ow.java.JMX(args.url, args.user, args.pass, args.provider)
+
+# ------------------
+- name : JMX Get all
+  from : Connect to JMX target
+  exec : |
+    $set("data", args.jmx.getAll())
+
+# ----------------------
+- name : JMX Get Domains
+  from : Connect to JMX target
+  exec : |
+    $set("data", args.jmx.getDomains())
+
+# ----------------
+- name : JMX Query
+  from : Connect to JMX target
+  check:
+    in:
+      query: isString
+  exec : |
+    $set("data", args.jmx.queryNames(args.query))
+
+# ---------------------
+- name : JMX Get Object
+  from : Connect to JMX target
+  check:
+    in:
+      query: isString
+  exec : |
+    $set("data", args.jmx.getObject(args.query))
+
+# ------------------------
+- name : JMX Explorer help
+  args :
+    text: |
+      **JMX Explorer help**
+      **-----------------**
+
+        1. Start by dding to the target Java application the following options:
+           _-D"com.sun.management.jmxremote.port=9999" -D"com.sun.management.jmxremote.authenticate=false" -D"com.sun.management.jmxremote.ssl=false"_
+
+        2. Then build the JMX url you need to access it. Each call to JMX Explorer requires that you provide this url:
+           _url=service:jmx:rmi:///jndi/rmi://[ip address]:9999/jmxrmi_
+
+        3. To use JMX Explorer to explore the available JMX data:
+
+           **domains**   : _ojob jmxExplorer url=... op=domains_
+           **query**     : _ojob jmxExplorer url=... op=query query="java.lang"_
+           **get object**: _ojob jmxExplorer url=... op=get query="java.lang:type=Memory"_
+           **all**       : _ojob jmxExplorer url=... op=all_
+
+  exec : |
+    print(ow.format.withMD(args.text))
+
+# -------------------
+- name : JMX Explorer
+  to   : ojob options      
+  check:
+    in:
+      op: isString.oneOf(["all","help","query","domains","get"])
+  args :
+    __key: data
+    __optionOn : op
+    __lowerCase: true
+    __todos    :
+      all    : 
+      - JMX Get all
+      - ojob output
+      query  : 
+      - JMX Query
+      - ojob output
+      domains: 
+      - JMX Get Domains
+      - ojob output
+      get    : 
+      - JMX Get Object
+      - ojob output
+      help   : 
+      - JMX Explorer help
+    __default  : 
+    - JMX Explorer help
