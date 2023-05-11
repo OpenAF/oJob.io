@@ -1,0 +1,73 @@
+# Author: Nuno Aguiar
+help:
+  text   : Plot a line chart based on a map or array input
+  expects: 
+  - name     : type
+    desc     : The chart values type (e.g. int, dec, dec1, dec2, dec3, bytes, si)
+    example  : dec2
+    mandatory: false
+  - name     : max
+    desc     : The maximum value
+    example  : 100
+    mandatory: false
+  - name     : min
+    desc     : The minimum value
+    example  : 0
+    mandatory: false
+  - name     : width
+    desc     : The line chart width
+    example  : 0
+    mandatory: false
+  - name     : height
+    desc     : The line chart height
+    example  : 0
+    mandatory: false
+  - name     : colors
+    desc     : A semicolon delimited list of colors to override the default
+    example  : blue;red;green;cyan;magenta;yellow;bold,blue;bold,red;bold,green;bold,cyan;bold,magenta;bold,yellow
+    mandatory: false
+  - name     : nocls
+    desc     : Boolean to indicate that the output screen should not be cleared
+    example  : "true"
+    mandatory: false
+
+todo:
+- Plot line chart
+
+ojob:
+  opacks      :
+  - openaf: 20230510
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name : Plot line chart
+  check:
+    in:
+      type  : isString.oneOf(["int","dec1","dec2","dec3","dec","bytes","si"]).default("int")
+      max   : toNumber.isNumber.default(__)
+      min   : toNumber.isNumber.default(__)
+      width : toNumber.isNumber.default(__)
+      height: toNumber.isNumber.default(__)
+      colors: isString.default("blue;red;green;cyan;magenta;yellow;bold,blue;bold,red;bold,green;bold,cyan;bold,magenta;bold,yellow;negative_on,blue;negative_on,red;negative_on,green;negative_on,cyan;negative_on,magenta;negative_on,yellow")
+      nocls : toBoolean.isBoolean.default(false)
+  exec : |
+    __initializeCon()
+    var colors = args.colors.split(";")
+    if (isUnDef(args.width)) args.width = __con.getTerminal().getWidth()
+    if (isUnDef(args.height)) args.height = __con.getTerminal().getHeight() - 1
+
+    if (isDef(__pm._map)) {
+      var _m = __pm._map
+      if (Object.keys(_m).length > colors.length) throw "Please provide more colors ('" + colors.join(",") + "')!"
+      var _t = Object.keys(_m).map((r,i) => (isNumber(_m[r]) ? String(_m[r]+":"+colors[i]+":"+r) : "")).join(" ")
+      var _o = printChart("chart " + args.type + " " + _t, args.width, args.height, args.max, args.min)
+      if (!args.nocls) cls()
+      print(_o)
+    } else {
+      if (isDef(__pm.list)) {
+        throw "Lists not yet supported."
+      }
+    }
