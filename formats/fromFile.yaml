@@ -1,0 +1,47 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts an existing json/yaml/slon/xml file (or piped content) into a oJob's __pm variable suitable to pipe to another job
+  expects: 
+  - name     : type
+    desc     : The piped or file content type from (e.g. json/yaml/slon/xml)
+    example  : "json"
+    mandatory: true
+  - name     : file
+    desc     : The file to read data from.
+    example  : sample.json
+    mandatory: false
+
+todo:
+- Convert input
+
+ojob:
+  opacks      :
+  - openaf: 20230512
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# --------------------
+- name : Convert input
+  check:
+    in:
+      type: isString.oneOf(["json", "yaml", "slon", "xml"])
+      file: isString.default(__)
+  exec : |
+    var inputData = "", data = {}
+
+    if (isDef(args.file)) {
+      inputData = io.readFileString(args.file)
+    } else {
+      io.pipeLn(l => inputData += l + "\n")
+    }
+
+    switch(args.type) {
+    case "json": data = jsonParse(inputData, true); break
+    case "yaml": data = af.fromYAML(inputData); break
+    case "slon": data = af.fromSLON(inputData); break
+    case "xml" : data = af.fromXML2Obj(inputData.replace(/<\?xml[^>]+>/,"")); break
+    }
+
+    ow.oJob.output(data, args)
