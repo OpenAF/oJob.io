@@ -1,0 +1,102 @@
+# Author: Nuno Aguiar
+help:
+  text   : RAID OMT explorer
+  expects:
+  - name     : url
+    desc     : An OpenAF connection URL
+    example  : http://adm:Password1@rafm.default.svc:40353/xdt
+    mandatory: true
+  - name     : op
+    desc     : "Select one of the possible operations: help, types, query, get"
+    example  : help
+    mandatory: true
+
+todo:
+- Check for OpenCli
+- OMT Explorer
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  includeOJob : true
+
+jobsInclude:
+- _common.yaml
+
+jobs:
+# --------------------
+- name : OMT Get types
+  from : Connect to RAID
+  exec : |
+    $set("data", $from( ow.waf.objects.getObjectTypes(global.af) ).select() )
+
+# ----------------
+- name : OMT Query
+  from : Connect to RAID
+  check:
+    in:
+      bytype: isString.default(__)
+      byname: isString.default(__)
+  exec : |
+    if (isUnDef(args.byname)) {
+      $set("data", ow.waf.objects.getObjectsByType(global.af, args.bytype) )
+    } else {
+      $set("data", ow.waf.objects.getObjectsByName(global.af, args.byname, true, args.bytype) )
+    }
+
+# --------------
+- name : OMT Get
+  from : Connect to RAID
+  check:
+    in:
+      byname: isString.default(__)
+      byuuid: isString.default(__)
+  exec : |
+    if (isDef(args.byname)) $set("data", ow.waf.objects.getObjectByName(global.af, args.byname))
+    if (isDef(args.byuuid)) $set("data", ow.waf.objects.getObjectByUUID(global.af, args.byuuid))
+
+# ------------------------
+- name : OMT Explorer help
+  args :
+    text: |
+      **OMT Explorer help**
+      **-----------------**
+
+        1. Build the connection URL
+           _url=http://user:password@rafm.service.name:40353/xdt_
+
+        2. Use OMT Explorer to explore the available OMT data:
+
+           **types**     : _ojob jmxExplorer url=... op=types_
+           **query**     : _ojob jmxExplorer url=... op=query [bytype=...] [byname=...]_
+           **get object**: _ojob jmxExplorer url=... op=get [byuuid=...] [byname=...]_
+
+  exec : |
+    print(ow.format.withMD(args.text))
+
+# -------------------
+- name : OMT Explorer
+  to   : ojob options
+  check:
+    in:
+      op : isString.oneOf(["help","types","query","get"])
+  args :
+    __key      : data
+    __optionOn : op
+    __lowerCase: true
+    __todos    :
+      types:
+      - OMT Get types
+      - ojob output
+      query:
+      - OMT Query
+      - ojob output
+      get  :
+      - OMT Get
+      - ojob output
+      help :
+      - OMT Explorer help
+    __default  :
+    - OMT Explorer help

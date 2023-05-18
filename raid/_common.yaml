@@ -10,6 +10,12 @@ jobs:
 # ---------------------
 - name: Connect to RAID
   exec: |
+    if (isDef(args.socks)) {
+      ow.loadObj()
+      var ar = args.socks.split(":")
+      ow.obj.setSOCKSProxy(ar[0], ar[1])
+    }
+
     if (isDef(args.seckey)) {
       if (isDef(args.secbucket) && String(args.secbucket).length > 0) {
         args.secbucketpass = askDef(args.secbucketpass, "Sec bucket '" + args.secbucket + "' pass: ", true);
@@ -17,31 +23,32 @@ jobs:
       var res = $sec(args.secrepo, __, __, args.secpass).get(args.seckey, args.secbucket, args.secbucketpass);
       if (isMap(res)) {
         if (isDef(res._args) && res._obj == "AF") {
-          if (!toBoolean(args.nolog)) lognl("Connecting to RAID... ");
+          if (!toBoolean(args.nolog)) lognl("Connecting to RAID... \r");
           global.af = $sec(args.secrepo, __, __, args.secpass).getObj(args.seckey, __, args.secbucket, args.secbucketpass);
         }
       }
       if (isString(res)) {
         args.url = res;
         args.url            = _$(args.url, "url").isString().$_();
-        args.timeout        = _$(args.timeout, "timeout").isString().default(__); 
+        args.timeout        = _$(args.timeout, "timeout").isString().default(__);
         args.ctimeout       = _$(args.ctimeout, "ctimeout").isString().default(__);
         args.useTransaction = _$(args.useTransaction, "useTransaction").isString().default(__);
 
-        if (!toBoolean(args.nolog)) lognl("Connecting to RAID... ");
+        if (!toBoolean(args.nolog)) lognl("Connecting to RAID... \r");
         global.af = new AF(args.url, Number(args.timeout), Number(args.ctimeout), toBoolean(args.useTransaction));
       }
     } else {
       args.url            = _$(args.url, "url").isString().$_();
-      args.timeout        = _$(args.timeout, "timeout").isString().default(__); 
+      args.timeout        = _$(args.timeout, "timeout").isString().default(__);
       args.ctimeout       = _$(args.ctimeout, "ctimeout").isString().default(__);
       args.useTransaction = _$(args.useTransaction, "useTransaction").isString().default(__);
 
-      if (!toBoolean(args.nolog)) lognl("Connecting to RAID... ");
+      if (!toBoolean(args.nolog)) lognl("Connecting to RAID... \r");
       global.af = new AF(args.url, Number(args.timeout), Number(args.ctimeout), toBoolean(args.useTransaction));
     }
 
     if (!toBoolean(args.nolog)) log("Connected to RAID " + getRAIDVersion())
+    ow.loadWAF()
     ow.oJob.add2Todo("Disconnect from RAID");
 
 # --------------------------
