@@ -1,0 +1,44 @@
+# Author: Nuno Aguiar
+help:
+  text   : >
+    Converts a piped input, or a file, from RAID pretty print format.
+    You can also pipe the contents with sed (sed -n '/Result:/ {n; :loop n; p; b loop}') to filter unwanted lines. 
+  expects: 
+  - name     : file
+    desc     : A file containing a RAID pretty print format
+    example  : a_file.txt
+    mandatory: false
+
+todo:
+- Check for OpenCli
+- Convert to Pretty Print
+
+jobsInclude:
+- ojob.io/raid/_common
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------------------
+- name : Convert to Pretty Print
+  check:
+    in:
+      file: isString.default(__)
+  exec : |
+    var txt = ""
+    if (isDef(args.file)) {
+      txt = io.readFileString(args.file)
+    } else {
+      io.pipeLn(line => {
+        txt += line + "\n"
+      })
+    }
+
+    var data = af.fromJavaParameterMap( af.fromPrettyPrint(txt.trim()) )
+
+    ow.oJob.output(data, args)

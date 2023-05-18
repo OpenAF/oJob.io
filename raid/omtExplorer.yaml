@@ -23,7 +23,7 @@ ojob:
   includeOJob : true
 
 jobsInclude:
-- _common.yaml
+- ojob.io/raid/_common
 
 jobs:
 # --------------------

@@ -1,0 +1,33 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts any OpenAF's __pm content provided into pretty print format.
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Check for OpenCli
+- Convert to pretty print
+
+jobsInclude:
+- ojob.io/raid/_common
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------------------
+- name : Convert to pretty print
+  exec : |
+    var out = __pm
+
+    if (isDef(__pm._map))  out = __pm._map
+    //if (isDef(__pm._list)) out = __pm._list
+
+    print(af.toPrettyPrint(out))
