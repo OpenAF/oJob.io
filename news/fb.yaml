@@ -1,9 +1,9 @@
 # Author: Nuno Aguiar
 help: 
-  text   : Retrieves GitHub News RSS
+  text   : Retrieves Facebook RSS
 
 todo:
-- GitHub
+- Facebook 
 
 ojob:
   opacks      :
@@ -12,10 +12,10 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ------------
-- name: GitHub 
+# --------------
+- name: Facebook 
   type: jobs
   typeArgs:
     url: ojob.io/news/rss
   args:
-    url: https://github.blog/feed/
+    url: https://engineering.fb.com/feed/
