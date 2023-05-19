@@ -1,0 +1,85 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates an oJob ready to execute command jobs in remote machines.
+  expects: 
+  - name     : num
+    desc     : Number of entries to generate
+    example  : 5
+    mandatory: false
+
+todo:
+- Generate ssh jobs
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+init:
+  oj: |
+    # The password will be asked and set for all. To disable and provide no password or a specific password
+    # for each: (1) uncomment "pass:"; (2) comment "Ask pass" in the todo section; 
+    #
+    list: &LIST
+    - ssh:
+        host   : 1.2.3.4
+        port   : &PORT 22 
+        login  : &LOGIN aLogin
+        #pass   : &PASS theLoginOrKeyPasswordEncrypted
+        id     : &ID /path/to/private_key.id
+        timeout: &TIMEOUT 2500
+    {{#each machine}}
+    - ssh:
+        host   : 1.2.3.4
+        port   : *PORT
+        login  : *LOGIN
+        #pass   : *PASS
+        id     : *ID
+        timeout: *TIMEOUT
+    {{/each}}
+
+    todo:
+    - Ask pass
+    - Run commands
+
+    ojob:
+      opacks        :
+      - openaf: 20230325
+      catch         : printErrnl("[" + job.name + "] "); printErr(exception)
+      logToConsole  : true   # to change when finished
+
+    jobs:
+    # --------------
+    - name: Ask pass
+      exec: |
+        global.pass = askEncrypt("Password: ")
+
+    # --------------
+    - name: Set pass
+      exec: |
+        if (isDef(global.pass)) args.ssh.pass = global.pass
+
+    # ----------------------
+    - name    : Run commands
+      from    : Set pass
+      lang    : ssh
+      typeArgs:
+        shellPrefix: ssh.host
+      args    : *LIST
+      exec    : |
+        # write here any sh commands you need like it was a shell script
+        #
+        id
+
+jobs:
+# ------------------------
+- name : Generate ssh jobs
+  check:
+    in:
+      num: toNumber.isNumber.default(3)
+  exec : |
+    if (args.num < 1) args.num = 1
+    tprint(args.init.oj, {
+      machine: range(args.num - 1)
+    })
