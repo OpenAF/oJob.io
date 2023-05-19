@@ -1,0 +1,68 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a RAID connection will run StatusReport and provide information about running flows.
+  expects: 
+  - name     : url
+    desc     : An OpenCli RAID connection URL (e.g. http://user:pass@a.server:40353/xdt)
+    example  : http://user:pass@a.server:40353/xdt
+    mandatory: true
+  - name     : flow
+    desc     : If defined will act as a regular expression to filter the RunningFlows list and just output RunningFlows
+    example  : "^MyFlow"
+    mandatory: false
+  - name     : socks
+    desc     : If defined will set a SOCKS proxy (e.g. proxyHost:proxyPort)
+    example  : "127.0.0.1:1080"
+    mandatory: false
+
+todo:
+- Check Flow Manager
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -------------------------
+- name : Check Flow Manager
+  check:
+    in:
+      url  : isString
+      flow : isString.default(__)
+      socks: isString.default(__)
+  exec : |
+    if (isDef(args.socks)) {
+      var ar = args.socks.split(":")
+      ow.loadObj()
+      ow.obj.setSOCKSProxy(ar[0], ar[1])
+    }
+    
+    var af = new AF(args.url)
+    var sr = af.exec("StatusReport")
+    var n = (new Date()).toISOString()
+
+    var svc = Object.keys(sr.Services).filter(r => r.startsWith("wedo.cbpm.services.flow.FlowManager"))
+    if (isArray(svc)) svc = svc[0]
+
+    var data = sr.Services[svc]["CBPM.FlowManager"]
+    traverse(data, (aK, aV, aP, aO) => {
+      if (aK == "ClassName") delete aO[aK]
+      if (ow.format.isWedoDate(aV)) aO[aK] = ow.format.fromWeDoDateToDate(aV).toISOString()
+    })
+
+    data.RunningFlows = $m4a(data.RunningFlows, "FlowRunId")
+    if (isDef(args.flow)) {
+      data.RunningFlows = $from(data.RunningFlows).match("FlowName", args.flow).select()
+    }
+    data.RunningFlows.forEach(rf => {
+      rf.FlowExecTimeInSecs = ow.format.fromTimeAbbreviation(rf.FlowExecTime)
+    })
+
+    if (isDef(args.flow)) {
+      ow.oJob.output(merge({ ReportDate: n }, data.RunningFlows), args)
+    } else {
+      ow.oJob.output(merge({ ReportDate: n }, data), args)
+    }
