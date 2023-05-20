@@ -1,0 +1,71 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a container image will use scan it using trivy and generate a SVG badge summarizing the result 
+  expects: 
+  - name     : image
+    desc     : The image and tag to scan
+    example  : "openaf/oaf:latest"
+    mandatory: true
+  - name     : file
+    desc     : The badge SVG file to generate
+    example  : badge.svg
+    mandatory: true
+
+todo:
+- Check image
+- Create badge
+
+ojob:
+  opacks      :
+  - openaf: 20230520
+  - Badgen
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  templateArgs: true
+
+include:
+- badgen.yaml
+
+jobs:
+# ------------------
+- name : Check image
+  check:
+    in:
+      image: isString    
+  to   :
+  - (log    ): "Scanning '{{image}}'..."
+    ((key  )): args
+  - (runfile): ojob.io/sec/trivy
+    ((usePM)): true
+    ((templateArgs)): true
+    ((args )):
+      image: "{{image}}"
+  
+  - (log    ): "Producing a summary of the results..."
+  - (runfile): ojob.io/sec/trivySummary
+    ((key  )): results
+
+# ------------------
+- name: Create badge
+  from:
+  - (get): results
+
+  to  :
+  - (template): "(CRIT: {{CRITICAL}}, HIGH: {{HIGH}}, MED: {{MEDIUM}}, LOW: {{LOW}})"
+    ((outPath): status
+    ((key    ): args
+    ((out    ): args
+
+  - (log     ): "Generating badge file '{{file}}'..."
+  - name      : Badgen generate file
+    args      :
+      label     : "openaf/oaf:latest"
+      labelColor: grey2
+      icon      : "nattrmon.svg"
+
+  exec    : |
+    args.color = "green"
+    if (args.LOW > 0) args.color = "yellowgreen"
+    if (args.MEDIUM > 0) args.color = "yellow"
+    if (args.HIGH > 0) args.color = "orange"
+    if (args.CRITICAL > 0) args.color = "red"
