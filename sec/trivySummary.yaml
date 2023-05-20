@@ -34,22 +34,25 @@ jobs:
     if (isUnDef(report.Results) && !isArray(report.Results)) {
       throw "No trivy results found."
     } else {
-      if (report.Results.length > 0 && 
-          isArray(report.Results[0].Vulnerabilities) &&
-          report.Results[0].Vulnerabilities.length > 0) {
-        var _r = $from( 
-          $from( report.Results[0].Vulnerabilities )
-          .countBy("VulnerabilityID,Severity") 
-        )
-        .countBy("Severity")
+      var total = 0
+      if (report.Results.length > 0) { 
+        report.Results.forEach(res => {
+          if (isArray(res.Vulnerabilities) && 
+              res.Vulnerabilities.length > 0) {
+            var _r = $from( 
+                      $from( res.Vulnerabilities )
+                      .countBy("VulnerabilityID,Severity") 
+                     )
+                     .countBy("Severity")
 
-        var total = 0
-        _r.forEach(_s => {
-          result[_s.Severity] = _s._count
-          total += _s._count
+            _r.forEach(_s => {
+              result[_s.Severity] = _s._count
+              total += _s._count
+            })
+          }
         })
-        result.TOTAL = total
       } 
+      result.TOTAL = total
     }
 
     ow.oJob.output(result, args)
