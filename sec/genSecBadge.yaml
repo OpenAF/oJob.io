@@ -59,11 +59,12 @@ jobs:
   - (log     ): "Generating badge file '{{file}}'..."
   - name      : Badgen generate file
     args      :
-      label     : "openaf/oaf:latest"
       labelColor: grey2
       icon      : "nattrmon.svg"
 
   exec    : |
+    args.label = args.image
+
     args.color = "green"
     if (args.LOW > 0) args.color = "yellowgreen"
     if (args.MEDIUM > 0) args.color = "yellow"
