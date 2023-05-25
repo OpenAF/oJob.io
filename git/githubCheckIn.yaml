@@ -1,0 +1,147 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Tries to commit any current changes and, if it fails, create a pull request and merge it in GitHub (requires GitHub cli)
+  expects: 
+  - name     : username
+    desc     : The GitHub username for commit identification
+    example  : unknown
+    mandatory: false
+  - name     : email
+    desc     : The GitHub email for commit identification
+    example  : abc@xyz.com
+    mandatory: false
+  - name     : message
+    desc     : The commit message to use
+    example  : "updates"
+    mandatory: false
+  - name     : title
+    desc     : The pull request title, if needed
+    example  : "Updates PR"
+    mandatory: false
+  - name     : branch
+    desc     : The branch associated with the pull request, if needed
+    example  : "my-branch"
+    mandatory: false
+  - name     : body
+    desc     : The test to include in the body of the pull request, if needed
+    example  : "automated PR"
+    mandatory: false
+
+ojob:
+  
+  opacks      :
+  - openaf: 20230325
+  catch       : logErr(exception)
+  logToConsole: true   
+
+todo:
+- GitHub Check In
+
+jobs:
+# ----------------------
+- name : GitHub Check In
+  catch: |
+    logErr(exception)
+    exit(-1)
+  check:
+    in:
+      username: isString.default("github-actions")
+      email   : isString.default("github-actions@github.com")
+      message : isString.default("updates")
+      title   : isString.default(__)
+      branch  : isString.default(__)
+      body    : isString.default(__)
+  exec : |
+    args.endInError = false 
+    args.dontDelete = false
+    
+    // Set user
+    $sh("git config user.name " + args.username)
+    .sh("git config user.email " + args.email)
+    .prefix("git")
+    .get()
+    
+    // Determines if there is anything to commit
+    var res = $sh("git status --porcelain").get(0).stdout
+    
+    if (res != "") {
+      log("Identified to commit:\n" + res)
+      
+      // Try to commit
+      log("Trying to commit to the current branch...")
+      var res2 = $sh("git add .")
+                 .sh("git commit -m \"" + args.message + "\"")
+                 .sh("git push")
+                 .prefix("git")
+                 .get()
+      
+      if ($from(res2).notEquals("exitcode", 0).any()) {
+         // Trying to create a pull request
+         logWarn("Couldn't commit directly. Trying to create a pull request...")
+         
+         args.branch = _$(args.branch).isString().default(__)
+         if (isUnDef(args.branch)) args.branch = ow.format.fromDate(new Date(), "yyyyMMdd-HHmmss")
+         
+         // Trying to create branch and commit
+         log("Creating branch '" + args.branch + "' and trying to commit changes to it...")
+         
+           // Determine current branch
+           res = $sh("git rev-parse --abbrev-ref HEAD")
+                 .get(0).stdout.trim()
+           var cBranch = res
+           log("Current branch identified: '" + cBranch + "'")
+           
+         var res3 = $sh("git checkout -b " + args.branch)
+                    .sh("git push --set-upstream origin " + args.branch)
+                    .sh("git push origin " + args.branch)
+                    .prefix("git")
+                    .get()
+         
+         if ($from(res3).notEquals("exitcode", 0).none()) {
+           if (isUnDef(args.title)) args.title = args.branch
+           log("Commit to branch '" + args.branch + "' was successfull. Trying to create pull request '" + args.title + "'...")
+           
+           if (isUnDef(args.body)) args.body = "Automatic pull request for branch '" + args.branch + "'"
+           // Trying to create pull request
+           res = $sh("gh pr create --title \"" + args.title + "\" --body \"" + args.body + "\" --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
+                 .get()
+
+           if ($from(res).notEquals("exitcode", 0).any()) {
+              logErr("Couldn't create pull request '" + args.title + "'!: " + af.toSLON($from(res).notEquals("exitcode", 0).select()))
+              args.endInError = true
+           } else {
+              // Trying to merge and close pull request
+              var pr_id = res[0].stdout.trim()
+              log("Created pull request " + pr_id + ". Trying to merge it...")
+              res = $sh("gh pr merge \"" + pr_id + "\" --merge")
+                    .get()
+                    
+              if ($from(res).notEquals("exitcode", 0).any()) {
+                 logWarn("Couldn't merge pull request " + pr_id + ": " + af.toSLON($from(res).notEquals("exitcode", 0).select()))
+                 logWarn("Keeping pull request #" + pr_id + " and branch '" + args.branch + "' for human review.")
+                 args.dontDelete = true
+              } else {
+                 log("Pull request " + pr_id + " was succesfully merged.")
+              }
+           }
+         } else {
+           logErr("Commit was not successfull: " + res3.map(r=>r.stderr).join("; "))
+           args.endInError = true
+         }
+         
+         if (!args.dontDelete) {
+           log("Trying to delete branch: " + args.branch + "...")
+           res = $sh("git checkout " + cBranch)
+                 .sh("git branch -D " + args.branch)
+                 .sh("git push origin --delete " + args.branch)
+                 .prefix("git")
+                 .get()
+         }
+      } else {
+          log("Commit succesfull.")
+      }
+    } else {
+      log("Nothing to commit.")
+    }
+    
+    if (args.endInError) throw("Check in not successfull")
