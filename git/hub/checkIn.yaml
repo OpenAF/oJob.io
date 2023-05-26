@@ -113,7 +113,7 @@ jobs:
               // Trying to merge and close pull request
               var pr_id = res[0].stdout.trim()
               log("Created pull request " + pr_id + ". Trying to merge it...")
-              res = $sh("gh pr merge \"" + pr_id + "\" --merge")
+              res = $sh("gh pr merge \"" + pr_id + "\" --auto")
                     .get()
                     
               if ($from(res).notEquals("exitcode", 0).any()) {
