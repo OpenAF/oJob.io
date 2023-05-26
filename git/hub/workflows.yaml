@@ -1,0 +1,89 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a GitHub repo tries to perform operations (e.g. list, trigger) over the existing workflows
+  expects: 
+  - name     : op
+    desc     : The operation to execute (e.g. help, list, trigger)
+    example  : list
+    mandatory: true
+  - name     : repo
+    desc     : The GitHub repo to use
+    example  : my/repo
+    mandatory: false
+  - name     : workflow
+    desc     : The GitHub repo corresponding workflow
+    example  : my-workflow.yml
+    mandatory: false
+
+todo:
+- (optionOn   ): op
+  ((lowerCase)): true
+  ((todos    )):
+    help:
+    - Display help
+    trigger:
+    - Trigger workflow
+    list:
+    - List workflows
+  ((default  )):
+  - Display help
+
+ojob:
+  opacks      :
+  - openaf: 20230525
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : Trigger workflow
+  check:
+    in:
+      repo    : isString
+      workflow: isString
+      ref     : isString.default("main")
+      inputs  : default(__)
+  exec : |
+    if (isString(args.inputs)) args.inputs = jsonParse(args.inputs, true)
+
+    var data = $rest({ requestHeaders: { accept       : "application/vnd.github+json",
+                                         authorization: "Bearer " + getEnv("GITHUB_TOKEN"),
+                                         "x-github-api-version": "2022-11-28" } })
+               .post("https://api.github.com/repos/" + args.repo + "/actions/workflows/" + args.workflow + "/dispatches", {
+                ref: args.ref,
+                inputs: args.inputs
+               })
+    
+    ow.oJob.output(data, args)
+
+# ---------------------
+- name : List workflows
+  check:
+    in:
+      repo: isString
+  exec : |
+    var data = {}
+    data = $rest({ requestHeaders: { accept: "application/vnd.github+json", 
+                                     authorization: "Bearer " + getEnv("GITHUB_TOKEN"),
+                                     "x-github-api-version": "2022-11-28" } })
+           .get("https://api.github.com/repos/" + args.repo + "/actions/workflows")
+
+    if (isArray(data.workflows)) data = data.workflows
+
+    ow.oJob.output(data, args)
+
+# -------------------
+- name : Display help
+  to   :
+  - (printmd): |
+       **GitHub workflows** examples of usage:
+
+         *"op=help"*
+         Display this text.
+         
+         *"op=list repo=owner/repo"*
+         List the workflows on the provided repo.
+         
+         *"op=trigger repo=owner/repo workflow=test.yml ref=main inputs='{}'"*
+         Triggers the execution of a worklflow on the provided repo.
