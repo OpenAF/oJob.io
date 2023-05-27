@@ -23,8 +23,12 @@ help:
     example  : "my-branch"
     mandatory: false
   - name     : body
-    desc     : The test to include in the body of the pull request, if needed
+    desc     : The text to include in the body of the pull request, if needed
     example  : "automated PR"
+    mandatory: false
+  - name     : bodyFile
+    desc     : In alternative of 'body' from a markdown file to include in the body of the pull request, if needed
+    example  : "body.md"
     mandatory: false
 
 ojob:
@@ -51,6 +55,7 @@ jobs:
       title   : isString.default(__)
       branch  : isString.default(__)
       body    : isString.default(__)
+      bodyFile: isString.default(__)
   exec : |
     args.endInError = false 
     args.dontDelete = false
@@ -101,9 +106,9 @@ jobs:
            if (isUnDef(args.title)) args.title = args.branch
            log("Commit to branch '" + args.branch + "' was successfull. Trying to create pull request '" + args.title + "'...")
            
-           if (isUnDef(args.body)) args.body = "Automatic pull request for branch '" + args.branch + "'"
            // Trying to create pull request
-           res = $sh("gh pr create --title \"" + args.title + "\" --body \"" + args.body + "\" --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
+           args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "Automatic pull request for branch '" + args.branch + "'") )
+           res = $sh("gh pr create --title \"" + args.title + "\" " + args.body + " --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
                  .get()
 
            if ($from(res).notEquals("exitcode", 0).any()) {
