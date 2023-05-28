@@ -30,6 +30,10 @@ help:
     desc     : In alternative of 'body' from a markdown file to include in the body of the pull request, if needed
     example  : "body.md"
     mandatory: false
+  - name     : paths
+    desc     : A command delimited list of paths to check in (if not provided defaults to ".")
+    example  : "src,tests"
+    mandatory: false
 
 ojob:
   
@@ -52,6 +56,7 @@ jobs:
       username: isString.default("github-actions")
       email   : isString.default("github-actions@github.com")
       message : isString.default("updates")
+      paths   : isString.default(".")
       title   : isString.default(__)
       branch  : isString.default(__)
       body    : isString.default(__)
@@ -74,8 +79,12 @@ jobs:
       
       // Try to commit
       log("Trying to commit to the current branch...")
-      var res2 = $sh("git add .")
-                 .sh("git commit -m \"" + args.message + "\"")
+      args.paths.split(",").forEach(p => {
+        $sh("git add " + p.trim())
+        .prefix("git")
+        .get()
+      })
+      var res2 = $sh("git commit -m \"" + args.message + "\"")
                  .sh("git push")
                  .prefix("git")
                  .get()
