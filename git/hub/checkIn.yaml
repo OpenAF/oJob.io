@@ -116,7 +116,7 @@ jobs:
            log("Commit to branch '" + args.branch + "' was successfull. Trying to create pull request '" + args.title + "'...")
            
            // Trying to create pull request
-           args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "Automatic pull request for branch '" + args.branch + "'") )
+           args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "--body \"Automatic pull request for branch '" + args.branch + "'\"") )
            res = $sh("gh pr create --title \"" + args.title + "\" " + args.body + " --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
                  .get()
 
