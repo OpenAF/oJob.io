@@ -77,8 +77,7 @@ jobs:
       res = res.split("\n").map(l => {
         var _l
         args.paths.split(",").forEach(p => {
-          var _r = l.match(/^\w+ (.+)$/)
-          if (_r[1].startsWith(p)) _l = l
+          if (l.indexOf(p) >= 0) _l = l
         })
         return l
       }).filter(r => isDef(r)).join("\n")
