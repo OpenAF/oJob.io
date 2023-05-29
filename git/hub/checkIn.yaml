@@ -73,6 +73,16 @@ jobs:
     
     // Determines if there is anything to commit
     var res = $sh("git status --porcelain").get(0).stdout
+    if (isDef(args.paths != ".")) {
+      res = res.split("\n").map(l => {
+        var _l
+        args.paths.split(",").forEach(p => {
+          var _r = l.match(/^\w+ (.+)$/)
+          if (_r[1].startsWith(p)) _l = l
+        })
+        return l
+      }).filter(r => isDef(r)).join("\n")
+    }
     
     if (res != "") {
       log("Identified to commit:\n" + res)
