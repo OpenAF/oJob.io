@@ -29,7 +29,7 @@ todo:
 ojob:
   opacks      :
   - openaf        : 20230430
-  - DockerRegistry: 20230429
+  - DockerRegistry: 20230508
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
   loadLibs    :
@@ -52,7 +52,7 @@ jobs:
     if (isDef(args.login)) args.pass = askDef(args.pass, "Password: ", true, false)
 
     var dr = new DockerRegistry(args.url, args.login, args.pass)
-    var fnP = ow.format.string.updateLine(printErr)
+    var fnP = ow.format.string.updateLine(printErrnl)
 
     fnP.line(templify("Checking on {{image}}...", args))
     var o = dr.hubListTags(args.image, args.last)

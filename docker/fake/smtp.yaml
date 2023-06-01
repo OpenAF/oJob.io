@@ -27,8 +27,18 @@ ojob:
 help: 
   text   : Pulls, deploys and undeploys a fake SMTP server for testing.
   expects: 
-  - name: uninstall
-    desc: If "true" it will try to stop and remove a previously deployed container (default "false")
+  - name     : uninstall
+    desc     : If "true" it will try to stop and remove a previously deployed container (default "false")
+    example  : "false"
+    mandatory: false
+  - name     : port
+    desc     : The port where the SMTP fake server should be deployed
+    example  : 1025
+    mandatory: false
+  - name     : webport
+    desc     : The port where the SMTP web server should be deployed
+    example  : 1080
+    mandatory: false
 
 jobs:
 # -----------------
@@ -37,12 +47,17 @@ jobs:
     $sh("docker pull " + args.init.container)
     .exec();
 
-# ---------------------
-- name: Handle commands
-  exec: |
+# ----------------------
+- name : Handle commands
+  check:
+    in:
+      uninstall: toBoolean.isBoolean.default(false)
+      port     : toNumber.isNumber.default(1025)
+      webport  : toNumber.isNumber.default(1080)
+  exec : |
     args.uninstall = _$(args.uninstall, "uninstall").default("false");
 
-    if (args.uninstall.toLowerCase() == "true") {
+    if (args.uninstall) {
       $sh("docker stop fake-smtp-server")
       .sh("docker rm fake-smtp-server")
       .prefix("docker")
@@ -50,7 +65,7 @@ jobs:
 
       ow.oJob.output(args, args);
     } else {
-      $sh("docker run --pull always -p 1025:1025 -p 1080:1080 --name fake-smtp-server -d reachfive/fake-smtp-server")
+      $sh(templify("docker run --pull always -p {{port}}:1025 -p {{webport}}:1080 --name fake-smtp-server -d reachfive/fake-smtp-server", args))
       .exec();
   
       ow.oJob.output(args.init.instructions, args);

@@ -29,8 +29,8 @@ ojob:
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
-include:
-- ojob.io/docker/_common
+jobsInclude:
+- ojob.io/raid/_common
 
 jobs:
 # -------------
