@@ -95,7 +95,7 @@ jobs:
         .get()
       })
 
-      var signed
+      var signed = ""
       if (args.signed) signed = "-S"
       var res2 = $sh("git commit " + signed + " -m \"" + args.message + "\"")
                  .sh("git push")
