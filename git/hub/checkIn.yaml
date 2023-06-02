@@ -61,6 +61,7 @@ jobs:
       branch  : isString.default(__)
       body    : isString.default(__)
       bodyFile: isString.default(__)
+      signed  : toBoolean.isBoolean.default(false)
   exec : |
     args.endInError = false 
     args.dontDelete = false
@@ -93,7 +94,10 @@ jobs:
         .prefix("git")
         .get()
       })
-      var res2 = $sh("git commit -m \"" + args.message + "\"")
+
+      var signed
+      if (args.signed) signed = "-S"
+      var res2 = $sh("git commit " + signed + " -m \"" + args.message + "\"")
                  .sh("git push")
                  .prefix("git")
                  .get()
