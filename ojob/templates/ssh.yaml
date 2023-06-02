@@ -23,6 +23,7 @@ init:
     #
     list: &LIST
     - ssh:
+        name   : Host one.two.three.four
         host   : 1.2.3.4
         port   : &PORT 22 
         login  : &LOGIN aLogin
@@ -31,6 +32,7 @@ init:
         timeout: &TIMEOUT 2500
     {{#each machine}}
     - ssh:
+        name   : Host one.two.three.four
         host   : 1.2.3.4
         port   : *PORT
         login  : *LOGIN
@@ -60,9 +62,18 @@ init:
       exec: |
         if (isDef(global.pass)) args.ssh.pass = global.pass
 
+    # ------------------------
+    - name: Check connectivity
+      exec: |
+        ow.loadNet()
+        var _r = ow.net.testPort(args.ssh.host, args.ssh.port)
+        if (!_r) throw templify("Cannot connect to {{ssh.host}}:{{ssh.port}} ({{ssh.name}})!", args)
+
     # ----------------------
     - name    : Run commands
-      from    : Set pass
+      from    : 
+      - Set pass
+      - Check connectivity
       lang    : ssh
       typeArgs:
         shellPrefix: ssh.host
