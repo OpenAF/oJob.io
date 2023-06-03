@@ -1,0 +1,197 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Tries to put files in the GitHub repository (requires GitHub cli)
+  expects: 
+  - name     : message
+    desc     : The commit message to use
+    example  : "updates"
+    mandatory: false
+  - name     : branch
+    desc     : The branch associated with the pull request, if needed
+    example  : "my-branch"
+    mandatory: false
+  - name     : paths
+    desc     : A command delimited list of paths to check in (if not provided defaults to ".")
+    example  : "src,tests"
+    mandatory: false
+  - name     : title
+    desc     : The pull request title, if needed
+    example  : "Updates PR"
+    mandatory: false
+  - name     : body
+    desc     : The text to include in the body of the pull request, if needed
+    example  : "automated PR"
+    mandatory: false
+  - name     : bodyFile
+    desc     : In alternative of 'body' from a markdown file to include in the body of the pull request, if needed
+    example  : "body.md"
+    mandatory: false
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : logErr(exception)
+  logToConsole: true  
+
+todo:
+- GitHub Content In 
+
+jobs:
+# -------------------------
+- name : GitHub Put Content
+  check:
+    in:
+      repo   : isString.default(getEnv("GITHUB_REPOSITORY"))
+      file   : isString
+      message: isString
+      branch : isString
+  catch: logErr(exception)
+  exec : |
+    args._sha = ""
+    var res 
+    if (global.res.indexOf(" " + args.file) >= 0) {
+      // It's different
+      _r = $sh("git rev-parse " + args.branch + ":" + args.file).get(0)
+      if (_r.exitcode == 0) {
+        // Exists
+        args._sha = "--field sha=\"" + _r.stdout.trim() + "\""
+      }
+
+      // Try to put
+      args.efile = io.createTempFile("git",".file")
+      io.writeFileBytes(args.efile, af.toBase64Bytes(io.readFileBytes(args.file)))
+      res = $sh(templify("gh api --method PUT /repos/{{repo}}/contents/{{file}} --field message=\"{{message}}\" {{{_sha}}} --field encoding=\"base64\" --field branch=\"{{branch}}\" --field content=@{{efile}}", args))
+            .get(0)
+      if (res.exitcode == 0) global.c.inc(); else logWarn(res.stderr)
+    } else {
+      res = {}
+    }
+    
+    return res
+
+# ------------------------
+- name : GitHub Content In 
+  catch: |
+    logErr(exception)
+    exit(-1)
+  check:
+    in:
+      message: isString.default("updates")
+      branch : isString.default(__)
+      paths  : isString.default(".")
+  exec : |
+    args.endInError = false
+    args.dontDelete = false
+    global.c = $atomic()
+
+    // Determines if there is anything to commit
+    global.res = $sh("git status --porcelain").get(0).stdout
+
+    // Determines if there is anything to commit
+    if (isDef(args.paths != ".")) {
+      global.res = global.res.split("\n").map(l => {
+        var _l
+        args.paths.split(",").forEach(p => {
+          if (l.indexOf(" " + p) >= 0) _l = l
+        })
+        return l
+      }).filter(r => isDef(r)).join("\n")
+    }
+
+    if (global.res != "") {
+      var cBranch
+      if (isUnDef(args.branch)) {
+        // Determine current branch
+        args.branch = $sh("git rev-parse --abbrev-ref HEAD").get(0).stdout.trim()
+        cBranch = args.branch
+        log("Identified branch: " + args.branch)
+      }
+
+      var _r
+      var send = () => {
+        args.paths.split(",").forEach(p => {
+          if (io.fileExists(p)) {
+            if (io.fileInfo(p).isDirectory) {
+              listFilesRecursive(p).forEach(pp => {
+                if (pp.isFile) {
+                  log(" put " + pp.filepath + "...")
+                  _r = $job("GitHub Put Content", merge(args, { file: pp.filepath }))
+                  if (isDef(_r.exitcode) && _r.exitcode != 0) {
+                    args.endInError = true
+                  }
+                }
+              })
+            } else {
+              // isFile
+              args.file = p
+              log(" put " + args.file + "...")
+              _r = $job("GitHub Put Content", args)
+              if (isDef(_r.exitcode) && _r.exitcode != 0) {
+                args.endInError = true
+              }
+            }
+          }
+        })  
+      }
+
+      send()
+      if (args.endInError) {
+        // try to create a pull request
+        args.endInError = false
+
+        logWarn("Couldn't commit directly. Trying to create a pull request...")
+        args.branch = ow.format.fromDate(new Date(), "yyyyMMdd-HHmmss")
+
+        // Trying to create branch and put
+        log("Creating branch '" + args.branch + "' and trying to put changes to it...")
+         _r = $sh("git checkout -b " + args.branch)
+              .sh("git push --set-upstream origin " + args.branch)
+              .sh("git push origin " + args.branch)
+              .prefix("git")
+              .get()
+
+        send()
+        if (!args.endInError) {
+          if (isUnDef(args.title)) args.title = args.branch
+          args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "--body \"Automatic pull request for branch '" + args.branch + "'\"") )
+          _r = $sh("gh pr create --title \"" + args.title + "\" " + args.body + " --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
+               .get(0)
+
+          if (_r.exitcode != 0) {
+            logErr("Couldn't create pull request '" + args.title + "'!: " + af.toSLON(_r))
+            args.endInError = true
+          } else {
+            // Trying to merge and close pull request
+            var pr_id = _r.stdout.trim()
+            log("Created pull request " + pr_id + ". Trying to merge it...")
+            _r = $sh("gh pr merge \"" + pr_id + "\" -d -m --auto")
+                 .prefix("gh")
+                 .get(0)
+            
+            if (_r.exitcode != 0) {
+              logWarn("Couldn't merge pull request " + pr_id + ": " + af.toSLON(_r))
+              logWarn("Keeping pull request #" + pr_id + " and branch '" + args.branch + "' for human review.")
+              args.dontDelete = true
+            } else {
+              log("Pull request " + pr_id + " was succesfully merged.")
+            }
+          }
+        }
+
+        if (!args.dontDelete) {
+           $sh("git checkout " + cBranch)
+           .sh("git branch -D " + args.branch)
+           .sh("git push origin --delete " + args.branch)
+           .prefix("git")
+           .get()
+        }
+      }
+    
+    } else {
+      log("Nothing to update.")
+    }
+
+    if (args.endInError) 
+      throw("Content in not successfull")
+    else
+      log("Put done for #" + global.c.get() + " files.")
