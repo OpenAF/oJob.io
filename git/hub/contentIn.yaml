@@ -30,6 +30,10 @@ help:
     desc     : In alternative of 'body' from a markdown file to include in the body of the pull request, if needed
     example  : "body.md"
     mandatory: false
+  - name     : dontDelete
+    desc     : Don't try to automatically delete the created branch.
+    example  : "true"
+    mandatory: false
 
 ojob:
   opacks      :
@@ -84,9 +88,9 @@ jobs:
       branch      : isString.default(__)
       paths       : isString.default(".")
       branchPrefix: isString.default("")
+      dontDelete  : toBoolean.isBoolean.default(false)
   exec : |
     args.endInError = false
-    args.dontDelete = false
     global.c = $atomic()
 
     // Determines if there is anything to commit
