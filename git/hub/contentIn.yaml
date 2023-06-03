@@ -10,6 +10,10 @@ help:
     desc     : The branch associated with the pull request, if needed
     example  : "my-branch"
     mandatory: false
+  - name     : branchPrefix
+    desc     : The branch prefix to use for pull request, if needed
+    example  : "auto-"
+    mandatory: false
   - name     : paths
     desc     : A command delimited list of paths to check in (if not provided defaults to ".")
     example  : "src,tests"
@@ -76,9 +80,10 @@ jobs:
     exit(-1)
   check:
     in:
-      message: isString.default("updates")
-      branch : isString.default(__)
-      paths  : isString.default(".")
+      message     : isString.default("updates")
+      branch      : isString.default(__)
+      paths       : isString.default(".")
+      branchPrefix: isString.default("")
   exec : |
     args.endInError = false
     args.dontDelete = false
@@ -140,7 +145,7 @@ jobs:
         args.endInError = false
 
         logWarn("Couldn't commit directly. Trying to create a pull request...")
-        args.branch = ow.format.fromDate(new Date(), "yyyyMMdd-HHmmss")
+        args.branch = args.branchPrefix + ow.format.fromDate(new Date(), "yyyyMMdd-HHmmss")
 
         // Trying to create branch and put
         log("Creating branch '" + args.branch + "' and trying to put changes to it...")
