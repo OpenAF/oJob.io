@@ -18,7 +18,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20230520
-  - Badgen
+  - Badgen: 20230603
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
   templateArgs: true
@@ -59,7 +59,7 @@ jobs:
   - (log     ): "Generating badge file '{{file}}'..."
   - name      : Badgen generate file
     args      :
-      labelColor: grey2
+      labelColor: grey3
       icon      : "nattrmon.svg"
 
   exec    : |
