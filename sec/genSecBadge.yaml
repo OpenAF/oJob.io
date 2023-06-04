@@ -10,9 +10,16 @@ help:
     desc     : The badge SVG file to generate
     example  : badge.svg
     mandatory: true
+  - name     : reportFile
+    desc     : If specified it will store the scanning results in a YAML file
+    example  : results.yaml
+    mandatory: false
 
 todo:
 - Check image
+- Results summary
+- (if    ): "{{#if reportFile}}true{{else}}false{{/if}}" 
+  ((then)): Results report
 - Create badge
 
 ojob:
@@ -35,15 +42,32 @@ jobs:
   to   :
   - (log    ): "Scanning '{{image}}'..."
     ((key  )): args
-  - (runfile): ojob.io/sec/trivy
-    ((usePM)): true
+  - (runfile       ): ojob.io/sec/trivy
     ((templateArgs)): true
-    ((args )):
+    ((key         )): report
+    ((args        )):
       image: "{{image}}"
-  
+
+# ----------------------  
+- name : Results summary
+  to   :
   - (log    ): "Producing a summary of the results..."
-  - (runfile): ojob.io/sec/trivySummary
-    ((key  )): results
+  - (output  ): report
+    ((format)): pm
+  - (runfile ): ojob.io/sec/trivySummary
+    ((key   )): results
+
+# ---------------------
+- name : Results report
+  to   :
+  - (log           ): "Producing a report of the results..."
+  - (output        ): report
+    ((format      )): pm
+    ((path        )): Results
+  - (runfile       ): ojob.io/formats/toYAML
+    ((templateArgs)): true
+    ((args        )):
+      file: "{{reportFile}}"
 
 # ------------------
 - name: Create badge
