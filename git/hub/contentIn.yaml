@@ -113,8 +113,8 @@ jobs:
         // Determine current branch
         if (isDef(getEnv("GITHUB_REF_TYPE")) && 
             String(getEnv("GITHUB_REF_TYPE")) == "branch" &&
-            isDef(getEnv("GITHUB_REF"))) {
-          args.branch = String(getEnv("GITHUB_REF")).replace("refs/heads/", "")
+            isDef(getEnv("GITHUB_REF_NAME"))) {
+          args.branch = String(getEnv("GITHUB_REF_NAME"))
         } else {
           args.branch = $sh("git rev-parse --abbrev-ref HEAD").get(0).stdout.trim()
         }
