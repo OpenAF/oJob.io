@@ -34,6 +34,10 @@ help:
     desc     : Don't try to automatically delete the created branch.
     example  : "true"
     mandatory: false
+  - name     : forcePR
+    desc     : Force the creation of a PR
+    example  : "true"
+    mandatory: false
 
 ojob:
   opacks      :
@@ -89,6 +93,7 @@ jobs:
       paths       : isString.default(".")
       branchPrefix: isString.default("")
       dontDelete  : toBoolean.isBoolean.default(false)
+      forcePR     : toBoolean.isBoolean.default(false)
   exec : |
     args.endInError = false
     global.c = $atomic()
@@ -149,8 +154,8 @@ jobs:
         })  
       }
 
-      send()
-      if (args.endInError) {
+      if (!args.forcePR) send()
+      if (args.endInError || args.forcePR) {
         // try to create a pull request
         args.endInError = false
 
