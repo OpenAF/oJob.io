@@ -1,7 +1,7 @@
 # Author: Nuno Aguiar
 help:
   text   : Given an AWS region will list all repositories and images.
-  expects: 
+  expects:
   - name     : region
     desc     : The AWS region where the ECR is on
     example  : eu-west-1
@@ -13,6 +13,10 @@ help:
   - name     : secretkey
     desc     : The AWS API secret key
     example  : ABC123
+    mandatory: false
+  - name     : simple
+    desc     : Boolean flag to indicate a simplified output on a table
+    example  : "true"
     mandatory: false
 
 todo:
@@ -26,7 +30,7 @@ ojob:
   - aws.js
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
-        
+
 
 jobs:
 # ----------------------
@@ -36,9 +40,21 @@ jobs:
       region   : isString
       accessKey: isString.default(__)
       secretKey: isString.default(__)
+      simple   : toBoolean.isBoolean.default(false)
   exec : |
     var aws = new AWS(args.accesskey, args.secretkey)
 
     var res = aws.ECR_DescribeRepositories(args.region).map(r => ({ repositoryName: r.repositoryName, imageIds: aws.ECR_ListImages(args.region, r.repositoryName) }))
+
+    if (args.simple) {
+       var _r = []
+       res.forEach(r => {
+         r.imageIds.forEach(i => {
+           _r.push({ repository: r.repositoryName, tag: i.imageTag })
+         })
+       })
+       res = $from(_r).sort("repository", "tag").select()
+       args.__format = _$(args.__format, "__format").default("table")
+    }
 
     ow.oJob.output(res, args)
