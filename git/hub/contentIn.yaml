@@ -116,13 +116,15 @@ jobs:
       var cBranch
       if (isUnDef(args.branch)) {
         // Determine current branch
-        if (isDef(getEnv("GITHUB_REF_TYPE")) && 
+        /*if (isDef(getEnv("GITHUB_REF_TYPE")) && 
             String(getEnv("GITHUB_REF_TYPE")) == "branch" &&
             isDef(getEnv("GITHUB_REF_NAME"))) {
           args.branch = String(getEnv("GITHUB_REF_NAME"))
         } else {
           args.branch = $sh("git rev-parse --abbrev-ref HEAD").get(0).stdout.trim()
         }
+        */
+        args.branch = $sh("git branch --show-current").get(0).stdout.trim()
         cBranch = args.branch
         log("Identified branch: " + args.branch)
       }
