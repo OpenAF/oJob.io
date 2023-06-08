@@ -32,6 +32,7 @@ jobs:
     args.delete = toBoolean(_$(args.delete, "delete").default("true"));
 
     if (isDef(args.file)) {
+      if (isUnDef(out)) out = {}
       io.writeFileYAML(args.file, out);
     } else {
       yprint(out);
