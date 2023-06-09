@@ -76,7 +76,7 @@ init:
       - Check connectivity
       lang    : ssh
       typeArgs:
-        shellPrefix: ssh.host
+        shellPrefix: ssh.name
       args    : *LIST
       exec    : |
         # write here any sh commands you need like it was a shell script
