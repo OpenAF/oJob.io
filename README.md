@@ -31,19 +31,33 @@ For jobs following the standard output practice you can add an extra argument, "
 
 ### For list/array results
 
-  * CSV   - \_\_format=csv for csv like format.
-  * YAML  - \_\_format=yaml for output in yaml.
-  * JSON  - \_\_format=json for output in json.
-  * MAP   - \_\_format=map for output in a map tabular human-readable form.
-  * TABLE - \_\_format=table for output in a table human-readable form.
-  * PM    - \_\_format=pm for output into a global variable __pm._list. 
+  * CSV        - \_\_format=csv for csv like format.
+  * YAML       - \_\_format=yaml for output in yaml.
+  * JSON       - \_\_format=json for output in json.
+  * CJSON      - \_\_format=cjson for colored output in json.
+  * NDJSON     - \_\_format=ndjson for [ndjson](http://ndjson.org) output.
+  * SLON       - \_\_format=slon for [slon](https://github.com/nmaguiar/slon) output.
+  * CSLON      - \_\_format=cslon for colored [slon](https://github.com/nmaguiar/slon) output.
+  * PRETTYJSON - \_\_format=pretty json for formatted json output.
+  * MAP        - \_\_format=map for output in a map tabular human-readable form.
+  * TABLE      - \_\_format=table for output in a table human-readable form.
+  * TREE       - \_\_format=tree for output in tree ascii format.
+  * HTML       - \_\_format=html for output in HTML format.
+  * PM         - \_\_format=pm for output into a global variable __pm._list. 
 
 ### For map/object results
  
-  * YAML  - \_\_format=yaml for output in yaml.
-  * JSON  - \_\_format=json for output in json.
-  * MAP   - \_\_format=map for output in a map tabular human-readable form.
-  * PM    - \_\_format=pm for output into a global variable __pm._map. 
+  * YAML       - \_\_format=yaml for output in yaml.
+  * JSON       - \_\_format=json for output in json.
+  * CJSON      - \_\_format=cjson for colored output in json.
+  * SLON       - \_\_format=slone for [slon](https://github.com/nmaguiar/slon) output.
+  * CSLON      - \_\_format=cslon for colored [slon](https://github.com/nmaguiar/slon) output.
+  * PRETTYJSON - \_\_format=pretty json for formatted json output.
+  * MAP        - \_\_format=map for output in a map tabular human-readable form.
+  * XML        - \_\_format=xml for output in XML format.
+  * TREE       - \_\_format=tree for output in tree ascii format.
+  * HTML       - \_\_format=html for output in HTML format.
+  * PM         - \_\_format=pm for output into a global variable __pm._map. 
 
 ### For string results
 
