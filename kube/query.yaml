@@ -1,0 +1,58 @@
+# Author: Nuno Aguiar
+help:
+  text   : Use the Kube oPack to query a list of pods
+  expects: 
+  - name     : query
+    desc     : The nlinq query to perform
+    example  : "starts(metadata.name,'helm').select({metadata:{name:''}})"
+    mandatory: true
+  - name     : ns
+    desc     : The namespace to apply to the query to
+    example  : default
+    mandatory: false
+  - name     : url
+    desc     : The URL to the K8S API to use
+    example  : https://1.2.3.4:1234
+    mandatory: false
+  - name     : user
+    desc     : The K8S API user crendential to use.
+    example  : user
+    mandatory: false
+  - name     : pass
+    desc     : The K8S API password credential to use.
+    example  : password
+    mandatory: false
+  - name     : token
+    desc     : The K8S API token credential to use.
+    example  : abc123
+    mandatory: false
+
+todo:
+- Query Kube
+
+ojob:
+  opacks      :
+  - openaf: 20230601
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - kube.js
+
+jobs:
+# -----------------
+- name : Query Kube
+  check:
+    in:
+      ns   : isString.default("default")
+      query: isString
+  exec : |
+    var lst = []
+
+    var kube = new Kube(args.url, args.user, args.pass, __, args.token)
+    var lst = kube.getPods(args.ns, true).items
+    kube.close()
+
+    if (args.query != "") lst = $from(lst).query(af.fromNLinq(args.query))
+
+    ow.oJob.output(lst, args)

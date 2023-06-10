@@ -1,0 +1,107 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates an oJob ready to execute command jobs in Kubernetes pods.
+
+todo:
+- Generate pods jobs
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+init:
+  oj: |
+    help:
+      text   : Generates an oJob ready to execute command jobs in remote machines.
+      expects: 
+      - name     : query
+        desc     : The nlinq query to perform
+        example  : "starts(metadata.name,'helm').select({metadata:{name:''}})"
+        mandatory: false
+      - name     : ns
+        desc     : The namespace to apply to the query to
+        example  : default
+        mandatory: false
+      - name     : url
+        desc     : The URL to the K8S API to use
+        example  : https://1.2.3.4:1234
+        mandatory: false
+      - name     : user
+        desc     : The K8S API user crendential to use.
+        example  : user
+        mandatory: false
+      - name     : pass
+        desc     : The K8S API password credential to use.
+        example  : password
+        mandatory: false
+      - name     : token
+        desc     : The K8S API token credential to use.
+        example  : abc123
+        mandatory: false
+
+    todo:
+    - Execute commands in pods
+
+    ojob:
+      opacks      :
+      - openaf: 20230601
+      - Kube  : 20230608
+      catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+      logToConsole: true   # to change when finished
+      loadLibs    :
+      - kube.js
+
+    include:
+    - kube.yaml
+
+    jobs:
+    # -----------------
+    - name : Query pods
+      check:
+        in:
+          ns   : isString.default("default")
+          query: isString.default("")
+      exec : |
+        args.lst = []
+
+        var kube = new Kube(args.url, args.user, args.pass, __, args.token)
+        args.lst = kube.getPods(args.ns, true).items
+        kube.close()
+
+        if (args.query != "") args.lst = $from(args.lst).query(af.fromNLinq(args.query))
+        args.lst = _$(args.lst).isArray().default([])
+        args.lst = $from(args.lst).select(r => ({
+          kube: {
+            url      : args.url,
+            user     : args.user,
+            pass     : args.pass,
+            token    : args.token,
+            timeout  : args.timeout,
+            container: args.container,
+            ns       : args.ns,
+            pod      : r.metadata.name
+          }
+        }))
+
+    # -------------------
+    - name : Run commands
+      lang : kube
+      typeArgs:
+        shellPrefix: kube.pod
+      exec : |
+        uname -a
+        id
+
+    # -------------------------------
+    - name : Execute commands in pods
+      from : Query pods
+      exec : |
+        $job("Run commands", args.lst)
+
+jobs:
+# -------------------------
+- name : Generate pods jobs
+  exec : |
+    tprint(args.init.oj, { })
