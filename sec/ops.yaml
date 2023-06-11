@@ -15,7 +15,7 @@ help:
     desc   : The bucket string when op=setbucket
   - name   : mapEntries
     desc   : When op=setmap you can provide a list of map entries separated by commas
-    example: host, port, login, pass
+    example: host,port,login,pass
 
 todo:
 - Choose operation
@@ -158,12 +158,16 @@ jobs:
       if (entry.indexOf("secret") >= 0 || entry.indexOf("pass") >= 0 || entry.indexOf("password") >= 0) {
         $$(entries).set(entry, askEncrypt("  " + entry + ": "))
       } else {
-        $$(entries).set(entry, ask("  " + entry + ": "))
+        $$(entries).set(entry, askDef(__, " " + entry + ": ", false, true))
       }
     });
 
-    log("Setting '" + args.seckey + "' with entries (" + args.mapEntries + ") on bucket '" + args.secbucket + "'...")
-    $sec(args.secrepo, __, __, args.secmainpass).set(args.seckey, entries, args.secbucket, args.secpass)
+    if (args.secrepo == "system" && args.secbucket == "envs") {
+      print("Set a '" + args.seckey + "' environment variable with: '" + stringify(entries, __, "") + "'")
+    } else {
+      log("Setting '" + args.seckey + "' with entries (" + args.mapEntries + ") on bucket '" + args.secbucket + "'...")
+      $sec(args.secrepo, __, __, args.secmainpass).set(args.seckey, entries, args.secbucket, args.secpass)
+    }
 
 # --------------------
 - name: SBucket SetObj
@@ -187,6 +191,7 @@ jobs:
         ags = $fnDef4Help(args.secobj + "." + args.secobj)
         hsearch = searchHelp(args.secobj + "." + args.secobj)
       }
+      if (isArray(hsearch) && hsearch.length > 0) args.secobj = hsearch[0].key
       if (args.secobj.match(/(\w+)\.(\1)/)) {
         args.secobj = args.secobj.substr(0, args.secobj.indexOf("."))
       }
@@ -203,14 +208,22 @@ jobs:
           if (agss.indexOf("secret") >= 0 || agss.indexOf("pass") >= 0 || agss.indexOf("password") >= 0)
             args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ")
           else
-            args.secargs[ags[param]] = ask(" " + ags[param] + ": ")
+            args.secargs[ags[param]] = askDef(__, " " + ags[param] + ": ", false, true)
         }
         print("")
       }
     } catch(e) {
     }
-    log("Setting object '" + args.seckey + "' with arguments for '" + args.secobj + "' on bucket '" + args.secbucket + "'...")
-    $sec(args.secrepo, __, __, args.secmainpass).setObj(args.seckey, args.secobj, args.secargs, args.secbucket, args.secpass)
+
+    if (args.secrepo == "system" && args.secbucket == "envs") {
+      print("Set a '" + args.seckey + "' environment variable with: '" + stringify({
+        _obj : args.secobj,
+        _args: args.secargs
+      }, __, "") + "'")
+    } else {
+      log("Setting object '" + args.seckey + "' with arguments for '" + args.secobj + "' on bucket '" + args.secbucket + "'...")
+      $sec(args.secrepo, __, __, args.secmainpass).setObj(args.seckey, args.secobj, args.secargs, args.secbucket, args.secpass)
+    }
     
 # -------------------
 - name: SBucket SetFn
@@ -238,14 +251,22 @@ jobs:
           if (agss.indexOf("secret") >= 0 || agss.indexOf("pass") >= 0 || agss.indexOf("password") >= 0)
             args.secargs[ags[param]] = askEncrypt(" " + ags[param] + ": ")
           else
-            args.secargs[ags[param]] = ask(" " + ags[param] + ": ")
+            args.secargs[ags[param]] = askDef(__, " " + ags[param] + ": ", false, true)
         }
         print("")
       }
     } catch(e) {
     }
-    log("Setting '" + args.seckey + "' with arguments for '" + args.secfn + "' on bucket '" + args.secbucket + "'...")
-    $sec(args.secrepo, __, __, args.secmainpass).setFn(args.seckey, args.secfn, args.secargs, args.secbucket, args.secpass)
+    
+    if (args.secrepo == "system" && args.secbucket == "envs") {
+      print("Set a '" + args.seckey + "' environment variable with: '" + stringify({
+        _fn  : args.secfn,
+        _args: args.secargs
+      }, __, "") + "'")
+    } else {
+      log("Setting '" + args.seckey + "' with arguments for '" + args.secfn + "' on bucket '" + args.secbucket + "'...")
+      $sec(args.secrepo, __, __, args.secmainpass).setFn(args.seckey, args.secfn, args.secargs, args.secbucket, args.secpass)
+    }
     
 # ------------------------
 - name: SBucket Get Bucket
