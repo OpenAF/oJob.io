@@ -483,7 +483,6 @@ jobs:
   - ojob options
   - Set format table
   - ojob output
-  - stop
   args :
     __key      : out
     __optionOn : op
