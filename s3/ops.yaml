@@ -467,7 +467,7 @@ jobs:
   exec : |
     if (args.op.toLowerCase() == "lsbuckets" ||
         args.op.toLowerCase() == "buckets" || 
-        args.op.toLowerCase() == "ls") args.__format = "table"
+        args.op.toLowerCase() == "ls") args.__format = _$(args.__format).isString().default("table")
 
 # -----------
 - name : stop
