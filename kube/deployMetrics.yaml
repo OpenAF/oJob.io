@@ -1,0 +1,30 @@
+# Author: Nuno Aguiar
+help:
+  text   : Runs the necessary kubectl command to deploy a Kubernetes metrics server
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Deploy the Metrics Server
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------------------
+- name : Deploy the Metrics Server
+  # check:
+  #   in:
+  #     something: isString.default(__)
+  lang : shell
+  typeArgs:
+    shellPrefix: kubectl
+  exec : |
+    kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
