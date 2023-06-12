@@ -111,6 +111,7 @@ jobs:
 # -------------------
 - name: S3 disconnect
   exec: |
+    if (isDef(global.s3.close)) global.s3.close()
     global.s3 = __
 
 # ---------------------
