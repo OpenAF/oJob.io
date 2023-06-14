@@ -22,6 +22,7 @@ jobs:
 - name: Compile oPacks
   exec: |
     __preCompileLevel = 2
+    __flags.OAF_PRECOMPILE_LEVEL = 2
 
     var s = $from(getOPackLocalDB())
 
