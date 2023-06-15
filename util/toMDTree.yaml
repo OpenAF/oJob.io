@@ -10,6 +10,10 @@ help:
     desc     : The markdown output file (otherwise stdout)
     example  : example.md
     mandatory: false
+  - name     : width
+    desc     : The line width to use
+    example  : 160
+    mandaotry: false
 
 todo:
 - Convert to MD tree
@@ -28,6 +32,7 @@ jobs:
     in:
       inputFile: isString.default(__)
       file     : isString.default(__)
+      width    : toNumber.isNumber.default(160)
   exec : |
     var data 
     
@@ -44,7 +49,7 @@ jobs:
       }
     }
 
-    var out = "````yaml\n" + printTree(data).replace(/\033\[[0-9;]*m/g, "") + "\n````\n"
+    var out = "````yaml\n" + printTree(data, args.width).replace(/\033\[[0-9;]*m/g, "") + "\n````\n"
 
     if (isUnDef(args.file)) {
       print(out) 
