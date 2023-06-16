@@ -32,7 +32,7 @@ jobs:
     in:
       inputFile: isString.default(__)
       file     : isString.default(__)
-      width    : toNumber.isNumber.default(160)
+      width    : toNumber.isNumber.default(112)
   exec : |
     var data 
     
