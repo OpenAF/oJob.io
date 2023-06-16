@@ -49,34 +49,51 @@ todo:
 - GitHub Content In 
 
 jobs:
-# -------------------------
-- name : GitHub Put Content
+# --------------------------
+- name : GitHub Push Content
   check:
     in:
-      repo   : isString.default(getEnv("GITHUB_REPOSITORY"))
-      file   : isString
-      message: isString
-      branch : isString
+      repo      : isString.default(getEnv("GITHUB_REPOSITORY"))
+      file      : isString
+      message   : isString
+      branch    : isString,
+      mainBranch: isString,
+      delete    : isBoolean.default(false)
   catch: logErr(exception)
   exec : |
-    args._sha = ""
-    var res 
-    if (global.res.indexOf(" " + args.file) >= 0) {
-      // It's different
-      _r = $sh("git rev-parse " + args.branch + ":" + args.file).get(0)
-      if (_r.exitcode == 0) {
-        // Exists
-        args._sha = "--field sha=\"" + _r.stdout.trim() + "\""
-      }
+    _$(args.repo, "repo").$_()
 
-      // Try to put
+    args._sha = ""
+    var res = {}
+    args.file = args.file.replace(/^\.\//, "")
+
+    // It's different
+    _r = $sh("git rev-parse " + args.branch + ":" + args.file).get(0)
+    if (_r.exitcode == 0) {
+      // Exists
+      args._sha = "--field sha=\"" + _r.stdout.trim() + "\""
+    } else {
+      if (io.fileExists(args.file)) args._sha = "--field sha=\"" + sha1(io.readFileStream(args.file)) + "\""
+    }
+
+    // Try to put
+    if (args.delete) {
+      res = $sh(templify("gh api --method DELETE --silent /repos/{{repo}}/contents/{{file}} --field message=\"{{message}}\" {{{_sha}}} --field branch=\"{{branch}}\" ", args))
+            .get(0)
+    } else {
       args.efile = io.createTempFile("git",".file")
       io.writeFileBytes(args.efile, af.toBase64Bytes(io.readFileBytes(args.file)))
       res = $sh(templify("gh api --method PUT /repos/{{repo}}/contents/{{file}} --field message=\"{{message}}\" {{{_sha}}} --field encoding=\"base64\" --field branch=\"{{branch}}\" --field content=@{{efile}}", args))
             .get(0)
-      if (res.exitcode == 0) global.c.inc(); else logWarn(res.stderr)
+    }
+    if (res.exitcode == 0) {
+      if (args.delete) {
+        global.cd.inc()
+      } else {
+        global.c.inc()
+      }
     } else {
-      res = {}
+      logWarn(af.toSLON(res))
     }
     
     return res
@@ -97,35 +114,50 @@ jobs:
   exec : |
     args.endInError = false
     global.c = $atomic()
+    global.cd = $atomic()
 
     // Determines if there is anything to commit
     global.res = $sh("git status --porcelain").get(0).stdout
 
     // Determines if there is anything to commit
-    if (isDef(args.paths != ".")) {
-      global.res = global.res.split("\n").map(l => {
-        var _l
+    var lstDelete = [], lstPut = []
+    global.res = global.res.split("\n").map(l => {
+      var _l
+      if (args.paths != ".") {
         args.paths.split(",").forEach(p => {
           if (l.indexOf(" " + p) >= 0) _l = l
         })
-        return l
-      }).filter(r => isDef(r)).join("\n")
-    }
+      } else {
+        _l = l
+      }
 
-    if (global.res != "") {
+      var _i = l.replace(/^.. /, "")
+      if (l.indexOf("D ") < 0 && l.indexOf("R ") < 0) {
+        lstPut.push(_i)
+        return _i
+      } else {
+        if (l.indexOf("R ") >= 0) {
+          var _ar = _i.split("->").map(r => r.trim())
+          lstDelete.push(_ar[0])
+          lstPut.push(_ar[1])
+        } else {
+          lstDelete.push(_i)
+          return __
+        }
+      }
+    }).filter(r => isDef(r)).join("\n")
+
+    // Filter arrays for empty entries
+    lstPut    = lstPut.filter(r => r.length > 0)
+    lstDelete = lstDelete.filter(r => r.length > 0)
+
+    if (lstPut.length > 0 || lstDelete.length > 0) {
       var cBranch
       if (isUnDef(args.branch)) {
         // Determine current branch
-        /*if (isDef(getEnv("GITHUB_REF_TYPE")) && 
-            String(getEnv("GITHUB_REF_TYPE")) == "branch" &&
-            isDef(getEnv("GITHUB_REF_NAME"))) {
-          args.branch = String(getEnv("GITHUB_REF_NAME"))
-        } else {
-          args.branch = $sh("git rev-parse --abbrev-ref HEAD").get(0).stdout.trim()
-        }
-        */
         args.branch = $sh("git branch --show-current").get(0).stdout.trim()
         cBranch = args.branch
+        args.mainBranch = cBranch
         log("Identified branch: " + args.branch)
       }
 
@@ -135,9 +167,9 @@ jobs:
           if (io.fileExists(p)) {
             if (io.fileInfo(p).isDirectory) {
               listFilesRecursive(p).forEach(pp => {
-                if (pp.isFile) {
-                  log(" put " + pp.filepath + "...")
-                  _r = $job("GitHub Put Content", merge(args, { file: pp.filepath }))
+                if (pp.isFile && lstPut.indexOf(pp.filepath.replace(p + "/", "")) >= 0) {
+                  args.delete = false
+                  _r = $job("GitHub Push Content", merge(args, { file: pp.filepath }))
                   if (isDef(_r.exitcode) && _r.exitcode != 0) {
                     args.endInError = true
                   }
@@ -145,14 +177,29 @@ jobs:
               })
             } else {
               // isFile
-              args.file = p
-              log(" put " + args.file + "...")
-              _r = $job("GitHub Put Content", args)
+              if (lstPut.indexOf(pp.filepath) >= 0) {
+                args.file = p
+                args.delete = false
+                log(" put " + args.file + "...")
+                _r = $job("GitHub Push Content", args)
+                if (isDef(_r.exitcode) && _r.exitcode != 0) {
+                  args.endInError = true
+                }
+              }
+            }
+          }
+          lstDelete.forEach(pd => {
+            var _p = p.replace(/^\.\//, "")
+            if (pd.indexOf(_p) >= 0) {
+              args.file = pd
+              args.delete = true
+              log(" delete " + args.file + "...")
+              _r = $job("GitHub Push Content", args)
               if (isDef(_r.exitcode) && _r.exitcode != 0) {
                 args.endInError = true
               }
             }
-          }
+          })
         })  
       }
 
@@ -215,5 +262,7 @@ jobs:
 
     if (args.endInError) 
       throw("Content in not successfull")
-    else
+    else {
       log("Put done for #" + global.c.get() + " files.")
+      log("Delete done for #" + global.cd.get() + " files.")
+    }
