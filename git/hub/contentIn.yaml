@@ -177,7 +177,7 @@ jobs:
               })
             } else {
               // isFile
-              if (lstPut.indexOf(pp.filepath) >= 0) {
+              if (lstPut.indexOf(p) >= 0) {
                 args.file = p
                 args.delete = false
                 log(" put " + args.file + "...")
