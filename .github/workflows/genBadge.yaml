@@ -1,0 +1,42 @@
+name: Generate Badge
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+
+  genBadge:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      
+    steps  :
+    # --------------------------
+    - name: Cache OpenAF runtime
+      uses: actions/cache@v3
+      with:
+        key : oaf-nightly
+        path: /tmp/oaf
+        
+    # -------------------------
+    - uses: actions/checkout@v2
+        
+    # -------------------
+    - name: Update badges
+      uses: openaf/ojob-action@v4
+      with:
+        ojob: .github/ojobs/genBadge.yaml
+        dist: nightly
+        
+    # -------------
+    - name: Checkin
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: openaf/ojob-action@v4
+      with:
+        ojob: 'ojob.io/git/hub/contentIn'
+        args: 'message="Update\ badge" title="Update\ badge" paths=.github'
+        dist: nightly

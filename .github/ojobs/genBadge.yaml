@@ -1,0 +1,60 @@
+# Author: Nuno Aguiar
+
+todo:
+- Generate badge
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  - Badgen
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+include:
+- badgen.yaml
+
+jobs:
+# ---------------------
+- name : Generate badge
+  exec : |
+    var lst = listFilesRecursive(".")
+    var numYAMLs = $from(lst).equals("isFile", true).ends("filename", ".yaml").count()
+    var numJSONs = $from(lst).equals("isFile", true).ends("filename", ".json").count()
+    var numSHs   = $from(lst).equals("isFile", true).ends("filename", ".sh").count()
+    var numBATs  = $from(lst).equals("isFile", true).ends("filename", ".bat").count()
+
+    $job("Badgen generate file", {
+      labelColor: "grey3",
+      color     : "blue",
+      icon      : "openaf_grey.svg",
+      label     : "YAMLs",
+      status    : "#" + numYAMLs,
+      file      : ".github/yamls.svg"
+    })
+
+    $job("Badgen generate file", {
+      labelColor: "grey3",
+      color     : "blue",
+      icon      : "openaf_grey.svg",
+      label     : "JSONs",
+      status    : "#" + numJSONs,
+      file      : ".github/jsons.svg"
+    })
+
+    $job("Badgen generate file", {
+      labelColor: "grey3",
+      color     : "blue",
+      icon      : "openaf_grey.svg",
+      label     : "SHs",
+      status    : "#" + numSHs,
+      file      : ".github/shs.svg"
+    })
+
+    $job("Badgen generate file", {
+      labelColor: "grey3",
+      color     : "blue",
+      icon      : "openaf_grey.svg",
+      label     : "BATs",
+      status    : "#" + numBATs,
+      file      : ".github/bats.svg"
+    })
