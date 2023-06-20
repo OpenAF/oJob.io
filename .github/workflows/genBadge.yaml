@@ -38,5 +38,5 @@ jobs:
       uses: openaf/ojob-action@v4
       with:
         ojob: 'ojob.io/git/hub/contentIn'
-        args: 'message="Update\ badge" title="Update\ badge" paths=.github'
+        args: 'message="Update\ badge" title="Update\ badge" paths=.github/'
         dist: nightly
