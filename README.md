@@ -1,5 +1,10 @@
 # oJob.io
 
+![YAMLs](.github/yamls.svg)
+![JSONs](.github/jsons.svg)
+![SHs](.github/shs.svg)
+![BATs](.github/bats.svg)
+
 Service providing easy-to-access oJobs for daily routines.
 
 ## How to access
