@@ -1,0 +1,74 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given an existing SSH key pair will prepare 'git' to use it and verify commits
+  expects: 
+  - name     : name
+    desc     : The user name to use for commits
+    example  : My Name
+    mandatory: true
+  - name     : email
+    desc     : The email address to use for commits
+    example  : my.email@example.com
+    mandatory: true
+  - name     : file
+    desc     : The alternative private key file to use
+    example  : /some/path/id
+    mandatory: false
+
+todo:
+- Set key
+- Set git for SSH auth
+- Output keys
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------
+- name : Set key
+  check:
+    in:
+      email   : isString
+      file    : isString.default("id_rsa")
+  exec : |
+    var privk = getEnv("HOME") + "/.ssh/" + args.file
+    var pubk  = getEnv("HOME") + "/.ssh/" + args.file + ".pub"
+
+    if (!io.fileExists(privk)) {
+      var privKey = askN(s => (s.length > 0 ? "| " : "Private key: "), s => s.indexOf("END OPENSSH PRIVATE KEY") >= 0)
+      var pubKey  = ask("Public key : ")
+
+      io.writeFileString(privk, privKey)
+      io.writeFileString(pubk, pubKey)
+      cls()
+    }
+
+# ---------------------------
+- name : Set git for SSH auth
+  lang : shell
+  check:
+    in:
+      name : isString
+      email: isString
+      file : isString.default("id_rsa")
+  exec : |
+    git config --global gpg.format ssh
+    git config --global user.signingkey {{$env 'HOME'}}/.ssh/{{file}}.pub
+    git config --global user.email "{{email}}"
+    git config --global user.name "{{name}}"
+    git config --global commit.gpgsign true
+
+# ------------------
+- name : Output keys
+  check:
+    in:
+      file : isString.default("id_rsa")
+  lang : shell
+  exec : |
+    echo SSH "signing" key to add:
+    echo
+    cat {{$env 'HOME'}}/.ssh/{{file}}.pub
