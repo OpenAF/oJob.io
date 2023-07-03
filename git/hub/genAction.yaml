@@ -15,9 +15,15 @@ init:
       ## Comment the entries below you won't be needing
       #  (and double-check if you repo uses 'main' or 'master')
       push        :
-        branches: [ "main" ]
+        branches:
+        - main
+        #paths:
+        #- 'xyz/**'
       pull_request:
-        branches: [ "main" ]
+        branches:
+        - main
+        #paths:
+        #- 'xyz/**'
       schedule    :
       - cron: '30 6 * * *'
 
