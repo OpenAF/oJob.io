@@ -1,0 +1,120 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the necessary information to produce instructions to open a Chrome browser to access the current K8S cluster
+  expects:
+  - name     : ns
+    desc     : The namespace to identify pods
+    example  : default
+    mandatory: false
+  - name     : socksns
+    desc     : The socks-server service namespace if not running in kube-system
+    example  : kube-system
+    mandatory: false
+
+todo:
+- Determine current namespace
+- Get list of pods
+- Get list of services
+- Determine execution commands for Windows
+
+ojob:
+  async       : true
+  opacks      :
+  - openaf: 20230704
+  - Kube
+  - BouncyCastle
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - kube.js
+
+jobs:
+# ----------------------------------
+- name : Determine current namespace
+  exec : |
+    global.ns = $sh("kubectl config view --minify --output 'jsonpath={..namespace}'").get(0).stdout
+    if (global.ns == "") global.ns = "default"
+    log("Current namespace = '" + global.ns + "'")
+
+# -----------------------
+- name : Get list of pods
+  check:
+    in:
+      socksns: isString.default("kube-system")
+  exec : |
+    tlog("Get list of pods in {{socksns}}...", args)
+    global.listKubeSystemPo = $kube().getFPO(args.socksns)
+
+# ---------------------------
+- name : Get list of services
+  deps : Determine current namespace
+  check:
+    in:
+      ns     : isString.default(global.ns)
+      socksns: isString.default("kube-system")
+  exec : |
+    tlog("Get list of services in {{socksns}}...", args)
+    global.listKubeSystem   = $kube().getFSVC(args.socksns)
+    tlog("Get list of services in {{ns}}...", args)
+    global.listMyNS         = $kube().getFSVC(args.ns)
+
+# -----------------------------------------------
+- name : Determine execution commands for Windows
+  check:
+    in:
+      ns     : isString.default(global.ns)
+      socksns: isString.default("kube-system")
+  to   :
+  - (printmd): |
+      {{$repeat space '─'}}
+      __🪟  Windows:__
+
+      {{$acolor 'faint' 'On a command prompt execute:'}}
+      _curl https://ojob.io/win/newChrome.bat -o newChrome.bat_
+      _newChrome.bat kube {{hostIP}}:{{nodePort}}_
+ 
+      {{$repeat space '─'}}
+      __🐧 Linux: __
+
+      {{$acolor 'faint' 'On an unix terminal execute:'}}
+      _curl https://ojob.io/unix/newChrome.sh | sh -s kube {{hostIP}}:{{nodePort}}_
+
+      {{$repeat space '─'}}
+      __🍎 MacOS:__
+
+      {{$acolor 'faint' 'On a Terminal window execute:'}}
+      _curl https://ojob.io/mac/newChrome.sh | sh -s kube {{hostIP}}:{{nodePort}}_
+
+      {{$repeat space '─'}}
+      __🎯 Possible available URLS in {{$acolor 'yellow' ns}}:__
+
+      {{$acolor 'faint' 'Using the newly open browser try to access:'}}
+
+        {{#each svcList}}
+        - http://{{name}}.{{ns}}.svc:{{port}}
+        {{/each}}
+
+  deps :
+  - Determine current namespace
+  - Get list of pods
+  - Get list of services
+  exec : |
+    if ($from( global.listKubeSystemPo.items ).starts("metadata.name", "socks-server").none() ||
+        $from( global.listKubeSystem.items ).equals("metadata.name", "socks-server").none()) 
+      throw "Can't find socks-server pod/service. Try executing:\n\nkubectl create deployment socksd --image nmaguiar/socksd --port=1080 -ns "+args.socksns+"\nkubectl create service nodeport socksd --tcp=31080:1080 --node-port=31080 -ns "+args.socksns
+
+    args.hostIP   = $from( global.listKubeSystemPo.items ).starts("metadata.name", "socks-server").at(0).status.hostIP
+    args.nodePort = $from( global.listKubeSystem.items ).equals("metadata.name", "socks-server").at(0).spec.ports[0].nodePort
+
+    if (isUnDef(args.nodePort) || isUnDef(args.hostIP))
+      throw "Can determine either one of the socks-server host IP address and/or the socks-server service node port."
+
+    args.svcList = $from(global.listMyNS.items).sort("metadata.name").select(svc => {
+      return {
+        name: svc.metadata.name,
+        port: svc.spec.ports[0].port,
+        ns  : svc.metadata.namespace
+      }
+    })
+
+    args.space = args.ns.length + 31
