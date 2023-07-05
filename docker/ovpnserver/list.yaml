@@ -1,0 +1,41 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses a list of clients from a running ojob.io/docker/ovpnserver.
+  expects: 
+  - name     : id
+    desc     : The ovpnserver container id
+    example  : 123abc
+    mandatory: true
+
+todo:
+- Parse list
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Parse list
+  check:
+    in:
+      id: isString
+  exec : |
+    var data = $sh("docker exec " + args.id + " ovpn_listclients")
+               .get(0)
+               .stdout
+               .split("\n")
+               .filter( (r, i) => i != 0 && r.length > 0 )
+               .map(r => { 
+                 var [n, b, e, s] = r.split(",")
+                 return { 
+                   name  : n, 
+                   begin : ow.format.toDate(b, "MMM dd hh:mm:ss yyyy zzz"), 
+                   end   : ow.format.toDate(e, "MMM dd hh:mm:ss yyyy zzz"), 
+                   status: s 
+                 }
+               })
+    ow.oJob.output(data, args)

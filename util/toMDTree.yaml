@@ -1,0 +1,58 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts a map or YAML/JSON file into a markdown with OpenAF's tree format
+  expects: 
+  - name     : inputFile
+    desc     : A YAML/JSON input file to use
+    example  : example.yaml
+    mandatory: false
+  - name     : file
+    desc     : The markdown output file (otherwise stdout)
+    example  : example.md
+    mandatory: false
+  - name     : width
+    desc     : The line width to use
+    example  : 160
+    mandaotry: false
+
+todo:
+- Convert to MD tree
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -------------------------
+- name : Convert to MD tree
+  check:
+    in:
+      inputFile: isString.default(__)
+      file     : isString.default(__)
+      width    : toNumber.isNumber.default(112)
+  exec : |
+    var data 
+    
+    if (isUnDef(args.inputFile)) {
+      data = __pm
+
+      if (isDef(__pm._map))  data = __pm._map
+      if (isDef(__pm._list)) data = __pm._list
+    } else {
+      if (args.inputFile.match(/\.ya?ml$/)) {
+        data = io.readFileYAML(args.inputFile)
+      } else {
+        data = io.readFileJSON(args.inputFile)
+      }
+    }
+
+    var out = "````yaml\n" + printTree(data, args.width).replace(/\033\[[0-9;]*m/g, "") + "\n````\n"
+
+    if (isUnDef(args.file)) {
+      print(out) 
+    } else {
+      io.writeFileString(args.file, out)
+    }
