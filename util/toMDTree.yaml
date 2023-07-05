@@ -42,10 +42,14 @@ jobs:
       if (isDef(__pm._map))  data = __pm._map
       if (isDef(__pm._list)) data = __pm._list
     } else {
-      if (args.inputFile.match(/\.ya?ml$/)) {
-        data = io.readFileYAML(args.inputFile)
+      if (io.fileExists(args.inputFile)) {
+        if (args.inputFile.match(/\.ya?ml$/)) {
+          data = io.readFileYAML(args.inputFile)
+        } else {
+          data = io.readFileJSON(args.inputFile)
+        }
       } else {
-        data = io.readFileJSON(args.inputFile)
+        data = {}
       }
     }
 
