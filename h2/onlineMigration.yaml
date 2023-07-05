@@ -15,7 +15,7 @@ help:
     example  : apassword
     mandatory: true
   - name     : version
-    desc     : The old version number (e.g. 200)
+    desc     : The old version number (e.g. 200, 214)
     example  : 200
     mandatory: false
 
