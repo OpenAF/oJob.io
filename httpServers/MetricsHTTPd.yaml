@@ -1,0 +1,81 @@
+# Author            : Nuno Aguiar
+help:
+  text: Creates a quick echo server for testing, with /metrics, that will output the request received and send as plain text back to the sender.
+  expects:
+  - name     : port
+    desc     : The port where the echo server will be listening for requests (defaults to 12345)
+    example  : 12345
+    mandatory: false
+  - name     : host
+    desc     : To which host/listeners the echo server will be attached (defaults to 0.0.0.0)
+    example  : 0.0.0.0
+    mandatory: false
+  - name     : self
+    desc     : If self=false the echo server won't provided information about itself (defaults to true)
+    example  : "false"
+    mandatory: false
+
+init:
+  port: &PORT 12345
+  uri : &URI  "/"
+  pid : &PID  echoHTTPd.pid
+
+ojob:
+  daemon    : true
+  opacks    :
+  - oJob-common
+  - openaf: 20230325
+  unique    :
+    pidFile     : *PID
+    killPrevious: false
+  argsFromEnvs: true
+
+include:
+  - oJobHTTPd.yaml
+
+todo:
+- name: HTTP Start Server
+  args: |
+    ({
+       port: Number( _$(args.port, "port").default(args.init.port) )
+    })
+- name: Start Echo
+- name: Start Metrics
+
+jobs:
+# -------------------
+- name: Start Metrics
+  to  : HTTP Metrics
+  exec: |
+    if (isDef(ow.loadNet)) ow.loadNet()
+    args.port = Number( _$(args.port, "port").default(args.init.port) )
+    //args.uri  = _$(args.uri, "uri").default(args.init.uri);
+
+# ----------------    
+- name: Start Echo
+  to  : HTTP Service
+  args: 
+    execURI: |
+      var n = String(new Date())
+      var s = n.length + 2
+
+      print(repeat(s, '-'))
+      print(" " + n)
+      print(repeat(s, '-'))
+
+      if (!args.self && isDef(ow.loadNet) && isDef(ow.net.getHostAddress)) request.info = merge(request.info, { serverHost: ow.net.getHostAddress() })
+      if (!args.self && isDef(ow.loadNet) && isDef(ow.net.getHostName))    request.info = merge(request.info, { serverHostname: ow.net.getHostName() })
+
+      traverse(request, (aK, aV, aP, aO) => {
+        if (isNull(aV)) delete aO[aK]
+      })
+
+      ow.oJob.output(request, args)
+      print(repeat(s, '='))
+
+      return stringify(request)
+  exec: |
+    if (isDef(ow.loadNet)) ow.loadNet()
+    args.self = _$(toBoolean(args.self), "self").isBoolean().default(false)
+    args.port = Number( _$(args.port, "port").default(args.init.port) )
+    args.uri  = _$(args.uri, "uri").default(args.init.uri);
