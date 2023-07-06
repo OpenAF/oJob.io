@@ -18,7 +18,7 @@ help:
 init:
   port: &PORT 12345
   uri : &URI  "/"
-  pid : &PID  echoHTTPd.pid
+  pid : &PID  metroHTTPd.pid
 
 ojob:
   daemon    : true
