@@ -1,0 +1,367 @@
+# Author: Nuno Aguiar
+help:
+  text   : Deploys prometheus and, optionally, grafana.
+  expects: 
+  - name     : grafana 
+    desc     : "If grafana=true grafana will be added."
+    mandatory: false
+    example  : "true"
+  - name     : pushgateway
+    desc     : "If pushgateway=true pushgateway will be added."
+    mandatory: false
+    example  : "true"
+  - name     : namespace
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: true
+
+init:
+  prom: |
+    # my global config
+    global:
+      scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+      scrape_timeout:      15s
+      evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+      # scrape_timeout is set to the global default (10s).
+
+    # Alertmanager configuration
+    alerting:
+      alertmanagers:
+      - scheme: http
+        timeout: 10s
+        api_version: v2
+        static_configs:
+        - targets:
+        # - alertmanager:9093
+
+    # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+    rule_files:
+      # - "first_rules.yml"
+      # - "second_rules.yml"
+
+    # A scrape configuration containing exactly one endpoint to scrape:
+    # Here it's Prometheus itself.
+    scrape_configs:
+      # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+      - job_name: 'prometheus'
+        honor_timestamps: true
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        scheme: http
+        # metrics_path defaults to '/metrics'
+        # scheme defaults to 'http'.
+        static_configs:
+        - targets: ['localhost:9090']
+      - job_name: 'k8s-service'
+        kubernetes_sd_configs:
+        - role: service
+    {{#if pushgateway}}
+      - job_name: 'pushgateway'
+        honor_timestamps: true
+        scrape_interval: 15s
+        scrape_timeout: 10s
+        metrics_path: /metrics
+        scheme: http
+        # metrics_path defaults to '/metrics'
+        # scheme defaults to 'http'.
+        static_configs:
+        - targets: ['pushgateway:9091']
+    {{/if}}     
+
+todo:
+- Init
+- Configure prometheus config map
+- Configure prometheus cluster role
+- Configure prometheus cluster role binding
+- Configure prometheus pvc
+- Configure prometheus deployment
+- Configure prometheus service
+- Configure grafana pvc
+- Configure grafana deployment
+- Configure grafana service
+- Print final config
+
+ojob:
+  opacks      :
+  - openaf: 20230707
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - kube.js
+
+jobs:
+# -----------
+- name : Init
+  exec : |
+    global.config = []
+
+# ---------------------------
+- name : Add to global config
+  typeArgs:
+    shortcut:
+      name  : k8sconfig
+      keyArg: config
+      nolog : true
+  check:
+    in:
+      config: isMap
+  exec : |
+    global.config.push(args.config)
+
+# --------------------------------------
+- name : Configure prometheus config map
+  check:
+    in:
+      namespace       : isString
+      grafana         : toBoolean.isBoolean.default(false)
+      pushgateway     : toBoolean.isBoolean.default(false)
+  args:
+    config:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: prometheus
+      data: {}
+  to   :
+  - Add to global config
+  exec : |
+    args.config.data["prometheus.yml"] = $t(args.init.prom, args)
+
+# ----------------------------------------
+- name : Configure prometheus cluster role
+  to   :
+  - (k8sconfig):
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: prometheus
+      rules:
+      - apiGroups: [""]
+        resources:
+        - nodes
+        - nodes/proxy
+        - services
+        - endpoints
+        - pods
+        verbs: ["get", "list", "watch"]
+      - apiGroups:
+        - extensions
+        resources:
+        - ingresses
+        verbs: ["get", "list", "watch"]
+      - nonResourceURLs: ["/metrics"]
+        verbs: ["get"]
+
+# ------------------------------------------------
+- name : Configure prometheus cluster role binding
+  to   :
+  - (pass          ):
+      config:
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: prometheus
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: prometheus
+        subjects:
+        - kind: ServiceAccount
+          name: default
+          namespace: "{{namespace}}"
+    ((templateArgs)): true
+  - Add to global config
+
+
+# -------------------------------
+- name : Configure prometheus pvc
+  to   : 
+  - (k8sconfig):
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: prometheus-pvc
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+
+# --------------------------------------
+- name : Configure prometheus deployment
+  to   : 
+  - (k8sconfig):
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: prometheus
+        labels:
+          app: prometheus
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: prometheus
+        template:
+          metadata:
+            labels:
+              app: prometheus
+          spec:
+            containers:
+              - name: prometheus
+                image: prom/prometheus
+                args:
+                  - "--storage.tsdb.retention.time=12h"
+                  - "--config.file=/etc/prometheus/prometheus.yml"
+                  - "--storage.tsdb.path=/prometheus/"
+                ports:
+                  - containerPort: 9090
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 500M
+                  limits:
+                    cpu: 1
+                    memory: 1Gi
+                volumeMounts:
+                  - name: prometheus-config-volume
+                    mountPath: /etc/prometheus
+                  - name: prometheus-storage-volume
+                    mountPath: /prometheus
+            volumes:
+              - name: prometheus-config-volume
+                configMap:
+                  defaultMode: 420
+                  name: prometheus
+              - name: prometheus-storage-volume
+                persistentVolumeClaim:
+                  claimName: prometheus-pvc
+            securityContext:
+              runAsUser: 0 
+
+# -----------------------------------
+- name : Configure prometheus service
+  to   :
+  - (k8sconfig):
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: prometheus
+        name: prometheus
+      spec:
+        internalTrafficPolicy: Cluster
+        ipFamilies:
+        - IPv4
+        ipFamilyPolicy: SingleStack
+        ports:
+        - port: 9090
+          protocol: TCP
+          targetPort: 9090
+        selector:
+          app: prometheus
+        sessionAffinity: None
+        type: ClusterIP
+
+# ----------------------------
+- name : Configure grafana pvc
+  to   :
+  - (k8sconfig):
+      kind: PersistentVolumeClaim
+      apiVersion: v1
+      metadata:
+        name: grafana-pvc
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+
+# -----------------------------------
+- name : Configure grafana deployment
+  check:
+    in:
+      grafana: toBoolean.isBoolean.default(false)
+  to   :
+  - (if       ): "{{#if grafana}}true{{else}}false{{/if}}"
+    ((then   )):
+    - (k8sconfig):
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: grafana
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              app: grafana
+          template:
+            metadata:
+              labels:
+                app: grafana
+            spec:
+              containers:
+              - image: grafana/grafana
+                name: grafana
+                ports:
+                - containerPort: 3000
+                  name: http
+                volumeMounts:
+                  - name: grafana-pvc
+                    mountPath: /var/lib/grafana
+              volumes:
+                - name: grafana-pvc
+                  persistentVolumeClaim:
+                    claimName: grafana-pvc
+              securityContext:
+                runAsUser: 0
+
+# --------------------------------
+- name : Configure grafana service
+  check:
+    in:
+      grafana: toBoolean.isBoolean.default(false)
+  to   :
+  - (if       ): "{{#if grafana}}true{{else}}false{{/if}}"
+    ((then   )):
+    - (k8sconfig):
+        apiVersion: v1
+        kind: Service
+        metadata:
+          labels:
+            app: grafana
+          name: grafana
+        spec:
+          internalTrafficPolicy: Cluster
+          ipFamilies:
+          - IPv4
+          ipFamilyPolicy: SingleStack
+          ports:
+          - port: 3000
+            protocol: TCP
+            targetPort: 3000
+          selector:
+            app: grafana
+          sessionAffinity: None
+          type: ClusterIP
+
+# -------------------------
+- name : Print final config
+  check:
+    in:
+      namespace: isString
+      grafana  : toBoolean.isBoolean.default(false)
+  exec : |
+    yprint(global.config, true)
+    if (args.grafana) {
+      print()
+      tprint("# To configure grafana run:", args)
+      tprint("# ")
+      tprint("# $ kubectl exec -ti [the grafana pod name] -- curl -X POST -H \"Content-Type: application/json\" -d '{\"name\":\"prometheus\",\"type\":\"prometheus\",\"url\":\"http://prometheus.{{namespace}}.svc:9090\",\"access\":\"proxy\",\"isDefault\":true}' -u admin:admin http://127.0.0.1:3000/api/datasources", args)
+      tprint("# ")
+      tprint("# Then login with admin/admin.")
+    }
