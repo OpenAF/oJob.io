@@ -117,7 +117,7 @@ jobs:
     global.cd = $atomic()
 
     // Determines if there is anything to commit
-    if (args.paths != ".) {
+    if (args.paths != ".") {
       args.paths.split(",").forEach(p => $sh("git add " + p).exec())
     }
     global.res = $sh("git status --porcelain").get(0).stdout
