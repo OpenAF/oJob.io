@@ -31,6 +31,14 @@ init:
       schedule    :
       - cron: '30 6 * * *'
 
+      ## Uncomment and adapt the following lines to trigger the action upon complete of another
+      ##
+      #workflow_run:
+      #  workflows:
+      #    - 'main.yml'
+      #  types:
+      #    - completed
+
       workflow_dispatch:
       ## Uncomment the following lines if you need to provide specific inputs
       ##
@@ -75,6 +83,7 @@ init:
         {{/if}}
 
         ## Add here other steps
+        ## If you used workflow_run you can access $\{{ github.event.workflow }} and $\{{ github.event.workflow_run.conclusion }}
 
         # -------------
         - name: Checkin
