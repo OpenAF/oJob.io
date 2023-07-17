@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Given a GitHub repo tries to perform operations (e.g. list, trigger) over the existing workflows
+  text   : Given a GitHub repo tries to perform operations (e.g. list, trigger) over the existing workflows (on a github action you might neet actions write permission)
   expects: 
   - name     : op
     desc     : The operation to execute (e.g. help, list, trigger)
@@ -13,6 +13,10 @@ help:
   - name     : workflow
     desc     : The GitHub repo corresponding workflow
     example  : my-workflow.yml
+    mandatory: false
+  - name     : useDirect
+    desc     : Boolean to indicate to instead of using gh cli tries to place the requests directly
+    example  : "true"
     mandatory: false
 
 todo:
@@ -40,36 +44,53 @@ jobs:
 - name : Trigger workflow
   check:
     in:
-      repo    : isString
-      workflow: isString
-      ref     : isString.default("main")
-      inputs  : default(__)
+      repo     : isString.default(__)
+      workflow : isString
+      ref      : isString.default(__)
+      inputs   : default(__)
+      token    : isString.default("GITHUB_TOKEN")
+      useDirect: toBoolean.isBoolean.default(false)
   exec : |
     if (isString(args.inputs)) args.inputs = jsonParse(args.inputs, true)
-
-    var data = $rest({ requestHeaders: { accept       : "application/vnd.github+json",
-                                         authorization: "Bearer " + getEnv("GITHUB_TOKEN"),
+    if (isUnDef(args.inputs)) args.inputs = {}
+    var data
+    if (args.useDirect) {
+        data = $rest({ requestHeaders: { accept       : "application/vnd.github+json",
+                                         authorization: "Bearer " + getEnv(args.token),
                                          "x-github-api-version": "2022-11-28" } })
                .post("https://api.github.com/repos/" + args.repo + "/actions/workflows/" + args.workflow + "/dispatches", {
                 ref: args.ref,
                 inputs: args.inputs
                })
-    
+    } else {  
+      data = $sh("echo '" + stringify(args.inputs,__,"") + "' | gh workflow run " + args.workflow + " " + (isDef(args.repo) ? "-R " + args.repo : "") + " " + (isDef(args.ref) ? "--ref " + args.ref : "") + " --json").get(0)
+    }
+
     ow.oJob.output(data, args)
 
 # ---------------------
 - name : List workflows
   check:
     in:
-      repo: isString
+      repo : isString.default(__)
+      token: isString.default("GITHUB_TOKEN")
+      useDirect: toBoolean.isBoolean.default(false)
   exec : |
-    var data = {}
-    data = $rest({ requestHeaders: { accept: "application/vnd.github+json", 
-                                     authorization: "Bearer " + getEnv("GITHUB_TOKEN"),
-                                     "x-github-api-version": "2022-11-28" } })
-           .get("https://api.github.com/repos/" + args.repo + "/actions/workflows")
+    if (isDef(args.repo)) args.repo = getEnv("GITHUB_REPOSITORY")
 
-    if (isArray(data.workflows)) data = data.workflows
+    var data = {}
+    if (args.useDirect) {
+      data = $rest({ requestHeaders: { accept: "application/vnd.github+json", 
+                                      authorization: "Bearer " + getEnv(args.token),
+                                      "x-github-api-version": "2022-11-28" } })
+            .get("https://api.github.com/repos/" + args.repo + "/actions/workflows")
+
+      if (isArray(data.workflows)) data = data.workflows
+    } else {
+      var ar = (args.token != "GITHUB_TOKEN" ? $sh("gh auth login --with-token", args.token).sh("gh workflow list").get(1) : $sh("gh workflow list").get(0))
+      ar = ar.stdout.split("\n").filter(l => l.length > 0).map(l => l.split("\t"))
+      data = ar.map(d => ({ name: d[0], status: d[1], id: d[2]}))      
+    }
 
     ow.oJob.output(data, args)
 
