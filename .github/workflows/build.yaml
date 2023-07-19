@@ -7,7 +7,7 @@ on:
 
 jobs:
 
-  genBadge:
+  build:
     runs-on: ubuntu-latest
     #permissions:
     #  contents: write
