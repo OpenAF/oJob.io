@@ -55,12 +55,16 @@ jobs:
 
           - name: Run Setup oJobIO
             lang: shell
+            typeArgs:
+              shellPrefix: setupOJobIO
             exec: |
               /tmp/oaf/ojob setupOJobIO.yaml
               find ojobs | wc
 
           - name: Run Rebuild
             lang: shell
+            typeArgs:
+              shellPrefix: rebuild
             exec: |
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
