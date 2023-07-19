@@ -26,18 +26,43 @@ jobs:
 
     # --------------------------
     - name: Install oJobIO opack
-      run : |
-        /tmp/oaf/opack install ojobio
-        /tmp/oaf/opack install ojob-common
-        mkdir .dist
-        cp -R /tmp/oaf/oJobIO/* .dist
-        cd .dist
-        ls -lad *
-        find imgs | wc
-        find ojobs | wc
-        /tmp/oaf/ojob setupOJobIO.yaml
-        find ojobs | wc
-        /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
+      uses: openaf/ojob-action@v4
+      with:
+        dist: nightly
+        def : |
+          todo:
+          - Install aux packs
+          - Copy files
+          - Run Setup oJobIO
+          - Run Rebuild
+
+          jobs:
+          - name: Install aux packs
+            lang: shell
+            exec: |
+              /tmp/oaf/opack install ojobio
+              /tmp/oaf/opack install ojob-common
+
+          - name: Copy files
+            lang: shell
+            exec: |
+              mkdir .dist
+              cp -R /tmp/oaf/oJobIO/* .dist
+              cd .dist
+              ls -lad *
+              find imgs | wc
+              find ojobs | wc      
+
+          - name: Run Setup oJobIO
+            lang: shell
+            exec: |
+              /tmp/oaf/ojob setupOJobIO.yaml
+              find ojobs | wc
+
+          - name: Run Rebuild
+            lang: shell
+            exec: |
+              /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
     # -----------------------
     - name: Copy build result
