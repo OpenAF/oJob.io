@@ -36,6 +36,7 @@ jobs:
         find imgs | wc
         find ojobs | wc
         /tmp/oaf/ojob setupOJobIO.yaml
+        find ojobs | wc
         /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
     # -----------------------
