@@ -33,6 +33,7 @@ jobs:
         cp -R /tmp/oaf/oJobIO/imgs .dist
         cp -R /tmp/oaf/oJobIO/ojobs .dist
         cd .dist
+        ls -lad *
         /tmp/oaf/ojob /tmp/oaf/oJobIO/setupOJobIO.yaml
         /tmp/oaf/ojob /tmp/oaf/oJobIO/rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
