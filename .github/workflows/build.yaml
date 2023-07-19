@@ -35,4 +35,8 @@ jobs:
         cd .dist
         /tmp/oaf/ojob /tmp/oaf/oJobIO/setupOJobIO.yaml
         /tmp/oaf/ojob /tmp/oaf/oJobIO/rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
-        find .
+
+    # -----------------------
+    - name: Copy build result
+      run : |
+        find .dist
