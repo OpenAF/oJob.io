@@ -35,8 +35,8 @@ jobs:
         ls -lad *
         find imgs | wc
         find ojobs | wc
-        /tmp/oaf/ojob /tmp/oaf/oJobIO/setupOJobIO.yaml
-        /tmp/oaf/ojob /tmp/oaf/oJobIO/rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
+        /tmp/oaf/ojob setupOJobIO.yaml
+        /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
     # -----------------------
     - name: Copy build result
