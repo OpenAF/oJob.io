@@ -28,18 +28,11 @@ jobs:
     - name: Install oJobIO opack
       run : |
         /tmp/oaf/opack install ojobio
+        /tmp/oaf/opack install ojob-common
         mkdir .dist
         cp -R /tmp/oaf/oJobIO/imgs .dist
         cp -R /tmp/oaf/oJobIO/ojobs .dist
         cd .dist
         /tmp/oaf/ojob /tmp/oaf/oJobIO/setupOJobIO.yaml
         /tmp/oaf/ojob /tmp/oaf/oJobIO/rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
-        ls -lad *
-        
-    # -------------------
-    - name: Update badges
-      uses: openaf/ojob-action@v4
-      with:
-        ojob: .github/ojobs/genBadge.yaml
-        dist: nightly
-        
+        find .
