@@ -30,10 +30,11 @@ jobs:
         /tmp/oaf/opack install ojobio
         /tmp/oaf/opack install ojob-common
         mkdir .dist
-        cp -R /tmp/oaf/oJobIO/imgs .dist
-        cp -R /tmp/oaf/oJobIO/ojobs .dist
+        cp -R /tmp/oaf/oJobIO/* .dist
         cd .dist
         ls -lad *
+        find imgs | wc
+        find ojobs | wc
         /tmp/oaf/ojob /tmp/oaf/oJobIO/setupOJobIO.yaml
         /tmp/oaf/ojob /tmp/oaf/oJobIO/rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
