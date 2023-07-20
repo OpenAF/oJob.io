@@ -86,7 +86,7 @@ jobs:
           jobs:
           - name: Copy build result
             to  :
-            - (secret)  : OS_OJOBIO
+            - (secget)  : OS_OJOBIO
               ((secEnv)): true
             - name: S3 Sync folder
               args:
