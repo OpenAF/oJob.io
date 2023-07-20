@@ -22,7 +22,7 @@ jobs:
         path: /tmp/oaf
         
     # -------------------------
-    - uses: actions/checkout@v2
+    #- uses: actions/checkout@v2
 
     # --------------------------
     - name: Install oJobIO opack
@@ -46,9 +46,7 @@ jobs:
           - name: Copy files
             lang: shell
             exec: |
-              mkdir .dist
-              cp -R /tmp/oaf/oJobIO/* .dist
-              cd .dist
+              cp -R /tmp/oaf/oJobIO/* .
               ls -lad *
               find imgs | wc
               find ojobs | wc
@@ -59,7 +57,6 @@ jobs:
             typeArgs:
               shellPrefix: setupOJobIO
             exec: |
-              cd .dist
               /tmp/oaf/ojob setupOJobIO.yaml
               find ojobs | wc
 
@@ -68,10 +65,9 @@ jobs:
             typeArgs:
               shellPrefix: rebuild
             exec: |
-              cd .dist
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
     # -----------------------
     - name: Copy build result
       run : |
-        find .dist
+        find .
