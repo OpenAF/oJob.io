@@ -57,7 +57,7 @@ jobs:
             typeArgs:
               shellPrefix: setupOJobIO
             exec: |
-              echo /tmp/oaf/ojob setupOJobIO.yaml
+              /tmp/oaf/ojob setupOJobIO.yaml
               find ojobs | wc
 
           - name: Run Rebuild
@@ -95,5 +95,4 @@ jobs:
                 squash   : remote
                 localPath: ojobs
                 bucket   : ojobs
-            - (output): args
-              ((path)): actions
+                execute  : true
