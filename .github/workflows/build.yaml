@@ -57,7 +57,7 @@ jobs:
             typeArgs:
               shellPrefix: setupOJobIO
             exec: |
-              /tmp/oaf/ojob setupOJobIO.yaml
+              echo /tmp/oaf/ojob setupOJobIO.yaml
               find ojobs | wc
 
           - name: Run Rebuild
@@ -69,5 +69,28 @@ jobs:
 
     # -----------------------
     - name: Copy build result
-      run : |
-        find .
+      uses: openaf/ojob-action@v4
+      with:
+        dist  : nightly
+        def   : |
+          ojob:
+            opacks: 
+            - S3
+          
+          include: 
+          - s3.yaml
+            
+          todo:
+          - Copy build result
+          
+          jobs:
+          - name: Copy build result
+            to  :
+            - (secret)  : OS_OJOBIO
+              ((secEnv)): true
+            - name: S3 Sync folder
+              args:
+                squash   : remote
+                localPath: ojobs
+            - (output): args
+              ((path)): actions
