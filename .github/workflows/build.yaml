@@ -59,6 +59,7 @@ jobs:
             typeArgs:
               shellPrefix: setupOJobIO
             exec: |
+              cd .dist
               /tmp/oaf/ojob setupOJobIO.yaml
               find ojobs | wc
 
@@ -67,6 +68,7 @@ jobs:
             typeArgs:
               shellPrefix: rebuild
             exec: |
+              cd .dist
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
     # -----------------------
