@@ -94,5 +94,6 @@ jobs:
               args:
                 squash   : remote
                 localPath: ojobs
+                bucket   : ojobs
             - (output): args
               ((path)): actions
