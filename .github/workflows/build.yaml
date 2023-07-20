@@ -70,6 +70,8 @@ jobs:
     # -----------------------
     - name: Copy build result
       uses: openaf/ojob-action@v4
+      env :
+        OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
         dist  : nightly
         def   : |
