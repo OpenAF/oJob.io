@@ -35,6 +35,7 @@ jobs:
           - Copy files
           - Run Setup oJobIO
           - Run Rebuild
+          - Convert formats
 
           jobs:
           - name: Install aux packs
@@ -66,6 +67,25 @@ jobs:
               shellPrefix: rebuild
             exec: |
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
+
+          - name: Convert to JSON
+            exec: |
+              log("Converting " + r.filepath + "...")
+              oJobRunFile("ojob.io/compile", { source: r.canonicalPath, target: r.canonicalPath.replace(/\.ya?ml$/, ".json") })
+
+          - name: Convert to HTML
+            exec: |
+              log("Converting " + r.filepath + "...")
+              oJobRunFile("ojob.io/formats/md2html", { md: r.canonicalPath, html: r.canonicalPath.replace(/\.md$/, ".html") })
+
+          - name: Convert formats
+            exec: |
+              listFilesRecursive("ojobs").forEach(r => {
+                if (r.isFile) {
+                  if (r.filename.endsWith(".yaml")) $job("Convert to JSON", r)
+                  if (r.filename.endsWith(".md"))   $job("Convert to HTML", r)
+                }
+              })
 
     # -----------------------
     - name: Copy build result
