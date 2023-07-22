@@ -114,5 +114,5 @@ jobs:
               args:
                 squash   : remote
                 localPath: output
-                bucket   : ojobio
+                bucket   : ojob.io
                 execute  : true
