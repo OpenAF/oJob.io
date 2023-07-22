@@ -27,7 +27,7 @@ jobs:
   exec: |
     _$(args.host, "host").$_();
     args.port     = _$(args.port, "port").default(443);
-    args.__format = _$(args.__format, "__format").default("map");
+    args.__format = _$(args.__format, "__format").default("tree");
 
     var res = [];
 
