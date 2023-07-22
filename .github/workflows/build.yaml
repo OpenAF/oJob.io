@@ -71,12 +71,12 @@ jobs:
           - name: Convert to JSON
             exec: |
               log("Converting " + args.filepath + "...")
-              oJobRunFile("ojob.io/compile", { source: args.canonicalPath, target: args.canonicalPath.replace(/\.ya?ml$/, ".json") })
+              oJobRunFile("ojob.io/compile", { source: args.canonicalPath, target: args.canonicalPath.replace(/\.ya?ml$/, ".json") }, genUUID())
 
           - name: Convert to HTML
             exec: |
               log("Converting " + args.filepath + "...")
-              oJobRunFile("ojob.io/formats/md2html", { md: args.canonicalPath, html: args.canonicalPath.replace(/\.md$/, ".html") })
+              oJobRunFile("ojob.io/formats/md2html", { md: args.canonicalPath, html: args.canonicalPath.replace(/\.md$/, ".html") }, genUUID())
 
           - name: Convert formats
             exec: |
