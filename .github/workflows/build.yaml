@@ -35,7 +35,7 @@ jobs:
           - Copy files
           - Run Setup oJobIO
           - Run Rebuild
-          - Convert formats
+          #- Convert formats
 
           jobs:
           - name: Install aux packs
@@ -113,6 +113,6 @@ jobs:
             - name: S3 Sync folder
               args:
                 squash   : remote
-                localPath: ojobs
+                localPath: output
                 bucket   : ojobio
                 execute  : true
