@@ -42,6 +42,7 @@ jobs:
             exec: |
               /tmp/oaf/opack install ojobio
               /tmp/oaf/opack install ojob-common
+              wget https://ojob.io/_output.zip
 
           - name: Copy files
             lang: shell
