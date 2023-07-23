@@ -1,0 +1,34 @@
+# Author: Nuno Aguiar
+help:
+  text   : Starts a docker container with github cli ready to use.
+  expects: 
+  - name     : path
+    desc     : Path of the /input folder
+    example  : .
+    mandatory: false
+
+todo:
+- Check for docker
+- Start container
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------------------
+- name: Check for docker
+  exec: |
+    var exists = $sh("docker -v").get(0).exitcode
+    if (exists != 0) throw "Couldn't find the docker client. Please install docker."
+
+# ----------------------
+- name : Start container
+  check:
+    in:
+      path: isString.default(".")
+  exec : |
+    $sh(["docker", "run", "--pull", "always", "--rm", "-ti", "-v", args.path + ":/input", "openaf/oaf", "-c", "$sh(\"sudo apk update && sudo apk add github-cli git && cd /input && /bin/sh\").exec()"])
+    .exec()
