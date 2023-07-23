@@ -21,6 +21,7 @@ todo:
   args:
   - BIN: oaf
   - BIN: oaf-sb
+  - BIN: ojob-sb
   - BIN: oafc
   - BIN: ojob
   - BIN: opack
