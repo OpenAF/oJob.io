@@ -51,7 +51,7 @@ jobs:
               ls -lad *
               find imgs | wc
               find ojobs | wc
-              echo "__threadPoolFactor=32;" > ~/.openaf_profile
+              echo "__threadPoolFactor=4;" > ~/.openaf_profile
 
           - name: Run Setup oJobIO
             lang: shell
