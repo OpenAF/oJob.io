@@ -1,0 +1,22 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves Oracle Cloud RSS 
+
+todo:
+- Oracle Cloud
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# --------------
+- name: Oracle Cloud
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://blogs.oracle.com/cloud-infrastructure/rss
+
