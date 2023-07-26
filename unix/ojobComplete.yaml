@@ -1,12 +1,6 @@
 # Author: Nuno Aguiar
 # In bash: . <(ojob ojob.io/unix/ojobComplete.yaml)
-# In zsh:
-#   #!/bin/zsh
-#   autoload -U +X compinit && compinit
-#   autoload -U +X bashcompinit && bashcompinit
-#   ojob ojob.io/unix/ojobComplete > /tmp/ojobio.bash
-#   source /tmp/ojobio.bash
-#   rm /tmp/ojobio.bash
+# In zsh : . <(curl https://ojob.io/unix/ojobComplete.sh)
 help:
   text   : Adds bash/shell auto-complete for the provided ojob.io site.
   expects: 
