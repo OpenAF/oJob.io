@@ -1,0 +1,56 @@
+# Author: Nuno Aguiar
+# In bash: . <(ojob ojob.io/unix/ojobComplete.yaml)
+# In zsh:
+#   #!/bin/zsh
+#   autoload -U +X compinit && compinit
+#   autoload -U +X bashcompinit && bashcompinit
+#   ojob ojob.io/unix/ojobComplete > /tmp/ojobio.bash
+#   source /tmp/ojobio.bash
+#   rm /tmp/ojobio.bash
+help:
+  text   : Adds bash/shell auto-complete for the provided ojob.io site.
+  expects: 
+  - name     : url
+    desc     : The ojob.io URL
+    example  : https://ojob.io
+    mandatory: false
+
+todo:
+- Add autocomplete
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------
+- name : Get list
+  check:
+    in:
+      url: isString.default("https://ojob.io")
+  exec : |
+    args.lst = $rest().get(args.url + "/index.json").init.l
+    args.lst = args.lst.map(r => r.replace(/^https?:\/\//, "").replace(/\.yaml$/, ""))
+
+# --------------------
+- name : Generate file
+  check:
+    in:
+      lst: isArray.default([])
+  exec : |
+    args.out = "complete -W '" + args.lst.join(" ") + "' -o default ojob"
+
+# -----------------------
+- name : Add autocomplete
+  from : 
+  - Get list
+  - Generate file
+  oldexec : |
+    // /etc/bash_completion.d
+    // var lst = $rest().get("https://ojob.io/index.json").init.l
+    //lst = lst.map(r => r.replace(/^https:\/\//, "").replace(/\.yaml$/, ""))
+    //io.writeFileString("ojobio.bash", "complete -W '" + lst.join(" ") + "' -o default ojob")
+  exec : |
+    print(args.out)
