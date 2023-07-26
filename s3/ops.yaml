@@ -28,6 +28,9 @@ help:
       mget        - Get several files from a bucket.
                     ojob ojob.io/s3/ops ... op=mget bucket=mybucket remote=my/list local=list
 
+      sput        - Snowball put several files in a bucket (requires snowball compatibility)
+                    ojob ojob.io/s3/ops ... op=sput bucket=mybucket local=list remote=my/list                     
+
       cp          - Copies an object from a source bucket to a target bucket (can be the same using the bucket argument).
                     ojob ojob.io/s3/ops ... op=cp sourceBucket=original targetBucket=target source=my/file.txt target=archive/file.txt
 
@@ -309,6 +312,31 @@ jobs:
     $set("out", out)
 
 # --------------
+- name : S3 sput
+  from : S3 connect
+  to   : S3 disconnect
+  check:
+    in:
+      bucket: isString
+      remote: isString.default("")
+      local : isString
+  exec : |
+    var out = {}
+    try {
+      if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
+      var _m = args.local.substring(0, args.local.lastIndexOf("/") + 1)
+      if (io.fileInfo(_m).isFile) throw "Path '" + args.local + "' not a folder."
+
+      out.transfer = []
+      global.s3.putSnowballObjects(args.bucket, args.remote, args.local)
+      out.transfer.push({ remote: args.remote, local: args.local })
+    } catch(e) {
+      logErr("SPut error: " + e)
+    }
+
+    $set("out", out)
+
+# --------------
 - name : S3 stat
   from : S3 connect
   to   : S3 disconnect
@@ -495,6 +523,7 @@ jobs:
       put       : S3 put
       get       : S3 get
       mput      : S3 mput
+      sput      : S3 sput
       mget      : S3 mget
       cp        : S3 copy
       mv        : S3 move
