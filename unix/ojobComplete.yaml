@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 # In bash: . <(ojob ojob.io/unix/ojobComplete)
-# In zsh : . <(curl https://ojob.io/unix/ojobComplete.sh)
+# In zsh : . <(curl -s https://ojob.io/unix/ojobComplete.sh)
 help:
   text   : Adds bash/shell auto-complete for the provided ojob.io site.
   expects: 
