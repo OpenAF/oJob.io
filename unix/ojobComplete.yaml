@@ -1,5 +1,5 @@
 # Author: Nuno Aguiar
-# In bash: . <(ojob ojob.io/unix/ojobComplete.yaml)
+# In bash: . <(ojob ojob.io/unix/ojobComplete)
 # In zsh : . <(curl https://ojob.io/unix/ojobComplete.sh)
 help:
   text   : Adds bash/shell auto-complete for the provided ojob.io site.
