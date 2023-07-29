@@ -1,0 +1,31 @@
+ojob:
+  opacks:
+    openaf: 20230728
+  logToConsole: false
+
+todo:
+- Get Side Line Themes
+
+jobs:
+- name: Get Side Line Themes
+  to  : 
+  - (printmd): |
+      # OAF - Side Line Themes
+      
+      You can use side line themes with the template helper _$sline_. For example:
+
+      ````
+
+      \{{$sline aString __ 'red,bold' 'blue,bold' themeName }}
+
+      ````
+
+      ### List of themes
+
+      {{#each lst}}
+      {{$acolor 'RED,BG_WHITE,bold' ($concat ' 🪟 ' this '  ') }}
+      {{{$sline ($concat 'example of theme \'' this '\'') __ 'red,bold' 'blue' this }}}
+      {{$nl}}
+      {{/each}}
+  exec : |
+    args.lst = Object.keys(ow.format.withSideLineThemes())
