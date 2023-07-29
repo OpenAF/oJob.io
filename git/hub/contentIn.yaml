@@ -231,7 +231,7 @@ jobs:
 
           if (_r.exitcode != 0) {
             logErr("Couldn't create pull request '" + args.title + "'!: " + af.toSLON(_r))
-            args.endInError = true
+            args.endInError = !args.dontDelete
           } else {
             // Trying to merge and close pull request
             var pr_id = _r.stdout.trim()

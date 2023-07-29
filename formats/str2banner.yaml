@@ -72,7 +72,7 @@ jobs:
   check:
     in:
       str : isString.default("aBc123")
-      font: isString.default(__)
+      font: isString.default("banner")
   exec : |
     var a = new AsciiMo()
     var ban = a.write(args.str, args.font)
