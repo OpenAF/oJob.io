@@ -14,6 +14,10 @@ help:
     desc     : If specified it will store the scanning results in a YAML file
     example  : results.yaml
     mandatory: false
+  - name     : scanOptions
+    desc     : Scan options to use with ojob.io/sec/trivySummary
+    example  : "--skip-dirs\ /xyz"
+    mandatory: false
 
 todo:
 - Check image
@@ -46,7 +50,8 @@ jobs:
     ((templateArgs)): true
     ((key         )): report
     ((args        )):
-      image: "{{image}}"
+      image  : "{{image}}"
+      options: "{{scanOptions}}"
 
 # ----------------------  
 - name : Results summary
