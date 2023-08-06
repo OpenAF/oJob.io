@@ -24,7 +24,7 @@ jobs:
 
       {{#each lst}}
       {{$acolor 'RED,BG_WHITE,bold' ($concat ' 🪟 ' this '  ') }}
-      {{{$sline ($concat 'example of theme \'' this '\'') __ 'red,bold' 'blue' this }}}
+      {{{$sline ($concat 'example of theme \'' this '\'') 80 'red,bold' 'blue' this }}}
       {{$nl}}
       {{/each}}
   exec : |

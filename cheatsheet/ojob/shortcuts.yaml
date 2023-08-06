@@ -1,0 +1,238 @@
+ojob:
+  opacks:
+    openaf: 20230805
+  logToConsole: true
+
+todo:
+- (printmd): |
+    # oJob shortcuts
+
+    oJob shortcuts lets you write write easier to read oJob's *"todo"* sections with the macro logic that combines the different *"jobs"* available. It's based on the included [oJob building blocks](https://docs.openaf.io/docs/guides/ojob/ojob-building-blocks.html).
+    
+    Here is a list of the included shorcuts:
+    
+    | Category      | Shortcut         | Description                                                |
+    | ------------- | ---------------- | ---------------------------------------------------------- |
+    | Control       | (if)             | If / Then / Else                                           |
+    | Control       | (repeat)         | Repeat a series of jobs                                    |
+    | Control       | (each)           | Repeat a series of jobs per each list element              |
+    | Control       | (todo)           | Sub ToDo list                                              |
+    | Control       | (parallel)       | Runs a list of jobs in parallel                            |
+    | Control       | (optionOn)       | Selects a list of jobs to run based on an option           |
+    | Control       | (state)          | Changes the current running state                          |
+    | Control       | (pass)           | Represents a pass-through job                              |
+    | Control       | (fail)           | Represents a failure job                                   |
+    | Control       | (check)          | Organize idempotent jobs                                   |
+    | Control       | (wait)           | Waits for a specific amount of time                        |
+    | Data          | (ch)             | Operates data on an OpenAF channel                         |
+    | Input         | (get)            | Retrieves a global value from a key                        |
+    | Input         | (fileget)        | Retrieves arguments from a file                            |
+    | Query         | (query)          | Queries a list of elements                                 |
+    | Output        | (set)            | Sets a global value given a key                            |
+    | Output        | (unset)          | Unsets a global value given a key                          |
+    | Output        | (print)          | Prints a message                                           |
+    | Output        | (printmd)        | Prints a message using markdown                            |
+    | Output        | (log)            | Logs a message                                             |
+    | Output        | (findReplace)    | Finds and replaces text                                    |
+    | Output        | (output)         | Output's data in different formats                         |
+    | Output        | (template)       | Generates an output based on a template                    |
+    | Output        | (templateFolder) | Generates several outputs, based on templates, in a folder |
+    | Debug         | (jobdebug)       | Sets debug for a single job                                |
+    | Debug         | (jobsdebug)      | Sets debug for a series of jobs                            |
+    | Security      | (secget)         | Obtains secret arguments (e.g. credentials)                |
+    | Functionality | (fn)             | Access an OpenAF functionality / function                  |
+    | Functionality | (runfile)        | Runs another local or remote oJob                          |
+    |---|---|---|
+
+    ---
+
+    ## 🗂️ Control
+
+    ### (if)
+
+    _If the provided "condition" is evaluated as true it will execute the "then" jobs otherwise it will execute the "else" jobs._
+
+    Expects:
+
+      * **(if)**     : An OpenAF code condition with templating functionality (example: "{{abc}} == 123")
+      * **((then))** : One job or a list of jobs to execute if the "condition" is true
+      * **((else))** : One job or a list of jobs to execute if the "condition" is false
+      * **((debug))**: Boolean to indicate if should log the original condition and the parsed condition for debug proposes
+
+    ```yaml
+    - (if     ): "'{{stuff}}' == 'something'"
+      ((then )):
+      - Do something
+      ((else )):
+      - Dont do anything
+      ((debug)): true
+    ```
+
+    ### (repeat)
+
+    _Repeats sequentially, for a specific number of "times", the provided list of "jobs" (one or more)_
+
+    Expects:
+
+      * **(repeat)**: The number of times to repeat the provided list of jobs
+      * **((jobs))**: One job or a list of jobs to execute each time
+
+    ```yaml
+    - (repeat): 10
+      ((jobs)):
+      - Write on the board 'I will not do it again'
+    ```
+
+    ### (each)
+
+    _Repeats the configured "jobs" (one or more jobs) sequentially for each element of the provided "key" list._
+
+    Expects:
+
+      * **(each)**  : The path to consider from **'key'**
+      * **((key))** : Can be a global key or 'args'
+      * **((jobs))**: One job or a list of jobs to execute each time
+
+    ```yaml
+    - (each  ): files
+      ((key )): myFilesList
+      ((jobs)):
+      - Copy file
+      - Process file
+      - Send processed file
+    ```
+
+    ### (todo)
+
+    _Executes an ojob sub-todo._
+    > NOTE: doesn't perform any checks for recursive behaviour!
+
+    Expects:
+
+      * **(todo)**               : A string or array of todo' maps
+      * **(todo)[].name**        : Name of the job to execute
+      * **(todo)[].args**        : Arguments to merge (if isolateArgs is not true) with the main job arguments
+      * **(todo)[].isolateArgs** : Boolean to indicate, for a specific todo, that args should be isolated from all others
+      * **(todo)[].isolateJob**  : Boolean to indicate, for a specific todo, that the job should run in a different scope (e.g. deps will not work)
+      * **(todo)[].templateArgs**: Boolean to indicate, for a specific todo, to apply template to each string of the provided args (use only if typeArgs.noTemplateArgs = false OR job.templateArgs = true)
+      * **((isolateArgs))**      : Boolean, false by default, to indicate that args should be isolated from all others
+      * **((isolateJob))**       : Boolean, false by default, to indicate that the job should run in a different scope (e.g. deps will not work)
+      * **((templateArgs))**     : Boolean, true by default, to indicate to apply template to each string of the provided args (use only if typeArgs.noTemplateArgs = false OR job.templateArgs = true)
+      * **((shareArgs))**        : Boolean, false by default, to indicate that args should be shared between all todo's jobs sequentially.
+      * **((debug))**            : Boolean to indicate that each job execution parameters should be printed before executing
+
+    ```yaml
+    - (todo          ):
+      - First thing to do
+      - name        : Second thing to do
+        args        :
+          priority: HIGH
+          level   : "\{{level}}"
+        isolateArgs : true
+        isolateJob  : false
+        templateArgs: true
+      ((isolateArgs )): false
+      ((isolateJob  )): false
+      ((templateArgs)): false
+      ((shareArgs   )): false
+      ((debug       )): false
+    ```
+
+    ### (parallel)
+
+    _Executes an ojob sub-todo in parallel._
+    > NOTE: doesn't perform any checks for recursive behaviour!
+
+    Expects:
+     
+      * **(todo)**               : A string or array of todo' maps
+      * **(todo)[].name**        : Name of the job to execute
+      * **(todo)[].args**        : Arguments to merge (if isolateArgs is not true) with the main job arguments
+      * **(todo)[].isolateArgs** : Boolean to indicate, for a specific todo, that args should be isolated from all others
+      * **(todo)[].isolateJob**  : Boolean to indicate, for a specific todo, that the job should run in a different scope (e.g. deps will not work)
+      * **(todo)[].templateArgs**: Boolean to indicate, for a specific todo, to apply template to each string of the provided args (use only if typeArgs.noTemplateArgs = false OR job.templateArgs = true)
+      * **((isolateArgs))**      : Boolean, false by default, to indicate that args should be isolated from all others
+      * **((isolateJob))**       : Boolean, false by default, to indicate that the job should run in a different scope (e.g. deps will not work)
+      * **((templateArgs))**     : Boolean, true by default, to indicate to apply template to each string of the provided args (use only if typeArgs.noTemplateArgs = false OR job.templateArgs = true)
+      * **((shareArgs))**        : Boolean, false by default, to indicate that args should be shared between all todo's jobs sequentially.
+      * **((debug))**            : Boolean to indicate that each job execution parameters should be printed before executing
+
+      ```yaml
+      - (parallel      ):
+        - Do this
+        - Do that
+        - name: Also do the other thing
+          args:
+            thing: "\{{stuff}}"
+          isolateArgs : true
+          isolateJob  : false
+          templateArgs: true
+        ((isolateArgs )): false
+        ((isolateJob  )): false
+        ((templateArgs)): false
+        ((shareArgs   )): false
+        ((debug       )): false
+      ```
+
+    ### (optionOn)
+    ### (state)
+    ### (pass)
+    ### (fail)
+    ### (check)
+    ### (wait)
+  
+    ---
+
+    ## 🗂️ Data
+
+    ### (ch)
+
+    ---
+
+    ## 🗂️ Input
+
+    ### (get)
+    ### (filget)
+    
+    ---
+
+    ## 🗂️ Query
+
+    ### (query)
+
+    ---
+
+    ## 🗂️ Output
+
+    ### (set)
+    ### (unset)
+    ### (print)
+    ### (printmd)
+    ### (log)
+    ### (findReplace)
+    ### (output)
+    ### (template)
+    ### (templateFolder)
+
+    ---
+
+    ## 🗂️ Debug
+
+    ### (jobdebug)
+    ### (jobsdebug)
+
+    ---
+
+    ## 🗂️ Security
+
+    ### (secget)
+
+    ---
+
+    ## 🗂️ Functionality
+
+    ### (fn)
+    ### (runfile)
+     
+    ---
+    
