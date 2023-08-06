@@ -33,6 +33,7 @@ init:
     cn-northwest-1: China (Ningxia)
     us-gov-east-1 : AWS GovCloud (US-East)
     us-gov-west-1 : AWS GovCloud (US)
+    il-central-1  : Israel (Tel Aviv)
 
 todo:
 - Test regions

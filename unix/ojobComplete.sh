@@ -1,5 +1,5 @@
 #!/bin/zsh
-ojob ojob.io/unix/ojobComplete > /tmp/ojobio.bash
+curl https://ojob.io/autoComplete.sh > /tmp/ojobio.bash
 autoload -U +X compinit && compinit
 autoload -U +X bashcompinit && bashcompinit
 source /tmp/ojobio.bash
