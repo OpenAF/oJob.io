@@ -22,6 +22,7 @@ parseURL() {
         fi
         if [ "$proto" = "https://" ]; then
             port=443
+            echo "WARNING: https is not supported through this download method. Try using http if possible."
         fi
     fi
 
@@ -48,6 +49,6 @@ if [ "$URL" = "" ]; then
 else
     url=$URL
     parseURL
-    output=${output:-$file}
+    output=${OUTPUT:-$file}
     downloadURL
 fi
