@@ -39,8 +39,9 @@ parseURL() {
 downloadURL() {
     echo "Downloading from '$url' to '$output'..."
     /bin/bash -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > $output
-    sed -i '/connection: close/{n;d}' $output
     sed -i '1,/connection: close/d' $output
+    tail -n +2 $output > $output.temp
+    mv $output.temp $output
     echo "Done."
 }
 
