@@ -1,3 +1,7 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints a cheatsheet with the OpenAF side line themes available
+
 ojob:
   opacks:
     openaf: 20230728
