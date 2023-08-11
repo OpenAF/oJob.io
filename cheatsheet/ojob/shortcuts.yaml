@@ -48,7 +48,7 @@ todo:
 
     ## 🗂️ Control
 
-    ### (if)
+    ### 🔖 (if)
 
     _If the provided "condition" is evaluated as true it will execute the "then" jobs otherwise it will execute the "else" jobs._
 
@@ -68,7 +68,7 @@ todo:
       ((debug)): true
     ```
 
-    ### (repeat)
+    ### 🔖 (repeat)
 
     _Repeats sequentially, for a specific number of "times", the provided list of "jobs" (one or more)_
 
@@ -83,7 +83,7 @@ todo:
       - Write on the board 'I will not do it again'
     ```
 
-    ### (each)
+    ### 🔖 (each)
 
     _Repeats the configured "jobs" (one or more jobs) sequentially for each element of the provided "key" list._
 
@@ -102,7 +102,7 @@ todo:
       - Send processed file
     ```
 
-    ### (todo)
+    ### 🔖 (todo)
 
     _Executes an ojob sub-todo._
     > NOTE: doesn't perform any checks for recursive behaviour!
@@ -138,7 +138,7 @@ todo:
       ((debug       )): false
     ```
 
-    ### (parallel)
+    ### 🔖 (parallel)
 
     _Executes an ojob sub-todo in parallel._
     > NOTE: doesn't perform any checks for recursive behaviour!
@@ -174,65 +174,142 @@ todo:
         ((debug       )): false
       ```
 
-    ### (optionOn)
-    ### (state)
-    ### (pass)
-    ### (fail)
-    ### (check)
-    ### (wait)
+    ### 🔖 (optionOn)
+
+    Adds new "todo" entries depending on the value of a provided args variable.
+
+    Expects:
+
+      * **(optionOn)**   : The variable in args that will define which set of "todo"s will be added (trimmed)
+      * **((lowerCase))**: Boolean value to determine if should compare the optionOn in lower case (defaults to false)
+      * **((upperCase))**: Boolean value to determine if should compare the optionOn in upper case (defaults to false)
+      * **((todos))**    : (required) Map where each option value should have a list/array of "todo"s
+      * **((default))**  : Default array of "todo"s
+      * **((async))**    : Boolean value that if true, run the todos in async mode
+
+      ```yaml
+      - (optionOn   ): op
+        ((lowerCase)): true
+        ((todos    )):
+          start:
+          - Prepare jobs
+          - Start jobs
+          stop:
+          - Stop jobs
+          - Finalize jobs
+        ((default  )):
+        - Show help
+        ((async    )): false
+      ```
+
+    ### 🔖 (state)
+
+    Changes the current state depending on the value of a provided args variable.
+
+    Expects:
+
+      * **(stateOn)**      : The variable in args that will define the current global set (to execute todo.when)
+      * **((lowerCase))**  : A boolean value to determine if should compare the stateOn in lower case (defaults to false)
+      * **((upperCase))**  : A boolean value to determine if should compare the stateOn in upper case (defaults to false)
+      * **((validStates))**: An array of valid states to change to. If not included the default will be choosen (or none).
+      * **((default))**    : Default value of state
+
+    ```yaml
+    - (stateOn      ): state
+      ((lowerCase  )): true
+      ((upperCase  )): false
+      ((validStates)):
+      - on
+      - off
+      - wait
+      ((default    )): on
+    ```
+
+    ### 🔖 (pass)
+
+    Placeholder/pass job to allow for arguments injection.
+
+    Expects:
+
+      * **(pass          )**: The args to inject.
+      * **((debug       ))**: Boolean to indicate that args to be inject should be printed before.
+      * **((templateArgs))**: Boolean, true by default, to indicate to apply template to each string in args (use only if typeArgs.noTemplateArgs = false OR job.templateArgs = true).
+
+    ```yaml
+    - (pass   ):
+        test: {{value}}
+      ((debug)): true
+    ```
+
+    ### 🔖 (fail)
+
+    Ends all processing with an exit code.
+
+    Expects:
+
+      * **(code)**   : The exit code number to use.
+      * **((force))**: A boolean indicating if instead of exit the processing should halt
+
+    ```yaml
+    - (code   ): -1
+      ((force)): true
+    ```
+
+    ### 🔖 (check)
+    ### 🔖 (wait)
   
     ---
 
     ## 🗂️ Data
 
-    ### (ch)
+    ### 🔖 (ch)
 
     ---
 
     ## 🗂️ Input
 
-    ### (get)
-    ### (filget)
+    ### 🔖 (get)
+    ### 🔖 (filget)
     
     ---
 
     ## 🗂️ Query
 
-    ### (query)
+    ### 🔖 (query)
 
     ---
 
     ## 🗂️ Output
 
-    ### (set)
-    ### (unset)
-    ### (print)
-    ### (printmd)
-    ### (log)
-    ### (findReplace)
-    ### (output)
-    ### (template)
-    ### (templateFolder)
+    ### 🔖 (set)
+    ### 🔖 (unset)
+    ### 🔖 (print)
+    ### 🔖 (printmd)
+    ### 🔖 (log)
+    ### 🔖 (findReplace)
+    ### 🔖 (output)
+    ### 🔖 (template)
+    ### 🔖 (templateFolder)
 
     ---
 
     ## 🗂️ Debug
 
-    ### (jobdebug)
-    ### (jobsdebug)
+    ### 🔖 (jobdebug)
+    ### 🔖 (jobsdebug)
 
     ---
 
     ## 🗂️ Security
 
-    ### (secget)
+    ### 🔖 (secget)
 
     ---
 
     ## 🗂️ Functionality
 
-    ### (fn)
-    ### (runfile)
+    ### 🔖 (fn)
+    ### 🔖 (runfile)
      
     ---
     
