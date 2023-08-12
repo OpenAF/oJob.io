@@ -1,0 +1,53 @@
+# Author: Nuno Aguiar
+help:
+  text   : "Retrieves information about the installed OpenAF + Java runtime"
+  expects: 
+  - name     : detail
+    desc     : Flag to determine if more-in-depth information should be output
+    example  : "true"
+    mandatory: false
+
+todo:
+- Get Info
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ---------------
+- name : Get Info
+  check:
+    in:
+      detail: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadJava()
+    var info = {
+      version: getVersion(),
+      distribution: getDistribution(),
+      path: getOpenAFPath(),
+      jar: getOpenAFJar(),
+      pid: getPid(),
+      java: {
+        version: ow.format.getJavaVersion(),
+        home: ow.format.getJavaHome(),
+        classpath: ow.java.getClassPath(),
+        inputArguments: ow.java.getInputArguments(),
+        libpath: ow.java.getLibraryPath(),
+        properties: ow.java.getSystemProperties()
+      },
+      memory: ow.java.getMemory(),
+      cpu: {
+        cores: getNumberOfCores()
+      },
+      opacks: $m4a(getOPackLocalDB(), "path").map(r => ({
+        name: r.name,
+        version: r.version,
+        description: r.description,
+        path: r.path
+      }))
+    }
+    ow.oJob.output(info, args)
