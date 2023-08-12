@@ -19,7 +19,7 @@ help:
     example  : "src,tests"
     mandatory: false
   - name     : title
-    desc     : The pull request title, if needed
+    desc     : The pull request title, if needed (you can use {{date}} and {{time}} to refer to the current time)
     example  : "Updates PR"
     mandatory: false
   - name     : body
@@ -41,7 +41,7 @@ help:
 
 ojob:
   opacks      :
-  - openaf: 20230325
+  - openaf: 20230704
   catch       : logErr(exception)
   logToConsole: true  
 
@@ -155,14 +155,19 @@ jobs:
     lstDelete = lstDelete.filter(r => r.length > 0)
 
     if (lstPut.length > 0 || lstDelete.length > 0) {
+      // Determine current branch
+      var _cBranch = $sh("git branch --show-current").get(0).stdout.trim()
       var cBranch
       if (isUnDef(args.branch)) {
-        // Determine current branch
-        args.branch = $sh("git branch --show-current").get(0).stdout.trim()
+        args.branch = _cBranch
         cBranch = args.branch
         args.mainBranch = cBranch
         log("Identified branch: " + args.branch)
+      } else {
+        args.mainBranch = _cBranch
+        cBranch = _cBranch
       }
+      log("Current branch: " + _cBranch)
 
       var _r
       var send = () => {
@@ -206,13 +211,17 @@ jobs:
         })  
       }
 
+      var _now  = { now: new Date() }
+      _now.date = ow.format.fromDate(_now.now, "yyyyMMdd")
+      _now.time = ow.format.fromDate(_now.now, "HHmmss")
+
       if (!args.forcePR) send()
       if (args.endInError || args.forcePR) {
         // try to create a pull request
         args.endInError = false
 
         logWarn("Couldn't commit directly. Trying to create a pull request...")
-        args.branch = args.branchPrefix + ow.format.fromDate(new Date(), "yyyyMMdd-HHmmss")
+        args.branch = args.branchPrefix + _now.date + "-" + _now.time
 
         // Trying to create branch and put
         log("Creating branch '" + args.branch + "' and trying to put changes to it...")
@@ -224,7 +233,11 @@ jobs:
 
         send()
         if (!args.endInError) {
-          if (isUnDef(args.title)) args.title = args.branch
+          if (isUnDef(args.title)) {
+            args.title = args.branch
+          } else {
+            args.title = $t(args.title, _now)
+          }
           args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "--body \"Automatic pull request for branch '" + args.branch + "'\"") )
           _r = $sh("gh pr create --title \"" + args.title + "\" " + args.body + " --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
                .get(0)
