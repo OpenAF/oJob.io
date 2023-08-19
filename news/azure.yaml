@@ -18,4 +18,4 @@ jobs:
   typeArgs:
     url: ojob.io/news/rss
   args:
-    url: https://azurecomcdn.azureedge.net/en-us/blog/feed/
+    url: https://azure.microsoft.com/en-us/blog/feed

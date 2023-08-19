@@ -3,7 +3,7 @@ help:
   text   : Tries to put files in the GitHub repository (requires GitHub cli)
   expects: 
   - name     : message
-    desc     : The commit message to use
+    desc     : The commit message to use (you can use {{date}} and {{time}} to refer to the current time)
     example  : "updates"
     mandatory: false
   - name     : branch
@@ -19,11 +19,11 @@ help:
     example  : "src,tests"
     mandatory: false
   - name     : title
-    desc     : The pull request title, if needed
+    desc     : The pull request title, if needed (you can use {{date}} and {{time}} to refer to the current time)
     example  : "Updates PR"
     mandatory: false
   - name     : body
-    desc     : The text to include in the body of the pull request, if needed
+    desc     : The text to include in the body of the pull request, if needed (you can use {{date}} and {{time}} to refer to the current time)
     example  : "automated PR"
     mandatory: false
   - name     : bodyFile
@@ -41,7 +41,7 @@ help:
 
 ojob:
   opacks      :
-  - openaf: 20230325
+  - openaf: 20230704
   catch       : logErr(exception)
   logToConsole: true  
 
@@ -63,15 +63,18 @@ jobs:
   exec : |
     _$(args.repo, "repo").$_()
 
+    // Parse templates
+    args.message = $t(args.message, global._now)
+
     args._sha = ""
     var res = {}
     args.file = args.file.replace(/^\.\//, "")
 
     // It's different
-    _r = $sh("git rev-parse " + args.branch + ":" + args.file).get(0)
+    _r = $sh($t("gh api repos/{{repo}}/contents/{{file}}?ref={{branch}}", args)).getJson(0)
     if (_r.exitcode == 0) {
       // Exists
-      args._sha = "--field sha=\"" + _r.stdout.trim() + "\""
+      args._sha = "--field sha=\"" + _r.stdout.sha + "\""
     } else {
       if (io.fileExists(args.file)) args._sha = "--field sha=\"" + sha1(io.readFileStream(args.file)) + "\""
     }
@@ -134,12 +137,14 @@ jobs:
         _l = l
       }
 
-      var _i = l.replace(/^.. /, "")
-      if (l.indexOf("D ") < 0 && l.indexOf("R ") < 0) {
+      if (isUnDef(_l)) return
+
+      var _i = _l.replace(/^.. /, "")
+      if (_l.indexOf("D ") < 0 && _l.indexOf("R ") < 0) {
         lstPut.push(_i)
         return _i
       } else {
-        if (l.indexOf("R ") >= 0) {
+        if (_l.indexOf("R ") >= 0) {
           var _ar = _i.split("->").map(r => r.trim())
           lstDelete.push(_ar[0])
           lstPut.push(_ar[1])
@@ -155,14 +160,19 @@ jobs:
     lstDelete = lstDelete.filter(r => r.length > 0)
 
     if (lstPut.length > 0 || lstDelete.length > 0) {
+      // Determine current branch
+      var _cBranch = $sh("git branch --show-current").get(0).stdout.trim()
       var cBranch
       if (isUnDef(args.branch)) {
-        // Determine current branch
-        args.branch = $sh("git branch --show-current").get(0).stdout.trim()
+        args.branch = _cBranch
         cBranch = args.branch
         args.mainBranch = cBranch
         log("Identified branch: " + args.branch)
+      } else {
+        args.mainBranch = _cBranch
+        cBranch = _cBranch
       }
+      log("Current branch: " + _cBranch)
 
       var _r
       var send = () => {
@@ -170,7 +180,7 @@ jobs:
           if (io.fileExists(p)) {
             if (io.fileInfo(p).isDirectory) {
               listFilesRecursive(p).forEach(pp => {
-                if (pp.isFile && lstPut.indexOf(pp.filepath.replace(p + "/", "")) >= 0) {
+                if (pp.isFile && (lstPut.indexOf(pp.filepath) >= 0 || lstPut.indexOf(pp.filepath.replace(p + "/", "")) >= 0)) {
                   args.delete = false
                   _r = $job("GitHub Push Content", merge(args, { file: pp.filepath }))
                   if (isDef(_r.exitcode) && _r.exitcode != 0) {
@@ -206,16 +216,45 @@ jobs:
         })  
       }
 
+      // Set data used for templating of titles or others
+      global._now  = { now: new Date() }
+      global._now.date = ow.format.fromDate(global._now.now, "yyyyMMdd")
+      global._now.time = ow.format.fromDate(global._now.now, "HHmmss")
+
       if (!args.forcePR) send()
       if (args.endInError || args.forcePR) {
         // try to create a pull request
         args.endInError = false
 
-        logWarn("Couldn't commit directly. Trying to create a pull request...")
-        args.branch = args.branchPrefix + ow.format.fromDate(new Date(), "yyyyMMdd-HHmmss")
+        logWarn("Couldn't commit directly. Trying to find pull requests...")
+        args.branch = args.branchPrefix + global._now.date + "-" + global._now.time
 
+        // Check for existing PRs
+        if (isUnDef(args.title)) {
+          args.title = args.branch
+        } else {
+          args.title = $t(args.title, global._now)
+        }
+
+        var createPR = true
+        _r = $sh("gh pr list --json title,state,headRefName,id").getJson(0)
+
+        if (_r.exitcode == 0) {
+          $from(_r.stdout)
+          .equals("state", "OPEN")
+          .equals("title", args.title)
+          .select(r => {
+            createPR = false
+            args.branch = r.headRefName
+            args.dontDelete = true
+          })
+        }
+
+        logWarn("Trying to create or an update a pull request...")
+
+        // -------------------------------
         // Trying to create branch and put
-        log("Creating branch '" + args.branch + "' and trying to put changes to it...")
+        log("Creating or update branch '" + args.branch + "' and trying to put changes to it...")
          _r = $sh("git checkout -b " + args.branch)
               .sh("git push --set-upstream origin " + args.branch)
               .sh("git push origin " + args.branch)
@@ -224,28 +263,31 @@ jobs:
 
         send()
         if (!args.endInError) {
-          if (isUnDef(args.title)) args.title = args.branch
-          args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "--body \"Automatic pull request for branch '" + args.branch + "'\"") )
-          _r = $sh("gh pr create --title \"" + args.title + "\" " + args.body + " --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
-               .get(0)
+          if (createPR) {
+            if (isDef(args.body)) args.body = $t(args.body, global._now)
+            args.body = (isDef(args.bodyFile) ? "-F " + args.bodyFile : (isDef(args.body) ? "--body \"" + args.body + "\"" : "--body \"Automatic pull request for branch '" + args.branch + "'\"") )
+            _r = $sh("gh pr create --title \"" + args.title + "\" " + args.body + " --base \"" + cBranch + "\" --head \"" + args.branch + "\"")
+                .get(0)
 
-          if (_r.exitcode != 0) {
-            logErr("Couldn't create pull request '" + args.title + "'!: " + af.toSLON(_r))
-            args.endInError = !args.dontDelete
-          } else {
-            // Trying to merge and close pull request
-            var pr_id = _r.stdout.trim()
-            log("Created pull request " + pr_id + ". Trying to merge it...")
-            _r = $sh("gh pr merge \"" + pr_id + "\" -d -m --auto")
-                 .prefix("gh")
-                 .get(0)
-            
             if (_r.exitcode != 0) {
-              logWarn("Couldn't merge pull request " + pr_id + ": " + af.toSLON(_r))
-              logWarn("Keeping pull request #" + pr_id + " and branch '" + args.branch + "' for human review.")
-              args.dontDelete = true
+              logErr("Couldn't create pull request '" + args.title + "'!: " + af.toSLON(_r))
+              args.endInError = !args.dontDelete
             } else {
-              log("Pull request " + pr_id + " was succesfully merged.")
+              // --------------------------------------
+              // Trying to merge and close pull request
+              var pr_id = _r.stdout.trim()
+              log("Created pull request " + pr_id + ". Trying to merge it...")
+              _r = $sh("gh pr merge \"" + pr_id + "\" -d -m --auto")
+                  .prefix("gh")
+                  .get(0)
+              
+              if (_r.exitcode != 0) {
+                logWarn("Couldn't merge pull request " + pr_id + ": " + af.toSLON(_r))
+                logWarn("Keeping pull request #" + pr_id + " and branch '" + args.branch + "' for human review.")
+                args.dontDelete = true
+              } else {
+                log("Pull request " + pr_id + " was succesfully merged.")
+              }
             }
           }
         }
@@ -269,3 +311,4 @@ jobs:
       log("Put done for #" + global.c.get() + " files.")
       log("Delete done for #" + global.cd.get() + " files.")
     }
+
