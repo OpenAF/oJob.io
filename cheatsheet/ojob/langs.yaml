@@ -1,0 +1,119 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints a cheatsheet with the oJob's langs 
+
+ojob:
+  opacks:
+    openaf: 20230805
+  logToConsole: true
+
+todo:
+- (printmd): |
+    # oJob langs
+
+    Examples of use of different languages as oJob's jobs.
+
+    ## 🪟 Powershell
+
+    In Powershell the variable "$args" is reserved so OpenAF's oJob uses "$_args" instead.
+
+    ```yaml
+    jobs:
+    - name: Powershell example
+      lang: powershell
+      exec: |
+        # For an existing property in args
+        $_args.firstName = "Scott"
+
+        # For a new property in args
+        $_args | Add-Member -MemberType NoteProperty -Name "lastName" -Value "Tiger"
+
+    ```
+
+    ---
+
+    ## 🐿️ Go
+
+    Each Go OpenAF's job is already the main function.
+
+    ```yaml
+    - name: Go example
+      lang: go
+      exec: |
+        args["name"] = fmt.Sprintf("%s %s", args["firstName"], args["lastName"])
+
+    ```
+
+    ---
+
+    ## 💎 Ruby
+
+    The variable _args_ is available to be use in Ruby.
+
+    ```yaml
+    - name: Ruby example
+      lang: ruby
+      exec: |
+        args["name"] = args["firstName"] + " " + args["lastName"]
+
+    ```
+
+    ---
+
+    ## 🐪 Perl
+
+    In order to access the variable _$args_ in Perl it's required to have the Perl module __JSON__. You can run the following perl command to understand if you have it installed or not:
+
+    ```bash
+    perl -e 'if (eval { require JSON; 1 }) { print "Installed!"; } else { print "NOT installed!" };'
+    ```
+
+    Example with the JSON module installed:
+
+    ```yaml
+    - name: Perl example
+      lang: perl
+      exec: |
+        $args->{name} = $args->{firstName}.$args->{lastName};
+
+    ```
+
+    > **NOTE:** don't forget to add ';' on the end of each line.
+
+    Example without the JSON module installed:
+
+    ```yaml
+    - name: Perl example
+      lang: perl
+      exec: |
+        $name = '{{firstName}} {{lastName}}''
+        
+        # return name
+
+    ```
+
+    > **NOTE:** Only string variables are supported at the moment when the JSON module is not installed.
+
+    ---
+
+    ## 💻 Shell/SSH
+
+    Keep in mind that shell scripting only supports string-based variables on one level. Each current _args_ will be transformed into an environment variable (such as $firstName and $lastName). For more complex cases you can use OpenAF's templating. To return values use the comment '# return ' followed by the shell script variables
+
+    ```yaml
+    - name: Shell example
+      lang: shell
+      exec: |
+        name="$firstName $lastName"
+        other=\{{someMap.someProperty}}
+        
+        # return name, other
+
+    ```
+
+    ---
+
+    ## 🐍 Python
+
+    _(to be completed)_
+    
