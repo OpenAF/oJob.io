@@ -1,0 +1,72 @@
+# Author: Anonymous
+help:
+  text   : Generates an markdown or HTML page to act as an file list table index.
+  expects: 
+  - name     : path  
+    desc     : The path from where to get the list (defaults to '.')
+    mandatory: false
+  - name     : filter
+    desc     : Optional filter based on $path
+    mandatory: false
+  - name     : ffilter
+    desc     : Option filter based on $from
+    mandatory: false
+  - name     : uri
+    desc     : Optional URI to include
+    mandatory: false
+  - name     : mdonly
+    desc     : Boolean flag that when true indicates that only the markdown representation should be output instead of HTML
+    mandatory: false
+
+todo:
+- Generate index
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------
+- name : Generate index
+  check:
+    in:
+      path   : isString.default(".")
+      filter : isString.default(__)
+      ffilter: isString.default(__)
+      uri    : isString.default(__)
+      mdonly : toBoolean.isBoolean.default(false)
+  exec : |
+    var content = ""
+    
+    var puri = ""
+    var uri  = args.uri
+    ow.template.addHelper("encodeURI", encodeURI)
+
+    if (isDef(args.uri)) content += "## " + args.uri + "\n\n"
+
+    content += "| Filename | Last modified | Size | Size in bytes |\n"
+    content += "|----------|:-------------:|-----:|--------------:|\n"
+    content += "{{#each this}}| {{#if isDirectory}}__[{{filename}}/]({{encodeURI uri}}{{encodeURI puri}}{{encodeURI filename}}/)__ | {{fLastModified}} | | {{else}} [{{filename}}]({{encodeURI uri}}{{encodeURI puri}}{{encodeURI filename}}) | {{fLastModified}} {{/if}} | {{fSize}} | {{size}} | \n{{/each}}"
+
+    var lst = io.listFiles(args.path).files
+    if (isDef(args.filter))   lst = $path(lst, args.filter)
+    if (isDef(args.ffilter))  {
+      args.ffilter = args.ffilter.replace(/\.select\(.+$/, "")
+      lst = $from(lst).query(af.fromNLinq(args.ffilter)).select()
+    }
+
+    var theList = $from(lst).sort("-isDirectory", "filename").select((f) => {
+      return merge(f, {
+        fLastModified: ow.format.fromDate(new Date(f.lastModified), 'yyyy-MM-dd HH:mm:ss'),
+        fSize        : ow.format.toBytesAbbreviation(f.size),
+        puri         : puri,
+        uri          : uri
+      })
+    })
+    
+    var output = $t(content, theList)
+    if (!args.mdonly) output = ow.template.html.genStaticVersion4MD(output)
+    print(output)
