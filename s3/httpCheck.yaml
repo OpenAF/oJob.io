@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Given a S3 bucket and a corresponding S3 website will try to download each object and cross-check with the S3 object information.
+  text   : Given a S3 bucket and a corresponding S3 website will try to download each object and cross-check with the S3 object information. Check ojob.io/s3/ops for S3 access options.
   expects: 
   - name     : bucket
     desc     : The S3 bucket to use
