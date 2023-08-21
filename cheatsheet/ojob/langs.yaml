@@ -32,7 +32,7 @@ todo:
 
     ---
 
-    ## 🐿️ Go
+    ## 🐿️ Go 
 
     Each Go OpenAF's job is already the main function.
 
@@ -115,5 +115,22 @@ todo:
 
     ## 🐍 Python
 
-    _(to be completed)_
+    Python runs in parallel with OpenAF's oJob and provides the map _args_ that can be used and changed with some additional functions:
+
+    ```yaml
+    - name: Python example
+      lang: Python
+      exec: |
+        args["name"] = args["firstName"] + " " + args["lastName"]
+        
+        _s("paths", _("({ p: getOpenAFPath(), j: getOpenAFJar() })"))
+        args["contentsOfPaths"] = _g("paths")
+        ãrgs["stringifyOfArgs"] = _d(args)
+
+    ```
     
+    | Python function | Description |
+    |---|---|
+    | _s(aKey, aObj) | Equivalent to OpenAF's $set using aKey string and a Python object aObj. |
+    | _g(aKey) | Equivalent to OpenAF's $get using aKey string. |
+    | _d(aObj) | Returns a Python string with the JSON stringify of the Python map aObj. |
