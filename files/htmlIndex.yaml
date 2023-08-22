@@ -41,7 +41,6 @@ jobs:
   exec : |
     var content = ""
     
-    var puri = ""
     var uri  = args.uri
     ow.template.addHelper("encodeURI", encodeURI)
 
@@ -49,7 +48,7 @@ jobs:
 
     content += "| Filename | Last modified | Size | Size in bytes |\n"
     content += "|----------|:-------------:|-----:|--------------:|\n"
-    content += "{{#each this}}| {{#if isDirectory}}__[{{filename}}/]({{encodeURI uri}}{{encodeURI puri}}{{encodeURI filename}}/)__ | {{fLastModified}} | | {{else}} [{{filename}}]({{encodeURI uri}}{{encodeURI puri}}{{encodeURI filename}}) | {{fLastModified}} {{/if}} | {{fSize}} | {{size}} | \n{{/each}}"
+    content += "{{#each this}}| {{#if isDirectory}}__[{{filename}}/]({{encodeURI uri}}{{encodeURI filename}}/)__ | {{fLastModified}} | | {{else}} [{{filename}}]({{#if uri}}{{encodeURI uri}}{{/if}}{{encodeURI filename}}) | {{fLastModified}} {{/if}} | {{fSize}} | {{size}} | \n{{/each}}"
 
     var lst = io.listFiles(args.path).files
     if (isDef(args.filter))   lst = $path(lst, args.filter)
@@ -62,7 +61,6 @@ jobs:
       return merge(f, {
         fLastModified: ow.format.fromDate(new Date(f.lastModified), 'yyyy-MM-dd HH:mm:ss'),
         fSize        : ow.format.toBytesAbbreviation(f.size),
-        puri         : puri,
         uri          : uri
       })
     })
