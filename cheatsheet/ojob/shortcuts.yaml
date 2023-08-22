@@ -260,6 +260,26 @@ todo:
     ```
 
     ### 🔖 (check)
+
+    Provides a way to organize idempotent jobs. One or more "checks" jobs will be called to determine an args.\_action. Initially the args.\_action is set to "none". If the "checks" jobs determine an action it will call the corresponding jobs on "actions" jobs. If "\_go=true" is not provided, instead of running, it will only return a plan of actions.
+ 
+    Expects:
+
+      * **(check)**    : A list of one or more jobs to be called to perform checks to determine an args._action
+      * **((actions))**: A map of possible values of args._action whose values are one or more jobs to execute
+      * **_go**        : A boolean value (defaults to false) that controls if the *actions* jobs are called (when true) or not
+
+    ```yaml
+    - name: Write Hello World
+      to  : 
+      - (check    ): Check Hello World
+        ((actions)):
+          create   : Create Hello World
+          overwrite: Overwrite Hello World
+          delete   : Delete Hello World
+
+    ```
+
     ### 🔖 (wait)
   
     ---
