@@ -270,18 +270,27 @@ todo:
       * **_go**        : A boolean value (defaults to false) that controls if the *actions* jobs are called (when true) or not
 
     ```yaml
-    - name: Write Hello World
-      to  : 
-      - (check    ): Check Hello World
-        ((actions)):
-          create   : Create Hello World
-          overwrite: Overwrite Hello World
-          delete   : Delete Hello World
+    - (check    ): Check Hello World
+      ((actions)):
+        create   : Create Hello World
+        overwrite: Overwrite Hello World
+        delete   : Delete Hello World
 
     ```
 
     ### 🔖 (wait)
   
+    Waits for a specific amount of time.
+
+    Expects:
+
+      * **(wait)**: The amount of time, in ms, to pause execution
+
+    ```yaml
+    - (wait): 5000
+
+    ```
+
     ---
 
     ## 🗂️ Data
