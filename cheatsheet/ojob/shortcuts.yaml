@@ -297,6 +297,48 @@ todo:
 
     ### 🔖 (ch)
 
+    Provides a set of operations over an OpenAF channel
+
+    Expects:
+
+      * **(ch)**     : The name of the OpenAF channel to use
+      * **((op))**   : The operation to perform (e.g. setall, set, get, unset, unsetall, getkeys, getall and size)
+      * **((key))**  : The key from where to retrieve the operation arguments (args to retrive from arguments)
+      * **((kpath))**: If defined, the path over the values retrieved from __key where the key or keys of the operation are defined
+      * **((k))**    : If defined, the key to use with the operations set, get and unset
+      * **((ks))**   : If defined, the set of fields to use with the operations setall and unsetall
+      * **((v))**    : If defined, the value to use with the operations set, get and unset
+      * **((vs))**   : If defined, an array of values to use with the operations setall and unsetall
+      * **((vpath))**: If defined, the path over the values retrieved from __key where the value or values of the operation are defined
+      * **((extra))**: If defined, will provide an extra argument (usually a map), depending on channel type, for the getall and getkeys operations.
+
+    ```yaml
+    ojob:
+      channels:
+        create:
+        - name: values
+
+    todo:
+    - get and set single value
+    - get and show value
+
+    jobs:
+    - name: get and set single value
+      to  :
+      - (ch  ): values
+        ((op)): set
+        ((k )): test
+        ((v )): value
+
+    - name: get and show value
+      to  :
+      - (ch   ): values
+        ((op )): getall
+        ((key)): output
+      - (output): output
+
+    ```
+
     ---
 
     ## 🗂️ Input
@@ -315,6 +357,20 @@ todo:
     ## 🗂️ Output
 
     ### 🔖 (set)
+
+    Sets a "key" with the current value on a "path" using $set
+
+    Expects:
+
+      * **(set)**   : Map key
+      * **((path))**: A key or path to a value from the current args
+
+    ```yaml
+    - (set)   : values
+      ((path)): values
+      
+    ```
+
     ### 🔖 (unset)
     ### 🔖 (print)
     ### 🔖 (printmd)
