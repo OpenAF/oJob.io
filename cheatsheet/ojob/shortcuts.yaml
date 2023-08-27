@@ -344,13 +344,69 @@ todo:
     ## 🗂️ Input
 
     ### 🔖 (get)
-    ### 🔖 (filget)
+
+    Retrieves a specific map key (or path) using $get
+
+    Expects:
+
+      * **(get)**   : Map key to retrieve (key is also checked for compatibility)
+      * **((path))**: The path to consider from the (get)
+
+    ```yaml
+    - (get   ): values
+      ((path)): last
+
+    ```
+
+    ### 🔖 (fileget)
     
+    Retrieves a specific map key (or path) from an YAML or JSON file provided.
+
+    Expects:
+
+      * **(fileget)**: The file path to an YAML or JSON file
+      * **((path))** : Path of the file contents 
+      * **((cache))**: Boolean value that if false it won't cache the file contents (default: true)
+      * **((ttl))**  : If cache is enabled lets you define a numeric ttl
+      * **((out))**  : The path on args to set the map key/path contents
+      * **((key))**  : If ((out)) is not defined will set the content into the provided key
+
+    ```yaml
+    - name: Retrieve list of hosts
+      to  :
+      - (fileget): listOfHosts.yml
+        ((out  )): listHosts
+
+    ```
+
     ---
 
     ## 🗂️ Query
 
     ### 🔖 (query)
+
+    Performs a query (using ow.obj.filter) to the existing args.
+
+    Expects:
+
+      * **(query)** : The query map for ow.obj.filter or af.fromNLinq
+      * **((type))**: The type of query to perform (e.g. path, ow.obj.filter, af.fromNLinq)
+      * **((from))**: The path to the args key to perform the query
+      * **((to))**  : The path to where the results should be stores
+      * **((key))** : If ((from)) and ((to)) not provided defaults to $get/$set on the provided key
+
+    ```yaml
+    - (query ): "equals(isDirectory, true)"
+      ((key )): list
+
+    ```
+
+    ```yaml
+    - (query ): "[?isDirectory==`true`]"
+      ((type)): path
+      ((key )): list
+      
+    ```
 
     ---
 
