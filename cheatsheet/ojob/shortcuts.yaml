@@ -405,7 +405,7 @@ todo:
     - (query ): "[?isDirectory==`true`]"
       ((type)): path
       ((key )): list
-      
+
     ```
 
     ---
@@ -428,7 +428,34 @@ todo:
     ```
 
     ### 🔖 (unset)
+
+    Unsets a "key" using $unset
+
+    Expects:
+
+      * **(unset)**: Map key
+
+    ```yaml
+    - (unset): values
+
+    ```
+
     ### 🔖 (print)
+
+    Prints a message line given an OpenAF template
+
+    Expects:
+
+      * **(print)**  : The message template to use
+      * **((key))**  : Map key to retrieve ('args' for arguments)
+      * **((path))** : The path to consider from the ((key))
+      * **((level))**: The level of the message (info (default) or error)
+
+    ```yaml
+    - (print): This is a printed message.
+
+    ```
+
     ### 🔖 (printmd)
     ### 🔖 (log)
     ### 🔖 (findReplace)
