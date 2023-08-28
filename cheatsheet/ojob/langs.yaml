@@ -11,7 +11,7 @@ todo:
 - (printmd): |
     # oJob langs
 
-    Examples of use of different languages as oJob's jobs.
+    Quick examples, and reference, of the use of different languages as oJob's jobs.
 
     ## 🪟 Powershell
 
@@ -125,7 +125,7 @@ todo:
         
         _s("paths", _("({ p: getOpenAFPath(), j: getOpenAFJar() })"))
         args["contentsOfPaths"] = _g("paths")
-        ãrgs["stringifyOfArgs"] = _d(args)
+        args["stringifyOfArgs"] = _d(args)
 
     ```
     
