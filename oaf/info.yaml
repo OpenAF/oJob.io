@@ -31,14 +31,7 @@ jobs:
       path: getOpenAFPath(),
       jar: getOpenAFJar(),
       pid: getPid(),
-      java: {
-        version: ow.format.getJavaVersion(),
-        home: ow.format.getJavaHome(),
-        classpath: ow.java.getClassPath(),
-        inputArguments: ow.java.getInputArguments(),
-        libpath: ow.java.getLibraryPath(),
-        properties: ow.java.getSystemProperties()
-      },
+      flags: __flags,
       memory: ow.java.getMemory(),
       cpu: {
         cores: getNumberOfCores()
@@ -48,6 +41,14 @@ jobs:
         version: r.version,
         description: r.description,
         path: r.path
-      }))
+      })),
+      java: {
+        version: ow.format.getJavaVersion(),
+        home: ow.format.getJavaHome(),
+        classpath: ow.java.getClassPath(),
+        inputArguments: ow.java.getInputArguments(),
+        libpath: ow.java.getLibraryPath(),
+        properties: ow.java.getSystemProperties()
+      }
     }
     ow.oJob.output(info, args)

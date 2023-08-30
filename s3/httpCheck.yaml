@@ -1,0 +1,156 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a S3 bucket and a corresponding S3 website will try to download each object and cross-check with the S3 object information. Check ojob.io/s3/ops for S3 access options.
+  expects: 
+  - name     : bucket
+    desc     : The S3 bucket to use
+    example  : mybucket
+    mandatory: true
+  - name     : site
+    desc     : The S3 website url prefix to use
+    example  : https://my.site/some/path
+    mandatory: true
+  - name     : prefix
+    desc     : The S3 prefix to use
+    example  : some/prefix
+    mandatory: false
+  - name     : justhead
+    desc     : Boolean flag that if true will prevent from downloading and just compare head metadata
+    example  : "true"
+    mandatory: false
+
+todo:
+- HTTP S3 Check
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  - S3
+  - oJob-common
+  loadLibs    :
+  - s3.js
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  channels    :
+    create:
+    - name: results
+
+jobs:
+# --------------------
+- name : HTTP S3 Check
+  from : 
+  - S3 connect
+  to   : 
+  - S3 disconnect
+  - (ch    ): results
+    ((op  )): getall
+  - (output): res
+  check:
+    in:
+      bucket  : isString
+      site    : isString
+      prefix  : isString.default("")
+      justhead: toBoolean.isBoolean.default(false)
+  each :
+  - HTTP Check object
+  exec : |
+    var lst = global.s3.listObjects(args.bucket, args.prefix, false, true)
+    lst.forEach(r => {
+      each({
+        url     : args.site + "/",
+        info    : r,
+        justhead: args.justhead
+      })
+    })
+
+# ------------------------
+- name : HTTP Check object
+  check:
+    in:
+      url     : isString
+      info    : isMap
+      justhead: isBoolean
+  exec : |
+    printErr("Testing " + args.info.filepath + "...")
+    var inError = false, err = [], httpCode, s3Size, headSize, httpSize
+    try {
+      s3Size = args.info.size
+      // Check HTTP head
+      var _h = $rest().head(args.url + args.info.filepath)
+      httpCode = _h.responseCode
+
+      // Cross-check data
+      if (_h.responseCode == 200) {
+        headSize = _h.response["content-length"]
+        if (_h.response["content-length"] != args.info.size) { 
+          inError = true
+          var _err = "different head size on '" + args.info.filepath + "' (s3: " + args.info.size + ", http: " + _h.response["content-length"] + ")"
+          printErr(_err)
+          err.push(_err)
+        }
+      } else {
+        inError = true
+        var _err = "retriving http returned http code = " + _h.responseCode
+        printErr(_err)
+        err.push(_err)
+      }
+      
+      // Try to download
+      if (!args.justhead) {
+        $rest().get2File("/tmp/" + args.info.filepath, args.url + args.info.filepath)
+        var _i = io.fileInfo("/tmp/" + args.info.filepath)
+        httpSize = _i.size
+        if (_i.size != args.info.size) {
+          inError = true
+          var _err = "different downloaded size on '" + args.info.filepath + "' (s3: " + args.info.size + ", http: " + _i.size + ")"
+          printErr(_err)
+          err.push(_err)
+        }
+        io.rm("/tmp/" + args.info.filepath)
+      }
+    } catch(e) { 
+      inError = true
+      var _err = e
+      printErr(args.url + args.info.filepath + " | " + e)
+      err.push(_err)
+    } finally {
+      $ch("results").set({
+        object: args.info.filepath
+      }, {
+        object  : args.info.filepath,
+        inError : inError,
+        httpCode: httpCode,
+        s3Size  : s3Size,
+        headSize: headSize,
+        httpSize: httpSize,
+        error   : err.join("; ")
+      })
+    }
+
+# -----------------
+- name : S3 connect
+  exec : |
+    if (isDef(args.secKey)) args = $job("ojob sec get", args)
+    if (isDef(args._args)) {
+      args.url = args._args.aURL
+      args.accessKey = args._args.aAccessKey
+      args.secret = args._args.aSecret
+      args.region = args._args.aRegion
+      args.useVersion1 = args._args.useVersion1
+
+      if (args.region == "") args.region = __
+    }
+    args.url = _$(args.url, "url").default("https://s3.amazonaws.com")
+    args.accessKey = _$(args.accessKey, "accessKey").default(__)
+    args.secret    = _$(args.secret, "secret").default(__)
+    args.region    = _$(args.region, "region").default("us-east-1")
+
+    global.s3 = new S3(args.url, args.accessKey, args.secret, args.region, args.useVersion1)
+
+    $set("out", {})
+
+# -------------------
+- name: S3 disconnect
+  exec: |
+    if (isDef(global.s3.close)) global.s3.close()
+    global.s3 = __

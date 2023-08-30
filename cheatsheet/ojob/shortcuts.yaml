@@ -260,34 +260,202 @@ todo:
     ```
 
     ### 🔖 (check)
+
+    Provides a way to organize idempotent jobs. One or more "checks" jobs will be called to determine an args.\_action. Initially the args.\_action is set to "none". If the "checks" jobs determine an action it will call the corresponding jobs on "actions" jobs. If "\_go=true" is not provided, instead of running, it will only return a plan of actions.
+ 
+    Expects:
+
+      * **(check)**    : A list of one or more jobs to be called to perform checks to determine an args._action
+      * **((actions))**: A map of possible values of args._action whose values are one or more jobs to execute
+      * **_go**        : A boolean value (defaults to false) that controls if the *actions* jobs are called (when true) or not
+
+    ```yaml
+    - (check    ): Check Hello World
+      ((actions)):
+        create   : Create Hello World
+        overwrite: Overwrite Hello World
+        delete   : Delete Hello World
+
+    ```
+
     ### 🔖 (wait)
   
+    Waits for a specific amount of time.
+
+    Expects:
+
+      * **(wait)**: The amount of time, in ms, to pause execution
+
+    ```yaml
+    - (wait): 5000
+
+    ```
+
     ---
 
     ## 🗂️ Data
 
     ### 🔖 (ch)
 
+    Provides a set of operations over an OpenAF channel
+
+    Expects:
+
+      * **(ch)**     : The name of the OpenAF channel to use
+      * **((op))**   : The operation to perform (e.g. setall, set, get, unset, unsetall, getkeys, getall and size)
+      * **((key))**  : The key from where to retrieve the operation arguments (args to retrive from arguments)
+      * **((kpath))**: If defined, the path over the values retrieved from __key where the key or keys of the operation are defined
+      * **((k))**    : If defined, the key to use with the operations set, get and unset
+      * **((ks))**   : If defined, the set of fields to use with the operations setall and unsetall
+      * **((v))**    : If defined, the value to use with the operations set, get and unset
+      * **((vs))**   : If defined, an array of values to use with the operations setall and unsetall
+      * **((vpath))**: If defined, the path over the values retrieved from __key where the value or values of the operation are defined
+      * **((extra))**: If defined, will provide an extra argument (usually a map), depending on channel type, for the getall and getkeys operations.
+
+    ```yaml
+    ojob:
+      channels:
+        create:
+        - name: values
+
+    todo:
+    - get and set single value
+    - get and show value
+
+    jobs:
+    - name: get and set single value
+      to  :
+      - (ch  ): values
+        ((op)): set
+        ((k )): test
+        ((v )): value
+
+    - name: get and show value
+      to  :
+      - (ch   ): values
+        ((op )): getall
+        ((key)): output
+      - (output): output
+
+    ```
+
     ---
 
     ## 🗂️ Input
 
     ### 🔖 (get)
-    ### 🔖 (filget)
+
+    Retrieves a specific map key (or path) using $get
+
+    Expects:
+
+      * **(get)**   : Map key to retrieve (key is also checked for compatibility)
+      * **((path))**: The path to consider from the (get)
+
+    ```yaml
+    - (get   ): values
+      ((path)): last
+
+    ```
+
+    ### 🔖 (fileget)
     
+    Retrieves a specific map key (or path) from an YAML or JSON file provided.
+
+    Expects:
+
+      * **(fileget)**: The file path to an YAML or JSON file
+      * **((path))** : Path of the file contents 
+      * **((cache))**: Boolean value that if false it won't cache the file contents (default: true)
+      * **((ttl))**  : If cache is enabled lets you define a numeric ttl
+      * **((out))**  : The path on args to set the map key/path contents
+      * **((key))**  : If ((out)) is not defined will set the content into the provided key
+
+    ```yaml
+    - name: Retrieve list of hosts
+      to  :
+      - (fileget): listOfHosts.yml
+        ((out  )): listHosts
+
+    ```
+
     ---
 
     ## 🗂️ Query
 
     ### 🔖 (query)
 
+    Performs a query (using ow.obj.filter) to the existing args.
+
+    Expects:
+
+      * **(query)** : The query map for ow.obj.filter or af.fromNLinq
+      * **((type))**: The type of query to perform (e.g. path, ow.obj.filter, af.fromNLinq)
+      * **((from))**: The path to the args key to perform the query
+      * **((to))**  : The path to where the results should be stores
+      * **((key))** : If ((from)) and ((to)) not provided defaults to $get/$set on the provided key
+
+    ```yaml
+    - (query ): "equals(isDirectory, true)"
+      ((key )): list
+
+    ```
+
+    ```yaml
+    - (query ): "[?isDirectory==`true`]"
+      ((type)): path
+      ((key )): list
+
+    ```
+
     ---
 
     ## 🗂️ Output
 
     ### 🔖 (set)
+
+    Sets a "key" with the current value on a "path" using $set
+
+    Expects:
+
+      * **(set)**   : Map key
+      * **((path))**: A key or path to a value from the current args
+
+    ```yaml
+    - (set)   : values
+      ((path)): values
+      
+    ```
+
     ### 🔖 (unset)
+
+    Unsets a "key" using $unset
+
+    Expects:
+
+      * **(unset)**: Map key
+
+    ```yaml
+    - (unset): values
+
+    ```
+
     ### 🔖 (print)
+
+    Prints a message line given an OpenAF template
+
+    Expects:
+
+      * **(print)**  : The message template to use
+      * **((key))**  : Map key to retrieve ('args' for arguments)
+      * **((path))** : The path to consider from the ((key))
+      * **((level))**: The level of the message (info (default) or error)
+
+    ```yaml
+    - (print): This is a printed message.
+
+    ```
+
     ### 🔖 (printmd)
     ### 🔖 (log)
     ### 🔖 (findReplace)
