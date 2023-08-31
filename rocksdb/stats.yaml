@@ -1,0 +1,30 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a RocksDB folder will try to retrieve existing statistics
+  expects: 
+  - name     : path
+    desc     : Path to the RocksDB folder
+    example  : db
+    mandatory: true
+
+todo:
+- Retrieve RocksDB stats
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  - rocksdb
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - rocksdb.js
+
+jobs:
+# -----------------------------
+- name : Retrieve RocksDB stats
+  check:
+    in:
+      path: isString
+  exec : |
+    var stats = ow.ch.utils.rocksdb.roStats(args.path)
+    ow.oJob.output(stats, args)
