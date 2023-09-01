@@ -457,8 +457,89 @@ todo:
     ```
 
     ### 🔖 (printmd)
+
+    Parses an input text as simple ascii markdown
+
+    Expects:
+
+      * **(printmd)** : The text template to parse.
+      * **((outputMD)): A boolean flag that if true will no parse the input text.
+
+    ```yaml
+    todo:
+    - (printmd): |
+        # Chapter 1
+
+        This is a __markdown__ text.
+
+        | This | is | a | table |
+        |------|----|---|-------|
+        | 1    | 2  | 3 | 4     |
+
+        You can also use *\{{$acolor 'red' 'OpenAF templates'}}*.
+
+        ---
+
+    ```
+
     ### 🔖 (log)
+
+    Logs a message line given an OpenAF template.
+
+    Expects:
+
+      * **(log)**      : The message template to use
+      * **((key))**    : Map key to retrieve ('args' for arguments)
+      * **((path))**   : The path to consider from the (key)
+      * **((level))**  : The level of the message (info (default), warn or error)
+      * **((options))**: Extra options to provide to the tlog* functions. See more in the help of tlog, tlogErr and tlogWarn.
+
+    ```yaml
+    todo:
+    - (log    ): You can issue a log message.
+      ((level)): info
+    - (log    ): Even for errors.
+      ((level)): error
+
+    ```
+
     ### 🔖 (findReplace)
+
+    Performs an in-memory find/replace on a provided string or file and outputs to args.output or, optionally, to a file.
+
+    Expects:
+
+      * **(findReplace)**  : The key that holds template and/or data (default to 'res'). If 'args' it will use the current arguments.
+      * **((path))**       : The path in (findReplace) where a map of replacements ([text/regexp]:[replace text]) can be found.
+      * **((inputKey))**   : If defined, indicates the key that holds the string of data to replace.
+      * **((inputPath))**  : If defined with inputKey, indicates the path to use to select the string of data to replace.
+      * **((inputFile))**  : If defined the contents to be replaced will be read from the inputFile.
+      * **((outputFile))** : If defined will output of the content replacement to the defined file. 
+      * **((useRegExp))**  : Boolean value to determine if the map of replacements will be interpreted as a regexp or text.
+      * **((flagsRegExp))**: If useRegExp=true the JavaScript reg exp flags to use (defaults to 'g').
+      * **((logJob))**     : Optionally provide a logging job with the current args and __op with 'read' or 'write'
+
+    ```yaml
+    jobs:
+    - name: Replace text
+      from:
+      - (findReplace): 
+          "|name|": Scott Tiger
+        ((inputKey))): args
+        ((inputPath)): text
+        args         :
+          text: |
+            Hello |name|, how are you doing?
+
+            |name| is great!
+      - (print      ): "{{output}}"
+        ((key      )): args
+    
+    todo:
+    - Replace text
+    
+    ```
+
     ### 🔖 (output)
     ### 🔖 (template)
     ### 🔖 (templateFolder)
