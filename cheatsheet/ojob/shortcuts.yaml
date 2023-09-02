@@ -541,8 +541,93 @@ todo:
     ```
 
     ### 🔖 (output)
+
+    Prints the current arguments to the console.
+
+    Expects:
+
+      * **(output)**    : The key string to retrieve previous results (defaults to 'res'). If "args" will retrieve from current args.
+      * **((path))**    : A path string to a map/array over the results set on key.
+      * **((format))**  : The output format (e.g. see ow.oJob.output help).
+      * **((title))**   : Encapsulates the output map/array with a title key.
+      * **((internal))**: Boolean value that if true it will display the internal oJob entries on the arguments (default false).
+      * **((function))**: One of the OpenAF's print or log functions available
+
+    ```yaml
+    todo:
+    - (runfile ): ojob.io/news/bbc
+      ((key   )): news
+    - (query   ): "limit(5)"
+      ((key   )): news
+    - (output  ): news
+      ((format)): stable
+
+    ```
+
     ### 🔖 (template)
+
+    Applies the OpenAF template over the provided data producing an output.
+
+    Expects:
+
+      * **(template)**      : If defined, will be used as template.
+      * **((templateFile))**: If defined, it will use the provided template file.
+      * **((data))**        : If defined, will be used as data.
+      * **((dataFile))**    : If defined, it will use the provided data file (either yaml or json).
+      * **((outputFile))**  : If defined, the output will be written to the provided file path.
+      * **((key))**         : The key that holds template and/or data (default to 'res'). If 'args' it will use the current arguments.
+      * **((tpath))**       : The path in ((key)) where a string with the template can be found.
+      * **((dpath))**       : The path in ((key)) where a map/array data to use can be found.
+      * **((outPath))**     : If defined the $set path where ((out)) will be set in the provided key.
+      * **((out))**         : The output will be stored into the provided key (defaults to 'res')
+
+    ```yaml
+    todo:
+    - (template): |
+        {{#each lst}}
+        -> {{{this}}}
+        {{/each}}
+      ((out   )): output
+      ((data  )):
+        name: test
+        lst :
+        - 1
+        - 2
+        - 3
+    - (output   ): output
+      ((path   )): output
+      ((format )): tree
+
+    ```
+
     ### 🔖 (templateFolder)
+
+    Given a templateFolder it will execute '(template)' for each (recursively), with the provided data, to output to outputFolder. Optionally metaTemplate can be use where each json/yaml file in templateFolder all or part of the arguments for 'ojob template'.    
+
+    Expects:
+      
+      * **(templateFolder)**: The original folder where the templates are located.
+      * **((templatePath))**: If defined, will apply a $path string over the recursive list of files in templateFolder.
+      * **((data))**        : If defined, will be used as data.
+      * **((dataFile))**    : If defined, it will use the provided data file (either yaml or json).
+      * **((outputFolder))**: The path where the output should be stored.
+      * **((key))**         : The key that holds template and/or data (default to 'res'). If 'args' it will use the current arguments.
+      * **((dpath))**       : The path in __key where a map/array data to use can be found.
+      * **((logJob))**      : A ojob job to log the 'ojob template' activity (receives the same arguments as 'ojob template').
+      * **((metaTemplate))**: Boolean that if 'true' will interpret any json/yaml file, in the templateFolder, as a map/array of arguments to use when calling 'ojob template' overriden the defaults.
+ 
+    ```yaml
+    todo:
+    - (templateFolder): src
+      ((data        )):
+        name: test
+        lst :
+        - 1
+        - 2
+        - 3
+      ((outputFolder)): output
+       
+    ```
 
     ---
 
