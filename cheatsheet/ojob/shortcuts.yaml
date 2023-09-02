@@ -241,7 +241,7 @@ todo:
 
     ```yaml
     - (pass   ):
-        test: {{value}}
+        test: "{{value}}"
       ((debug)): true
     ```
 
@@ -633,14 +633,140 @@ todo:
 
     ## 🗂️ Debug
 
+    ### 🔖 (debug)
+
+    Will print the current "args" and "res" contents.
+
+    ```yaml
+    todo:
+    - (debug)
+    ```
+
     ### 🔖 (jobdebug)
+
+    Provides an alternative to print based debug to debug a single job (only for OpenAF's lang based jobs)
+
+    Expects:
+
+      * **(jobdebug)**     : The job to change to include debug.
+      * **((lineColor))**  : The line color around the debug info.
+      * **((textColor))**  : The text color around the debug info.
+      * **((theme))**      : The withSideLineThemes theme to use.
+      * **((emoticons))**  : If emoticons should be used or not.
+      * **((signs))**      : A custom map of emoticons (keys: checkpoint, assert and print).
+      * **((includeTime))**: A boolean value to indicate if a time indication should be included.
+
+    ```yaml
+    todo:
+    - (jobdebug): Sample job
+    - Sample job
+
+    jobs:
+    # ----------------
+    - name: Sample job
+    exec: |
+      //@ Declaring array
+      var ar = [ 0, 1, 2, 3, 4, 5 ]
+
+      //@ Start cycle
+      var ii = 0;
+      while(ii < ar.length) {
+        print("II = " + ii)
+        ii++
+        //# ii == 3
+      }
+      //@ End cycle
+      //? ii
+
+      //?s args
+      //?y args
+    ```  
+
     ### 🔖 (jobsdebug)
+
+    Provides an alternative to print based debug to debug multiple jobs (only for OpenAF's lang based jobs)
+
+    Expects:
+
+      * **(jobsdebug)**    : The jobs array to change to include debug.
+      * **((lineColor))**  : The line color around the debug info.
+      * **((textColor))**  : The text color around the debug info.
+      * **((theme))**      : The withSideLineThemes theme to use.
+      * **((emoticons))**  : If emoticons should be used or not.
+      * **((signs))**      : A custom map of emoticons (keys: checkpoint, assert and print).
+      * **((includeTime))**: A boolean value to indicate if a time indication should be included.
+
+    ```yaml
+    todo:
+    - (jobsdebug): 
+      - Sample job
+    - Sample job
+
+    jobs:
+    # ----------------
+    - name: Sample job
+    exec: |
+      //@ Declaring array
+      var ar = [ 0, 1, 2, 3, 4, 5 ]
+
+      //@ Start cycle
+      var ii = 0;
+      while(ii < ar.length) {
+        print("II = " + ii)
+        ii++
+        //# ii == 3
+      }
+      //@ End cycle
+      //? ii
+
+      //?s args
+      //?y args
+    ```  
 
     ---
 
     ## 🗂️ Security
 
     ### 🔖 (secget)
+
+    This job will get a SBucket secret and map it to oJob's args
+
+    Expects:
+
+      * **(secget)**       : The SBucket key
+      * **((secRepo))**    : The SBucket repository
+      * **((secBucket))**  : The SBucket name
+      * **((secPass))**    : The SBucket password
+      * **((secOut))**     : The args path to be mapped with the secret (defaults to secIn)
+      * **((secMainPass))**: The SBucket repository password
+      * **((secFile))**    : Optional provide a specific sbucket file
+      * **((secDontAsk))** : Determine if passwords should be asked from the user (default=false)
+      * **((secIgnore))**  : If true will ignore errors of sec parameters not being provided (default=false)
+      * **((secEnv))**     : If true will set everything to retrieve the secret from an env variable
+
+    ```yaml
+    jobs:
+    - name: Check clock on my server
+      from:
+      - (secget      ): mySSHkey
+        ((secBucket )): mykeys
+        ((secOut    )): ssh
+        ((secDontAsk)): true
+      to  :
+      - (pass   ):
+          clocks:
+          - host: "{{hostname}}"
+            date: "{{date}}"
+      - (output ): args
+        ((path )): clocks
+      lang: ssh
+      exec: |
+        hostname=$(hostname)
+        date=$(date)
+
+        # return hostname, date
+
+    ```
 
     ---
 
