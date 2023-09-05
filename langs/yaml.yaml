@@ -4,6 +4,8 @@ help:
   expects: 
   - name: file
     desc: The YAML file to check
+  - name: parse
+    desc: Parse contents and output them
 
 todo:
 - Check YAML 
@@ -16,19 +18,23 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ----------------
-- name: Check YAML 
-  exec: |
-    _$(args.file, "file").$_();
+# -----------------
+- name : Check YAML 
+  check:
+    in:
+      file : isString
+      parse: toBoolean.isBoolean.default(false)
+  exec : |
     args.res = { result: "not ok", message: "" };
 
     try {
-      args.res.result = "not ok";
-      io.readFileYAML(args.file);
-      args.res.result = "ok";
+      args.res.result = "not ok"
+      var _d = io.readFileYAML(args.file)
+      args.res.result = "ok"
+      if (args.parse) args.res.parsed = _d
     } catch(e) {
-      args.res.message = String(e);
+      args.res.message = String(e)
     }
 
-    ow.oJob.output(args.res, args);
+    ow.oJob.output(args.res, args)
 
