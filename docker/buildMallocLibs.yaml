@@ -1,0 +1,146 @@
+# Author: Nuno Aguiar
+help:
+  text   : Using a docker container builds either a libtcmalloc or libjemalloc for Alpine Linux or UBI. You can later use them be setting the LD_PRELOAD env variable and checking on /proc/pid/maps for the corresponding malloc library.
+  expects:
+  - name     : op
+    desc     : The build operation to perform (e.g. buildUBIJE, buildUBITC, buildAlpineJE, buildAlpineTC)
+    example  : buildUBITC
+    mandatory: true
+  - name     : arch
+    desc     : The architecture to build with (e.g. amd64, arm64)
+    example  : amd64
+    mandatory: false
+  - name     : output
+    desc     : If defined the output libs will be placed on the corresponding folder provided (othewise a folder with the 'op' name will be used)
+    example  : lib
+    mandatory: false
+
+init:
+  alpine:
+    imageTC: alpine
+    buildTC: apk update && apk --no-cache add autoconf automake libtool make gcc musl-dev g++ git && git clone https://github.com/gperftools/gperftools && cd gperftools && sh autogen.sh && sh configure && make
+    copyTC : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp .libs/libtcmalloc*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}
+    
+    imageJE: alpine
+    buildJE: apk update && apk --no-cache add autoconf automake libtool make gcc musl-dev git && git clone https://github.com/jemalloc/jemalloc && cd jemalloc && sh autogen.sh && sh configure && make
+    copyJE : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp lib/*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}   
+
+  ubi:
+    imageTC: registry.access.redhat.com/ubi9/ubi-minimal
+    buildTC: microdnf install -y --nodocs autoconf automake libtool gcc g++ git && git clone https://github.com/gperftools/gperftools && cd gperftools && sh autogen.sh && sh configure && make
+    copyTC : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp .libs/libtcmalloc*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}
+    
+    imageJE: registry.access.redhat.com/ubi9/ubi-minimal
+    buildJE: microdnf install -y --nodocs autoconf automake libtool gcc git && git clone https://github.com/jemalloc/jemalloc && cd jemalloc && sh autogen.sh && sh configure && make
+    copyJE : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp lib/*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} 
+
+  ubi8:
+    imageTC: registry.access.redhat.com/ubi8/ubi-minimal
+    buildTC: microdnf install -y --nodocs autoconf automake libtool gcc g++ git && git clone https://github.com/gperftools/gperftools && cd gperftools && sh autogen.sh && sh configure && make
+    copyTC : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp .libs/libtcmalloc*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}
+    
+    imageJE: registry.access.redhat.com/ubi8/ubi-minimal
+    buildJE: microdnf install -y --nodocs autoconf automake libtool gcc git && git clone https://github.com/jemalloc/jemalloc && cd jemalloc && sh autogen.sh && sh configure && make
+    copyJE : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp lib/*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} 
+
+todo:
+- Check for docker
+- (optionOn   ): op
+  ((todos    )): 
+    buildUBIJE   :
+    - Build UBI JE
+    buildUBITC   :
+    - Build UBI TC
+    buildUBIJE8  :
+    - Build UBI 8 JE
+    buildUBITC8  :
+    - Build UBI 8 TC
+    buildAlpineJE:
+    - Build Alpine JE
+    buildAlpineTC:
+    - Build Alpine TC
+
+include:
+- ojob.io/docker/_common
+
+ojob:
+  opacks      :
+  - openaf: 20230907
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+jobs:
+# ---------------
+- name: Build lib
+  lang: shell
+  typeArgs:
+    shellPrefix : build
+  exec: |
+    rm -rf {{name}}
+    docker run --rm -i -v `pwd`:/output {{#if arch}}--platform linux/{{arch}}{{/if}} {{image}} /bin/sh -c "{{{cmd}}} && {{{copyCmd}}}"
+
+# ------------------
+- name: Build UBI JE
+  from:
+  - (pass    ):
+      image  : "{{init.ubi.imageJE}}"
+      cmd    : "{{{init.ubi.buildJE}}}"
+      copyCmd: "{{{$t init.ubi.copyJE this}}}"
+  - Build lib
+  args:
+    name: buildUBIJE
+
+# --------------------
+- name: Build UBI 8 JE
+  from:
+  - (pass    ):
+      image  : "{{init.ubi8.imageJE}}"
+      cmd    : "{{{init.ubi8.buildJE}}}"
+      copyCmd: "{{{$t init.ubi8.copyJE this}}}"
+  - Build lib
+  args:
+    name: buildUBI8JE
+
+# ------------------
+- name: Build UBI TC
+  from:
+  - (pass    ):
+      image  : "{{init.ubi.imageTC}}"
+      cmd    : "{{{init.ubi.buildTC}}}"
+      copyCmd: "{{{$t init.ubi.copyTC this}}}"
+  - Build lib
+  args:
+    name: buildUBITC
+
+# --------------------
+- name: Build UBI 8 TC
+  from:
+  - (pass    ):
+      image  : "{{init.ubi8.imageTC}}"
+      cmd    : "{{{init.ubi8.buildTC}}}"
+      copyCmd: "{{{$t init.ubi8.copyTC this}}}"
+  - Build lib
+  args:
+    name: buildUBI8TC
+
+# ---------------------
+- name: Build Alpine JE
+  from:
+  - (pass    ):
+      image  : "{{init.alpine.imageJE}}"
+      cmd    : "{{{init.alpine.buildJE}}}"
+      copyCmd: "{{{$t init.alpine.copyJE this}}}"
+  - Build lib
+  args:
+    name: buildAlpineJE
+
+# ---------------------
+- name: Build Alpine TC
+  from:
+  - (pass    ):
+      image  : "{{init.alpine.imageTC}}"
+      cmd    : "{{{init.alpine.buildTC}}}"
+      copyCmd: "{{{$t init.alpine.copyTC this}}}"
+  - Build lib
+  args:
+    name: buildAlpineTC
