@@ -3,7 +3,7 @@ help:
   text   : Using a docker container builds either a libtcmalloc or libjemalloc for Alpine Linux or UBI. You can later use them be setting the LD_PRELOAD env variable and checking on /proc/pid/maps for the corresponding malloc library.
   expects:
   - name     : op
-    desc     : The build operation to perform (e.g. buildUBIJE, buildUBITC, buildAlpineJE, buildAlpineTC)
+    desc     : The build operation to perform (e.g. buildUBIJE, buildUBITC, buildAlpineJE, buildAlpineTC, buildOracle8JE, buildOracle8TC, buildOracle9JE, buildOracle9TC)
     example  : buildUBITC
     mandatory: true
   - name     : arch
@@ -24,6 +24,24 @@ init:
     imageJE: alpine
     buildJE: apk update && apk --no-cache add autoconf automake libtool make gcc musl-dev git && git clone https://github.com/jemalloc/jemalloc && cd jemalloc && sh autogen.sh && sh configure && make
     copyJE : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp lib/*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}   
+
+  oracle9:
+    imageTC: oraclelinux:9
+    buildTC: yum update && yum install -y -q autoconf automake libtool gcc gcc-c++ git make && git clone https://github.com/gperftools/gperftools && cd gperftools && sh autogen.sh && sh configure && make
+    copyTC : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp .libs/libtcmalloc*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}
+      
+    imageJE: oraclelinux:9
+    buildJE: yum update && yum install -y -q autoconf automake libtool gcc make git && git clone https://github.com/jemalloc/jemalloc && cd jemalloc && sh autogen.sh && sh configure && make
+    copyJE : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp lib/*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} 
+
+  oracle8:
+    imageTC: oraclelinux:8.8
+    buildTC: yum update && yum install -y -q autoconf automake libtool gcc gcc-c++ git make && git clone https://github.com/gperftools/gperftools && cd gperftools && sh autogen.sh && sh configure && make
+    copyTC : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp .libs/libtcmalloc*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}}
+      
+    imageJE: oraclelinux:8.8
+    buildJE: yum update && yum install -y -q autoconf automake libtool gcc make git && git clone https://github.com/jemalloc/jemalloc && cd jemalloc && sh autogen.sh && sh configure && make
+    copyJE : mkdir /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} && cp lib/*.so* /output/{{#if output}}{{output}}{{else}}{{name}}{{/if}} 
 
   ubi:
     imageTC: registry.access.redhat.com/ubi9/ubi-minimal
@@ -59,6 +77,14 @@ todo:
     - Build Alpine JE
     buildAlpineTC:
     - Build Alpine TC
+    buildOracle8TC:
+    - Build Oracle 8 TC
+    buildOracle8JE:
+    - Build Oracle 8 JE
+    buildOracle9TC:
+    - Build Oracle 9 TC
+    buildOracle9JE:
+    - Build Oracle 9 JE
 
 include:
 - ojob.io/docker/_common
@@ -78,6 +104,50 @@ jobs:
   exec: |
     rm -rf {{name}}
     docker run --rm -i -v `pwd`:/output {{#if arch}}--platform linux/{{arch}}{{/if}} {{image}} /bin/sh -c "{{{cmd}}} && {{{copyCmd}}}"
+
+# -----------------------
+- name: Build Oracle 8 TC
+  from:
+  - (pass    ):
+      image  : "{{init.oracle8.imageTC}}"
+      cmd    : "{{{init.oracle8.buildTC}}}"
+      copyCmd: "{{{$t init.oracle8.copyTC this}}}"
+  - Build lib
+  args:
+    name: buildOracle8TC
+
+# -----------------------
+- name: Build Oracle 8 JE
+  from:
+  - (pass    ):
+      image  : "{{init.oracle8.imageJE}}"
+      cmd    : "{{{init.oracle8.buildJE}}}"
+      copyCmd: "{{{$t init.oracle8.copyJE this}}}"
+  - Build lib
+  args:
+    name: buildOracle8JE
+
+# -----------------------
+- name: Build Oracle 9 TC
+  from:
+  - (pass    ):
+      image  : "{{init.oracle9.imageTC}}"
+      cmd    : "{{{init.oracle9.buildTC}}}"
+      copyCmd: "{{{$t init.oracle9.copyTC this}}}"
+  - Build lib
+  args:
+    name: buildOracle9TC
+
+# -----------------------
+- name: Build Oracle 9 JE
+  from:
+  - (pass    ):
+      image  : "{{init.oracle9.imageJE}}"
+      cmd    : "{{{init.oracle9.buildJE}}}"
+      copyCmd: "{{{$t init.oracle9.copyJE this}}}"
+  - Build lib
+  args:
+    name: buildOracle9JE
 
 # ------------------
 - name: Build UBI JE
