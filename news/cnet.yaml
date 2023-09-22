@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves CNET RSS
+
+todo:
+- CNET
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# -------------
+- name: CNET
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://www.cnet.com/rss/news/

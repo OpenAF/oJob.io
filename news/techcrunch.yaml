@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves TechCrunch RSS
+
+todo:
+- TechCrunch
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# -------------
+- name: TechCrunch
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://techcrunch.com/rss
