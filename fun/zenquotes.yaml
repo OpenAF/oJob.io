@@ -1,0 +1,29 @@
+# Author: Nuno Aguiar
+help:
+  text   : Outputs a random zen quote. 
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Zen quote
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------
+- name : Zen quote
+  exec : |
+    data = $rest().get("https://zenquotes.io?api=random")
+    if (isArray(data)) {
+      data = data[0]
+      delete data.h
+    }
+    ow.oJob.output(data, args)
