@@ -1,0 +1,52 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts a base64 input from an YAML/JSON input to a string
+  expects: 
+  - name     : file
+    desc     : A YAML or JSON input (if not provided stdin will be considered)
+    example  : aSecretFile.yaml
+    mandatory: false
+  - name     : path
+    desc     : A map path to the element that contains the base64 string input
+    example  : "my.secret"
+    mandatory: false
+  - name     : type
+    desc     : Force the type of input between YAML or JSON file
+    example  : yaml
+    mandatory: false
+
+todo:
+- Convert from Base64
+
+ojob:
+  opacks      :
+  - openaf: 20230929
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------------
+- name : Convert from Base64
+  check:
+    in:
+      file: isString.default(__)
+      type: isString.oneOf(['yaml','json']).default('yaml')
+      path: isString.default("@")
+  exec : |
+    var data = ""
+
+    if (isUnDef(args.file)) {
+      var _f = ""
+      io.pipeLn(l => { _f += l + "\n" })
+      if (args.type == "yaml") data = af.fromYAML(_f); else data = jsonParse(_f, true)
+    } else {
+      if (args.type == "yaml") data = io.readFileYAML(args.file); else data = io.readFileJSON(args.file)
+    }
+
+    var _s = $$(data).get(args.path)
+    if (isString(_s)) {
+      print(af.fromBytes2String(af.fromBase64(_s)))
+    } else {
+      printErr("No string detected on '" + args.path + "': " + af.toSLON(_s))
+    }

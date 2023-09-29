@@ -1,0 +1,49 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts an input string to a base64 input on an YAML/JSON input
+  expects: 
+  - name     : file
+    desc     : A YAML or JSON input
+    example  : aSecretFile.yaml
+    mandatory: true
+  - name     : path
+    desc     : A map path to the element to contain the base64 string from the stdin input
+    example  : "my.secret"
+    mandatory: false
+  - name     : type
+    desc     : Force the type of input between YAML or JSON file
+    example  : yaml
+    mandatory: false
+
+todo:
+- Convert to Base64
+
+ojob:
+  opacks      :
+  - openaf: 20230929
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ------------------------
+- name : Convert to Base64
+  check:
+    in:
+      file: isString
+      type: isString.oneOf(['yaml','json']).default('yaml')
+      path: isString.default("")
+  exec : |
+    var data = ""
+
+    if (args.type == "yaml") data = io.readFileYAML(args.file); else data = io.readFileJSON(args.file)
+    
+    var _f = ""
+    io.pipeLn(l => { _f += l + "\n" })
+
+    $$(data).set(args.path, af.fromBytes2String(af.toBase64Bytes(_f)))
+    if (args.type == "yaml") {
+      yprint(data)
+    } else {
+      sprint(data)
+    }
