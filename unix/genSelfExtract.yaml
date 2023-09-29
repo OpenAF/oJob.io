@@ -13,25 +13,29 @@ help:
   - name     : setup
     desc     : The shell script, on the folder path, that should be executed after extraction
     example  : setup
-    mandatory: false 
+    mandatory: true 
   - name     : message
     desc     : The message to show will self-extracting
     example  : extracting...
+    mandatory: false
+  - name     : tmppath
+    desc     : If defined it will extract to the provided path and test, upon a second execution, if it exists and reuse it
+    example  : /tmp/mystuff
     mandatory: false
 
 init:
   script: |
     #!/bin/sh
-    echo "{{{message}}}"
-    echo
-    export TMPDIR=`mktemp -d /tmp/extract.XXXXXX`
-    tail -n+{{nlines}} $0 | tar xz -C $TMPDIR
+    {{#if message}}echo "{{{message}}}"{{else}} {{/if}}
+    {{#if message}}echo{{else}} {{/if}}
+    export TMPDIR={{#if tmppath}}{{tmppath}}{{else}}`mktemp -d /tmp/extract.XXXXXX`{{/if}}
+    {{#if tmppath}}[ ! -f {{tmppath}}/{{setup}} ] && mkdir {{tmppath}} && {{/if}}tail -n+{{nlines}} $0 | tar xz -C $TMPDIR
     export CDIR=`pwd`
     cd $TMPDIR
     chmod u+x {{setup}}
-    sh ./{{setup}}
+    sh ./{{setup}} "$@"
     cd $CDIR
-    rm -rf $TMPDIR
+    {{#if tmppath}}{{else}}rm -rf $TMPDIR{{/if}}
     exit 0
 
 todo:
@@ -77,12 +81,14 @@ jobs:
     in:
       path   : isString
       setup  : isString.default("setup")
-      message: isString.default("(expanding...)")
+      message: isString.default(__)
+      tmppath: isString.default(__)
   exec : |
     var script  = templify(args.init.script, { 
-      setup: args.setup, 
-      nlines: args.init.script.split("\n").length + 1,
-      message: args.message
+      setup  : args.setup, 
+      nlines : args.init.script.split("\n").length + 1,
+      message: args.message,
+      tmppath: args.tmppath
     })
     script += "\n"
     var fscript = isDef(args.file) ? args.file : io.fileInfo(args.path).filename + ".sh"
