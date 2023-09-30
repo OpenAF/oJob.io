@@ -161,7 +161,7 @@ jobs:
     tlog("Download parameters: arch={{arch}} os={{os}} version={{version}} type={{type}} jvm={{jvm}} heap={{heap}}", args)
 
     var url
-    if (args.os == "mac" && args.arch == "aarch64" && Number(args.version) < 17) {
+    /*if (args.os == "mac" && args.arch == "aarch64" && Number(args.version) < 17) {
       var pack = $from( javaRegExp( $rest().get("https://cdn.azul.com/zulu/bin/") )
                  .match("(?<=href=\")(.+?)(?=\.tar.gz\")", "g")
                  .filter(r => r.indexOf("-fx-") < 0 && r.indexOf("-jre" + args.version) > 0 && r.indexOf("-macosx_aarch64") > 0) )
@@ -170,9 +170,9 @@ jobs:
 
       url = "https://cdn.azul.com/zulu/bin/" + pack + ".tar.gz"
 
-    } else {
+    } else {*/
       url = "https://api.adoptium.net/v3/binary/latest/" + args.version + "/ga/" + args.os + "/" + args.arch + "/" + args.type + "/" + args.jvm + "/" + args.heap + "/eclipse"
-    }
+    //}
 
     args.size = ow.format.toBytesAbbreviation(ow.obj.rest.getContentLength(url))
     tlog("Downloading to {{output}} ({{size}})...", args)
