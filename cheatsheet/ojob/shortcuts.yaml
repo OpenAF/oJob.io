@@ -31,21 +31,22 @@ todo:
     | Data          | (ch)             | Operates data on an OpenAF channel                         |
     | Input         | (get)            | Retrieves a global value from a key                        |
     | Input         | (fileget)        | Retrieves arguments from a file                            |
-    | Query         | (query)          | Queries a list of elements                                 |
-    | Output        | (set)            | Sets a global value given a key                            |
-    | Output        | (unset)          | Unsets a global value given a key                          |
-    | Output        | (print)          | Prints a message                                           |
-    | Output        | (printmd)        | Prints a message using markdown                            |
-    | Output        | (log)            | Logs a message                                             |
-    | Output        | (findReplace)    | Finds and replaces text                                    |
-    | Output        | (output)         | Output's data in different formats                         |
-    | Output        | (template)       | Generates an output based on a template                    |
-    | Output        | (templateFolder) | Generates several outputs, based on templates, in a folder |
-    | Debug         | (jobdebug)       | Sets debug for a single job                                |
-    | Debug         | (jobsdebug)      | Sets debug for a series of jobs                            |
-    | Security      | (secget)         | Obtains secret arguments (e.g. credentials)                |
-    | Functionality | (fn)             | Access an OpenAF functionality / function                  |
-    | Functionality | (runfile)        | Runs another local or remote oJob                          |
+    | Input         | (convert)        | Converts string content into an internal object (map/array) |
+    | Query         | (query)          | Queries a list of elements                                  |
+    | Output        | (set)            | Sets a global value given a key                             |
+    | Output        | (unset)          | Unsets a global value given a key                           |
+    | Output        | (print)          | Prints a message                                            |
+    | Output        | (printmd)        | Prints a message using markdown                             |
+    | Output        | (log)            | Logs a message                                              |
+    | Output        | (findReplace)    | Finds and replaces text                                     |
+    | Output        | (output)         | Output's data in different formats                          |
+    | Output        | (template)       | Generates an output based on a template                     |
+    | Output        | (templateFolder) | Generates several outputs, based on templates, in a folder  |
+    | Debug         | (jobdebug)       | Sets debug for a single job                                 |
+    | Debug         | (jobsdebug)      | Sets debug for a series of jobs                             |
+    | Security      | (secget)         | Obtains secret arguments (e.g. credentials)                 |
+    | Functionality | (fn)             | Access an OpenAF functionality / function                   |
+    | Functionality | (runfile)        | Runs another local or remote oJob                           |
     |---|---|---|
 
     ---
@@ -385,6 +386,27 @@ todo:
       to  :
       - (fileget): listOfHosts.yml
         ((out  )): listHosts
+
+    ```
+
+    ### 🔖 (convert)
+    
+    Retrieves a specific map key (or path) from an YAML or JSON file provided.
+
+    Expects:
+
+      * **((inKey))**: The path on the input contents for the string to convert
+      * **((inFormat))**: The format of the input contents (yaml, json, xml, ndjson, slon)
+      * **((outKey))**: Where the converted output object should be placed (if 'args' with default to the current args)
+      * **((outPath))**: The path on the output contents to store the converted object
+
+    ```
+    - name: Convert from JSON
+      to  :
+      - (convert    ): args
+        ((inFormat )): json
+        ((inPath   )): jsonIn
+        ((outPath  )): out
 
     ```
 
