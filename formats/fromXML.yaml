@@ -1,0 +1,57 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses a XML input content
+  expects: 
+  - name     : file
+    desc     : The XML file to process (if not defined will default to the stdin)
+    example  : example.xml
+    mandatory: false
+  - name     : ignore
+    desc     : Number of lines on the headed to ignore (usually to remove the xml header and any doctype)
+    example  : 1
+    mandatory: false
+  - name     : tags
+    desc     : Boolean flag that when true will include XML attributes as properties starting with the prefix '_'
+    example  : "true"
+    mandatory: false
+  - name     : ignoreTags
+    desc     : A comma delimited list of XML attributes to ignore if tags=true
+    example  : "tag1,tag2"
+    mandatory: false
+
+todo:
+- Parse XML
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------
+- name : Parse XML
+  check:
+    in:
+      file      : isString.default(__)
+      ignore    : toNumber.isNumber.default(0)
+      tags      : toBoolean.isBoolean.default(false)
+      ignoreTags: isString.default("")
+  exec : |
+    var _xml = "", c = 0
+
+    if (isDef(args.file)) {
+      _xml = io.readFileString(args.file).split('\n').splice(args.ignore).join("\n")
+    } else {
+      io.pipeLn(line => {
+        if (c >= args.ignore) {
+          _xml += String(line)
+        }
+        c++
+      })
+    }
+    
+    if (isDef(args.tags)) args.ignoreTags = args.ignoreTags.split(",").map(t => t.trim())
+    var data = af.fromXML2Obj(new XMLList(_xml), args.tags ? args.ignoreTags : __)
+    ow.oJob.output(data, args)
