@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Prints a cheatsheet with the oJob's shortcuts (work in progress)
+  text   : "Prints a cheatsheet with the oJob's shortcuts (work in progress)"
 
 ojob:
   opacks:
