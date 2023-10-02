@@ -1,0 +1,113 @@
+# Author: Nuno Aguiar
+help:
+  text   : Packs OpenAF into a single shell script ready to be used.
+  expects: 
+  - name     : os
+    desc     : JRE operating system (e.g. windows, linux, mac, solaris, aix, alpine-linux)
+    example  : linux
+    mandatory: true
+  - name     : arch
+    desc     : operating system architecture (e.g. x64, x32, ppc64, s390x, ppc64le, aarch64, arm)
+    example  : x64
+    mandatory: true
+  - name     : version
+    desc     : java version to use (e.g. 11, 17)
+    example  : 17
+    mandatory: true
+  - name     : dist
+    desc     : openaf distribution (e.g. nightly, t8, stable)
+    example  : nightly
+    mandatory: false
+
+todo:
+- Prepare output folder
+- (parallel):
+  - Download OpenAF
+  - Download JRE
+- Create OpenAF scripts
+- Prepare single shell script
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------------------
+- name : Prepare output folder
+  exec : |
+    global.output = io.createTempDir("packbin")
+    //global.output = "test"
+    //io.mkdir(global.output)
+    $set("output", { output: global.output })
+
+# ----------------------
+- name : Download OpenAF
+  deps : Prepare output folder
+  check:
+    in:
+      dist: oneOf(["stable", "nightly", "t8"]).default("stable")
+  exec : |
+    if (args.dist == "stable") args.dist = ""
+    $rest().get2File($get("output").output + "/openaf.jar", "https://openaf.io/" + args.dist + "/openaf.jar.repacked")
+    $set("oafVersion", { oafVersion: $rest().get("https://openaf.io/" + args.dist + "/release") })
+
+# ---------------------
+- name : Uncompress JRE
+  lang : shell
+  from : 
+  - (get): output
+  exec : |
+    cd {{output}}
+    tar xzf jre.tgz
+    rm jre.tgz
+
+# ----------------------------
+- name : Create OpenAF scripts
+  lang : shell
+  from :
+  - (get): output
+  exec : |
+    cd {{output}}
+    `find . | egrep /bin/java$` -jar openaf.jar --install
+    
+# -------------------
+- name : Download JRE
+  deps : Prepare output folder
+  check:
+    in:
+      os     : oneOf(["windows", "linux", "mac", "solaris", "aix", "alpine-linux"])
+      arch   : oneOf(["x64","x32","ppc64","s390x","ppc64le","aarch64","arm"])
+      version: toNumber.isNumber.greater(7).default(17)
+  from :
+  - (get): output
+  to   :
+  - (run           ): ojob.io/java/download
+    ((args        )):
+      type   : jre
+      os     : "{{os}}"
+      arch   : "{{arch}}"
+      version: "{{version}}"
+      output : "{{output}}/jre.tgz"
+    ((debug       )): false
+    ((usePM       )): false
+    ((templateArgs)): true
+  - Uncompress JRE
+
+# ----------------------------------
+- name : Prepare single shell script
+  from :
+  - (get): output
+  - (get): oafVersion
+  to   :
+  - (run           ): ojob.io/unix/genSelfExtract
+    ((args        )):
+      path   : "{{output}}"
+      file   : oaf
+      setup  : "$0"
+      tmppath: "/tmp/_oaf_{{dist}}_{{oafVersion}}"
+    ((debug       )): false
+    ((usePM       )): false
+    ((templateArgs)): true
