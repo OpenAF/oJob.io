@@ -115,6 +115,7 @@ jobs:
   - (template  ): *TMPL
     ((key     )): args
     ((out     )): out
+    ((outPath )): output
   - (output    ): out
     ((path    )): output
     ((format  )): human
