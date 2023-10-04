@@ -69,7 +69,7 @@ jobs:
       listFilesRecursive(args.path, true).filter(r => r.isFile).forEach(f => {
         var is = io.readFileStream(f.canonicalPath)
         log(" packing " + f.filepath)
-        fn(f.filepath.replace(args.path, ""), is, f)
+        fn(f.filepath.replace(args.path + "/", ""), is, f)
         is.close()
       })
     })
