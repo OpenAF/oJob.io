@@ -277,11 +277,11 @@ jobs:
     text: |
       #!/bin/sh
       #docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients
-      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
+      oaf -c 'ansiStart();print(printTable($sh("docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __con.getTerminal().getWidth(), true))'
     winText: |
       @echo off
       #docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients
-      oaf -c 'print(printTable($sh("docker run -v /etc/openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __, true))'
+      oaf -c 'ansiStart();print(printTable($sh("docker run -v openvpn:/etc/openvpn --log-driver=none --rm {{init.img}} ovpn_listclients").get(0).stdout.split("\n").filter((r,i)=> i!=0&&r.length>0).map(r=>{var [n,b,e,s]=r.split(",");return {name:n,begin:b,end:e,status:s}}), __con.getTerminal().getWidth(), true))'
 
 # -----------------------------
 - name: Generate destroy script
