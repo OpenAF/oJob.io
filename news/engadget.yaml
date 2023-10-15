@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves Engadget RSS
+
+todo:
+- Engadget 
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# --------------
+- name: Engadget 
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://www.engadget.com/rss.xml
