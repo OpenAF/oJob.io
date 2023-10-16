@@ -1,0 +1,49 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a bash download single command line
+  expects: 
+  - name     : url
+    desc     : The URL to download
+    example  : http://some.url:1234/a/path
+    mandatory: true  
+  - name     : target
+    desc     : The filepath to save the downloaded file
+    example  : myfile
+    mandatory: false
+
+todo:
+- Generate bash download cli
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------------------
+- name : Generate bash download cli
+  check:
+    in:
+      url   : isString
+      target: isString.default(__)
+  exec : |
+    ow.loadNet()
+    if (ow.net.isURL(args.url)) {
+      if (args.url.toLowerCase().startsWith("https://")) {
+        throw "Bash won't be able to download a https URL."
+      }
+      var [ host, port ] = ow.net.host4URL(args.url).split(":")
+      var uri = ow.net.path4URL(args.url)
+      if (isUnDef(args.target)) args.target = uri.substring(uri.lastIndexOf("/") + 1)
+
+      tprint("/bin/bash -c \"exec 3<>/dev/tcp/{{host}}/{{port}} && echo -e \\\"GET {{uri}} HTTP/1.1\\nHost: {{host}}\\nUser-Agent: curl\\nConnection: close\\n\\n\\\" >&3 && cat <&3\" | sed '1,/connection: close/d' | tail -n +2 > {{target}}", {
+        host  : host,
+        port  : port,
+        uri   : uri,
+        target: args.target
+      })
+    } else {
+      tlogErr("URL '{{url}}' not recognized.", args)
+    }
