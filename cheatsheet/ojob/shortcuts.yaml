@@ -421,7 +421,7 @@ todo:
     Expects:
 
       * **(query)** : The query map for ow.obj.filter or af.fromNLinq
-      * **((type))**: The type of query to perform (e.g. path, ow.obj.filter, af.fromNLinq)
+      * **((type))**: The type of query to perform (e.g. path, sql, nlinq map)
       * **((from))**: The path to the args key to perform the query
       * **((to))**  : The path to where the results should be stores
       * **((key))** : If ((from)) and ((to)) not provided defaults to $get/$set on the provided key
