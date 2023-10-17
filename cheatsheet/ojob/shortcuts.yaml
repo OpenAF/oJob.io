@@ -59,13 +59,13 @@ todo:
 
     Expects:
 
-      * **(if)**     : An OpenAF code condition with templating functionality (example: "{{abc}} == 123")
+      * **(if)**     : An OpenAF code condition with templating functionality (example: "\{{abc}} == 123")
       * **((then))** : One job or a list of jobs to execute if the "condition" is true
       * **((else))** : One job or a list of jobs to execute if the "condition" is false
       * **((debug))**: Boolean to indicate if should log the original condition and the parsed condition for debug proposes
 
     ```yaml 
-    - (if     ): "'{{stuff}}' == 'something'"
+    - (if     ): "'\{{stuff}}' == 'something'"
       ((then )):
       - Do something
       ((else )):
@@ -249,7 +249,7 @@ todo:
 
     ```yaml 
     - (pass   ):
-        test: "{{value}}"
+        test: "\{{value}}"
       ((debug)): true
 
     ```
@@ -563,7 +563,7 @@ todo:
             Hello |name|, how are you doing?
 
             |name| is great!
-      - (print      ): "{{output}}"
+      - (print      ): "\{{output}}"
         ((key      )): args
     
     todo:
@@ -615,9 +615,9 @@ todo:
     ```yaml 
     todo:
     - (template): |
-        {{#each lst}}
-        -> {{{this}}}
-        {{/each}}
+        \{{#each lst}}
+        -> \{{{this}}}
+        \{{/each}}
       ((out   )): output
       ((data  )):
         name: test
@@ -802,8 +802,8 @@ todo:
       to  :
       - (pass   ):
           clocks:
-          - host: "{{hostname}}"
-            date: "{{date}}"
+          - host: "\{{hostname}}"
+            date: "\{{date}}"
       - (output ): args
         ((path )): clocks
       lang: ssh
