@@ -1,0 +1,110 @@
+# Author: Nuno Aguiar
+help:
+  text   : Interacts with OpenAI API to access GPT like models.
+  expects: 
+  - name     : op
+    desc     : The operation to perform (e.g. listmodels, chat)
+    example  : list
+    mandatory: true
+  - name     : apiToken
+    desc     : The OpenAI API token to use (you can use secKey to provide the token)
+    example  : sk-1234567890
+    mandatory: false
+  - name     : timeout
+    desc     : The timeout to use for the API calls (defaults to 5 minutes)
+    example  : 300000
+    mandatory: false
+  - name     : chat
+    desc     : The text to chat with the model
+    example  : Hello, I am a human
+    mandatory: false
+  - name     : model
+    desc     : The model to use (defaults to gpt-3.5-turbo)
+    example  : gpt-3.5-turbo
+    mandatory: false
+  - name     : temperature
+    desc     : The temperature to use (defaults to 0.7)
+    example  : 0.7
+    mandatory: false
+  - name     : persona
+    desc     : Text describing the persona to use 
+    example  : Always answer with a markdown table
+    mandatory: false
+  - name     : useMD
+    desc     : If true, the output will be in Markdown format
+    example  : "true"
+    mandatory: false
+
+todo:
+- (optionOn   ): op
+  ((lowerCase)): true
+  ((todos    )):
+    listmodels: 
+    - List OpenAI models
+    chat      :
+    - Chat with OpenAI
+  ((default   )):
+  - Chat with OpenAI
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  - OpenAI
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - openai.js   
+
+jobs:
+# ------------------------
+- name : Connect to OpenAI
+  from :    
+  - ojob sec get
+  args :
+    secIgnore: true
+  check:
+    in:
+      timeout  : toNumber.isNumber.default(__)
+  exec : |
+    args.oai = new OpenAI(args.apiToken, args.timeout)
+
+# -----------------------
+- name : Chat with OpenAI
+  from :
+  - Connect to OpenAI
+  check:
+    in:
+      chat       : isString
+      model      : isString.default(__)
+      temperature: toNumber.isNumber.default(__)
+      useMD      : toBoolean.isBoolean.default(false)
+      persona    : isString.default(__)
+  exec : |
+    var data
+
+    if (isUnDef(args.persona) && args.useMD) {
+      args.persona = "always answer in markdown"
+    }
+
+    if (isDef(args.persona)) {
+      args.chat = [ { role: "user", content: args.chat } ]
+      args.chat.unshift({ role: "system", content: args.persona })
+    }
+
+    if (args.useMD) {
+      data = args.oai.chatGPT(args.chat, args.model, args.temperature) + "\n"
+      data = data.replace(/\n+$/, "\n")
+      print(ow.format.withMD(data))
+    } else {
+      data = args.oai.jsonChatGPT(args.chat, args.model, args.temperature)
+      ow.oJob.output(data, args)
+    }
+
+# -------------------------
+- name : List OpenAI models
+  from :     
+  - Connect to OpenAI
+  exec : |
+    var data = args.oai.getModels()
+    if (isDef(data.data)) data = data.data
+    ow.oJob.output(data, args)
