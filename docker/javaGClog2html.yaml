@@ -1,0 +1,51 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Opens an openaf container running Azul GC Log Analyzer and outputs to a HTML folder
+  expects: 
+  - name     : log
+    desc     : The Java GC log file to analyze
+    example  : some/path/gc.log
+    mandatory: true
+  - name     : output
+    desc     : The output folder to generate the HTML files
+    example  : some/path/output
+    mandatory: true
+
+include:
+- ojob.io/docker/_common
+
+todo:
+- Check for docker
+- Deploy container
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  catch       : logErr(exception);
+  logToConsole: true   # to change when finished
+
+jobs:
+# -----------------------
+- name : Deploy container 
+  check:
+    in:
+      log   : isString
+      output: isString
+  deps :
+  - Check for docker
+  exec : |
+    var cmds = ["docker", "run", "--rm", "-ti"]
+
+    args.log = io.fileInfo(args.log).canonicalPath
+
+    cmds.push("-v")
+    cmds.push(args.log.substring(0, args.log.lastIndexOf("/")) + ':/input')
+
+    cmds.push("-v")
+    io.mkdir(args.output)
+    cmds.push(io.fileInfo(args.output).canonicalPath + ':/output')
+
+    var cmd = '$sh(\"wget https://cdn.azul.com/gcla/GCLogAnalyzer2.jar && sudo java -jar GCLogAnalyzer2.jar --generate-html /output \\\"/input/' + args.log.substring(args.log.lastIndexOf("/") + 1) + '\\\"\").exec()'
+    cmds = cmds.concat(["openaf/oaf", "-c", cmd])
+
+    $sh(cmds).exec()
