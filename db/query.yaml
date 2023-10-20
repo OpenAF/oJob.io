@@ -1,0 +1,80 @@
+# Author: Nuno Aguiar
+help:
+  text   : Queries data on a JDBC database.
+  expects: 
+  - name     : jdbc
+    desc     : The database JDBC URL to use (defaults to create a memory database)
+    example  : "jdbc:h2:stuff"
+    mandatory: false
+  - name     : class
+    desc     : The JDBC driver class to use (defaults to H2)
+    example  : "org.h2.Driver"
+    mandatory: false
+  - name     : user
+    desc     : The database user to use (defaults to "sa")
+    example  : "sa"
+    mandatory: false
+  - name     : pass
+    desc     : The database password to use (defaults to "sa")
+    example  : "sa"
+    mandatory: false
+  - name     : sql
+    desc     : The SQL query to execute over the database defined.
+    example  : "select count(*) cnt from data"
+    mandatory: true
+
+todo:
+- Query data
+
+ojob:
+  opacks      :
+  - openaf: 20231020
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------------
+- name : Connect to database
+  check:
+    in:
+      type      : isString.oneOf(["ndjson", "json", "yaml", "slon", "csv", "xml"]).default("ndjson")
+      jdbc      : isString.default("jdbc:h2:mem:data")
+      class     : isString.default(__)
+      user      : isString.default("sa")
+      pass      : isString.default("sa")
+  exec : |
+    // Access database
+    if (isDef(args.class)) {
+      args.db = new DB(args.class, args.jdbc, args.user, args.pass)
+    } else {
+      args.db = new DB(args.jdbc, args.user, args.pass)
+    }
+
+# ---------------------
+- name : Close database
+  exec : |
+    args.db.close()
+
+# -----------------
+- name : Query data
+  from : Connect to database
+  to   : Close database
+  check:
+    in:
+      sql: isString
+  exec : |
+    try {
+      var _r = args.db.q(args.sql)
+      if (isDef(_r) && isDef(_r.results)) {
+        traverse(_r.results, (aK, aV, aP, aO) => {
+          if (aV == "TRUE" || aV == "FALSE") aO[aK] = Boolean(aV.toLowerCase())
+        })
+        ow.oJob.output(_r.results, args)
+      } else {
+        ow.oJob.output([], args)
+      }
+      
+    } catch(ee) {
+      logErr("Can't query data: " + ee)
+    }

@@ -1,0 +1,225 @@
+# Author: Nuno Aguiar
+help:
+  text   : Ingests data from a file or stdin, stores it on a database (in memory or not) and queries it.
+  expects: 
+  - name     : file
+    desc     : The file to be ingested
+    example  : /a/file.ndjson
+    mandatory: false
+  - name     : type
+    desc     : The type of data to be ingested through stdin between ndjson, json, yaml, slon, csv, xml (defaults to ndjson)
+    example  : ndjson
+    mandatory: false
+  - name     : jdbc
+    desc     : The database JDBC URL to use (defaults to create a memory database)
+    example  : "jdbc:h2:stuff"
+    mandatory: false
+  - name     : class
+    desc     : The JDBC driver class to use (defaults to H2)
+    example  : "org.h2.Driver"
+    mandatory: false
+  - name     : user
+    desc     : The database user to use (defaults to "sa")
+    example  : "sa"
+    mandatory: false
+  - name     : pass
+    desc     : The database password to use (defaults to "sa")
+    example  : "sa"
+    mandatory: false
+  - name     : table
+    desc     : The table name to use (defaults to "data")
+    example  : "data"
+    mandatory: false
+  - name     : sql
+    desc     : The SQL query to execute over the database defined.
+    example  : "select count(*) cnt from data"
+    mandatory: false
+  - name     : dontcreate
+    desc     : If true, the table will not be created if it doesn't exist
+    example  : "true"
+    mandatory: false
+
+todo:
+- Ingest and query data
+
+ojob:
+  opacks      :
+  - openaf: 20231020
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------------
+- name : Connect to database
+  check:
+    in:
+      type      : isString.oneOf(["ndjson", "json", "yaml", "slon", "csv", "xml"]).default("ndjson")
+      jdbc      : isString.default("jdbc:h2:mem:data")
+      class     : isString.default(__)
+      user      : isString.default("sa")
+      pass      : isString.default("sa")
+  exec : |
+    // Access database
+    if (isDef(args.class)) {
+      args.db = new DB(args.class, args.jdbc, args.user, args.pass)
+    } else {
+      args.db = new DB(args.jdbc, args.user, args.pass)
+    }
+
+# ---------------------
+- name : Close database
+  exec : |
+    args.db.close()
+
+- name : Create table Function
+  check:
+    in:
+      table     : isString.default("DATA")
+      dontcreate: toBoolean.isBoolean.default(false)
+  exec : |
+    // Function to create the table
+    args.fnCreate = data => {
+      if (!args.dontcreate) {
+        try {
+          args.db.u(ow.obj.fromObj2DBTableCreate(args.table, data[0], __, true))
+          args.db.commit()
+        } catch(edc) {
+          tlogErr("Can't create the table '{{table}}': " + edc, args)
+          args.db.rollback()
+        }
+      }
+    }
+
+# -----------------
+- name : Query data
+  check:
+    in:
+      sql: isString.default(__)
+  exec : |
+    if (isDef(args.sql))
+      try {
+        var _r = args.db.q(args.sql)
+        traverse(_r.results, (aK, aV, aP, aO) => {
+          if (aV == "TRUE" || aV == "FALSE") aO[aK] = Boolean(aV.toLowerCase())
+        })
+        ow.oJob.output(_r, args)
+      } catch(ee) {
+        logErr("Can't query data: " + ee)
+      }
+
+# ----------------------------
+- name : Ingest and query data
+  from :
+  - Connect to database
+  - Create table Function
+  to   :
+  - Query data
+  - Close database
+  check:
+    in:
+      file      : isString.default(__)
+      type      : isString.oneOf(["ndjson", "json", "yaml", "slon", "csv", "xml"]).default("ndjson")
+      jdbc      : isString.default("jdbc:h2:mem:data")
+      table     : isString.default("DATA")
+      sql       : isString.default(__)
+      dontcreate: toBoolean.isBoolean.default(false)
+      class     : isString.default(__)
+      user      : isString.default("sa")
+      pass      : isString.default("sa")
+  exec : |
+    var _c = 0, _e = 0
+
+    if (isDef(args.file)) {
+      if (args.type != "ndjson") {
+        var data
+
+        switch(args.type) {
+        case "slon": data = af.fromSlon(io.readFileString(args.file)); break
+        case "csv" : data = $csv().fromInFile(args.file).toOutArray(); break
+        case "xml" : data = af.fromXML(io.readFileString(args.file)); break
+        case "yaml": data = io.readFileYAML(args.file); break
+        case "json": data = io.readFileJSON(args.file); break
+        }
+
+        if (isMap(data) && isDef(data._list)) data = data._list
+        if (isArray(data)) {
+          try {
+            args.fnCreate(data)
+            _c = ow.obj.fromArray2DB(data, args.db, args.table, __, true)
+            if (isUnDef(args.sql)) log("Ingested #" + _c + " records")
+            args.db.commit()
+          } catch(ee) {
+            logErr("Can't ingest data: " + ee)
+            args.db.rollback()
+          }
+        } else {
+          logErr("No list/array found in the data")
+        }
+      } else {
+        var is = io.readFileStream(args.file)
+
+        args.db.setAutoCommit(true)
+        ioStreamReadLines(is, line => {
+          var _d = jsonParse(line, true)
+          try {
+            print("--")
+            if (_c == 0) args.fnCreate([ _d ])
+            ow.obj.fromArray2DB([ _d ], args.db, args.table, __, true)
+            _c++
+          } catch(ee) {
+            _e++
+            logErr("Can't ingest data (#" + _c + "): " + ee)
+          }
+        })
+        is.close()
+        args.db.commit()
+        if (isUnDef(args.sql)) log("Ingested #" + _c + " records")
+      }
+    } else {
+      var data = ""
+      
+      if (args.type != "ndjson") args.db.setAutoCommit(true)
+      io.pipeLn(line => {
+        if (args.type != "ndjson") {
+          data += line.trim() + " "
+        } else {
+          var _d = jsonParse(line, true)
+          try {
+            if (_c == 0) args.fnCreate([ _d ])
+            ow.obj.fromArray2DB([ _d ], args.db, args.table, __, true)
+            _c++
+          } catch(ee) {
+            _e++
+            logErr("Can't ingest data (#" + _c + "): " + ee)
+          }
+        }
+      })
+
+      if (args.type != "ndjson") {
+        switch(args.type) {
+        case "slon": data = af.fromSlon(data); break
+        case "csv" : data = $csv().fromInString(data).toOutArray(); break
+        case "xml" : data = af.fromXML(data); break
+        case "yaml": data = af.fromYAML(data); break
+        case "json": data = jsonParse(data, true); break
+        }
+
+        if (isMap(data) && isDef(data._list)) data = data._list
+        if (isArray(data)) {
+          try {
+            args.fnCreate(data)
+            _c = ow.obj.fromArray2DB(data, args.db, args.table, __, true)
+            if (isUnDef(args.sql)) log("Ingested #" + _c + " records")
+          } catch(ee) {
+            logErr("Can't ingest data: " + ee)
+            args.db.rollback()
+          }
+        } else {
+          logErr("No list/array found in the data")
+        }
+      }
+
+      args.db.commit()
+      if (isUnDef(args.sql)) log("Ingested #" + _c + " records")
+    }
