@@ -6,6 +6,12 @@ ARCH=${ARCH:-`uname -m`}
 SYST=${SYST:-`uname -s`}
 DIST=${DIST:-}
 
+if [ ! -e /bin/bash ]
+then
+  echo bash is needed to run this script
+  exit 1
+fi
+
 parseURL() {
     # Parse protocol
     proto=$(echo $url | grep :// | sed -e's,^\(.*://\).*,\1,g')
