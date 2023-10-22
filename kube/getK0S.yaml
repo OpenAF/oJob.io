@@ -1,0 +1,101 @@
+# Author: Nuno Aguiar
+help:
+  text   : Download and installs K0S
+  expects: 
+  - name     : install
+    desc     : Boolean flag to install or not K0S
+    example  : "true"
+    mandatory: false
+
+todo:
+- Download K0S
+- (if    ): "toBoolean({{install}})"
+  ((then)):
+  - Install K0S
+  - Instructions K0S
+  ((else)):
+  - Instructions K0S
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------
+- name : Download K0S
+  lang : shell
+  typeArgs:
+    shellPrefix: k0s
+  exec : |
+    curl -sSLf https://get.k0s.sh | sudo sh
+
+# ------------------
+- name : Install K0S
+  lang : shell
+  exec : |
+    if [ $(id -u) -eq 0 ]; then
+      k0s install controller --enable-worker
+      systemctl start k0scontroller.service
+    else
+      sudo k0s install controller --enable-worker
+      sudo systemctl start k0scontroller.service
+    fi
+
+# -----------------------
+- name : Instructions K0S
+  check:
+    in:
+      install: toBoolean.isBoolean.default(false)
+  to   :
+  - (printmd): |
+      {{#unless install}}# ⬇️  Install K0S
+
+      To install K0S run the command:
+      
+      ```bash
+      k0s install controller --enable-worker
+      systemctl start k0scontroller.service
+
+      ```
+      
+      ---
+      {{/unless}}
+      # 🚀 Run Kubectl
+
+      To run Kubectl, you need to export the Kubeconfig file:
+
+      ```bash
+      mkdir ~/.kube
+      k0s kubeconfig admin > ~/.kube/config
+      kubectl get nodes
+
+      ```
+
+      To install Kubectl run the command:
+
+      ```bash
+      ojob ojob.io/kube/getKubectl path=/usr/bin
+
+      ```
+
+      ---
+
+      # ❌ Uninstall K0S
+
+      First stop the controller service and the reset k0s:
+
+      ```bash
+      k0s stop
+      k0s reset
+
+      ```
+
+      Then remove the k0s binary and remove the k0s configuration directory:
+
+      ```bash
+      rm -rf /usr/local/bin/k0s
+
+      ```
