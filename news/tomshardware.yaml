@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves Tom's Hardware RSS
+
+todo:
+- Tom's Hardware
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# --------------------
+- name: Tom's Hardware
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://www.tomshardware.com/feeds/all
