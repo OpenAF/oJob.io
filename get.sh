@@ -60,7 +60,7 @@ help() {
   echo 
   echo "To auto-complete 'ojob ojob.io' in bash just execute:"
   echo 
-  echo "   export PATH=$IPATH:\$PATH && . $IPATH/autoComplete.sh"
+  echo "   export PATH=$(realpath $IPATH):\$PATH && . $IPATH/autoComplete.sh"
   echo 
   echo --------------------------------------
 }
