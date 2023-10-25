@@ -6,26 +6,31 @@ help:
     desc     : The user name to create
     example  : example
     mandatory: true
+  - name     : group
+    desc     : The optional group name to add the user to
+    example  : group
+    mandatory: false
 
 todo:
 - Create user
 
 ojob:
   opacks      :
-  - openaf: 20211229
-  catch       : logErr(exception)
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
         
 
 jobs:
-# ------------------
-- name : Create user
-  check:
+# ---------------------
+- name    : Create user
+  check   :
     in:
-      user: isString
-  lang : shell
-  exec : |
-    sudo adduser {{user}}
+      user : isString
+      group: isString.default(__)
+  lang    : shell
+  exec    : |
+    sudo adduser {{user}}{{#if group}} -g {{group}}{{/if}}
     sudo mkdir /home/{{user}}/.ssh
     sudo chmod 700 /home/{{user}}/.ssh
     sudo touch /home/{{user}}/.ssh/authorized_keys
