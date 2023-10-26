@@ -6,8 +6,9 @@ ARCH=${ARCH:-`uname -m`}
 SYST=${SYST:-`uname -s`}
 MUSL=${MUSL:-`cat /etc/*-release | grep -q "Alpine" && echo 'alpine'`}
 DIST=${DIST:-}
+BASH=${BASH:-/bin/bash}
 
-if [ ! -e /bin/bash ]
+if [ ! -e $BASH ]
 then
   echo bash is needed to run this script
   exit 1
@@ -52,7 +53,7 @@ downloadURL() {
     parseURL
 
     echo "Downloading from '$proto$url' to '$output'..."
-    /bin/bash -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > $output
+    $BASH -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > $output
     sed -i '1,/connection: close/d' $output
     tail -n +2 $output > $output.temp
     mv $output.temp $output
@@ -118,4 +119,8 @@ downloadURL
 chmod u+x oaf-$TARCH
 ./oaf-$TARCH
 
+if [ $? -ne 0 ]; then
+  echo "ERROR: oaf-$TARCH failed to run."
+  exit 1
+fi
 help
