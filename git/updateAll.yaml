@@ -22,6 +22,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20220325
+  - plugin-GIT
   catch       : &CATCH printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
 

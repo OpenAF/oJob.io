@@ -20,6 +20,7 @@ ojob:
   async       : true
   opacks      :
   - openaf: 20220822
+  - plugin-GIT
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
         
