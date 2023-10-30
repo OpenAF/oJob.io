@@ -1,0 +1,53 @@
+# Author: Nuno Aguiar
+help:
+  text   : Updates a DNS entry of AWS Route 53 
+  expects: 
+  - name     : id
+    desc     : The Route 53 zone id
+    example  : "/hostedzone/Z0879"
+    mandatory: true
+  - name     : rec
+    desc     : The Route 53 zone record to update
+    example  : something.somewhere
+    mandatory: true
+  - name     : value
+    desc     : "The record value to update (you can use templating like {{\\$env 'IP'}})"
+    example  : 1.2.3.4
+    mandatory: true
+  - name     : type
+    desc     : The record type (defaults to 'A')
+    example  : 'A'
+    mandatory: false
+  - name     : ttl
+    desc     : The record TTL in seconds (defaults to 300)
+    example  : 300
+    mandatory: false
+
+todo:
+- Update Route 53 entry
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  - AWS
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - aws.js
+
+jobs:
+# ----------------------------
+- name : Update Route 53 entry
+  check:
+    in:
+      id   : isString
+      rec  : isString
+      value: isString
+      type : isString.default("A")
+      ttl  : toNumber.isNumber.default(300)
+  exec : |
+    var aws = new AWS()
+    args.value = $t(args.value, args)
+    var res = aws.ROUTE53_setRecord(args.id, args.rec, args.type, args.value, args.ttl)
+
+    ow.oJob.output({ id: args.id, rec: args.rec, value: args.value, type: args.type, ttl: args.ttl, response: res }, args)
