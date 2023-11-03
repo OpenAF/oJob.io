@@ -75,7 +75,22 @@ jobs:
       })
       return m
     }
-    $ch("data").set({ node: args.node }, $from(res.pods.map(r => merge({ node: args.node, name: r.podRef.name }, isDef(r["ephemeral-storage"]) ? _p(r["ephemeral-storage"]) : { time: "", availableBytes: "", capacityBytes: "", usedBytes: "", inodesFree: "", inodes: "", inodesUsed: "" } )) ).sort("usedBytes").select())
+
+    $ch("data").set({ 
+      node: args.node 
+    }, $from(res.pods.map(r => merge({ 
+      node: args.node, 
+      name: r.podRef.name,
+      ns: r.podRef.namespace
+    }, isDef(r["ephemeral-storage"]) ? _p(r["ephemeral-storage"]) : { 
+      time: "", 
+      availableBytes: "", 
+      capacityBytes: "", 
+      usedBytes: "", 
+      inodesFree: "", 
+      inodes: "", 
+      inodesUsed: "" 
+    } )) ).sort("usedBytes").select())
 
 # ----------------------------------
 - name : Get nodes ephemeral storage
