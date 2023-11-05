@@ -1,18 +1,25 @@
 ojob:
   opacks      :
-  - openaf: 20211229
+  - openaf: 20230325
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
 
 jobs:
-- name: Show grid
-  exec: |
+# ----------------
+- name : Show grid
+  check:
+    in:
+      initJob: isString.default(__)
+      doneJob: isString.default(__)
+  exec : |
+    if (isDef(args.initJob)) $job(args.initJob, args)
+
     ow.loadFormat()
     var results = []
     global.fn = () => global.args.init.elems.map(l => l.map((c,i) => {
       var rr = clone(c)
       var r = $tb(() => {
-                if (rr.type != "func") try { rr.obj = af.eval(rr.obj) } catch(e) { rr.obj = e }
+                if (rr.type != "func") try { rr.obj = af.eval(rr.obj) } catch(e) { rr.type = "text"; rr.obj = String(e) }
               })
               .timeout(args.init.interval)
               .exec()
@@ -22,3 +29,4 @@ jobs:
     cls()
     watch(args.init.interval, 'ow.format.string.grid(global.fn(), __, __, " ", false)', false, false)
     cls()
+    if (isDef(args.doneJob)) $job(args.doneJob, args)
