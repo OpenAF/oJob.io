@@ -1,0 +1,151 @@
+init:
+  interval: 1000
+  elems:
+  - - title: Node info
+      type : tree
+      obj: |
+        (() => {
+          try {
+            var data = $cache("data").get(0)
+            var node = $cache("node").get(0)
+            return { 
+              node      : args.node,
+              start     : data.node.systemContainers[0].startTime,
+              kubeletVer: node.nodeInfo.kubeletVersion,
+              ip        : $from(node.addresses).equals("type", "InternalIP").at(0).address,
+              cpus      : $from(node.capacity).equals("key", "cpu").at(0).value.amount,
+              memory    : $from(node.capacity).equals("key", "memory").select(r => ({ r: ow.format.toBytesAbbreviation(ow.format.fromBytesAbbreviation(r.value.amount + " " + r.value.format)) }))[0].r,
+              ephemeral : $from(node.capacity).equals("key", "ephemeral-storage").select(r => ({ r: ow.format.toBytesAbbreviation(ow.format.fromBytesAbbreviation(r.value.amount + " " + r.value.format)) }))[0].r
+            }
+          } catch(e) {
+            return {}
+          }
+        })()
+    - title: Conditions
+      type : table
+      obj: |
+        (() => {
+          try {
+            var node = $cache("node").get(0)
+            return node.conditions.map(r => ({type: r.type, status: toBoolean(r.status), modified: r.lastTransitionTime }))
+          } catch(e) {
+            return {}
+          }
+        })()
+    - title: Stats
+      type : tree
+      obj  : |
+        (() => {
+          try {
+            var data = $cache("data").get(0)
+            var node = $cache("node").get(0)
+            return { 
+              maxPods   : $from(node.capacity).equals("key", "pods").at(0).value.amount,
+              numPods   : data.pods.length,
+              maxpid    : data.node.rlimit.maxpid,
+              numProcs  : data.node.rlimit.curproc
+            }
+          } catch(e) {
+            return {}
+          }
+        })()
+  - - title: Memory
+      type : tree
+      obj: |
+        (() => {
+          try {
+            var data = $cache("data").get(0)
+            return { 
+              available  : ow.format.toBytesAbbreviation(data.node.memory.availableBytes),
+              usage      : ow.format.toBytesAbbreviation(data.node.memory.usageBytes),
+              workingSet : ow.format.toBytesAbbreviation(data.node.memory.workingSetBytes),
+              rssBytes   : ow.format.toBytesAbbreviation(data.node.memory.rssBytes),
+              pageFlts   : ow.format.toAbbreviation(data.node.memory.pageFaults),
+              mjrPageFlts: ow.format.toAbbreviation(data.node.memory.majorPageFaults)
+            }
+          } catch(e) {
+            return {}
+          }
+        })()
+    - title: Memory chart
+      type : chart
+      xspan: 3
+      obj  : |
+        (() => "mem bytes memUsage:blue:used memCapacity:red:capacity -min:0")()
+  - - title: Filesystem
+      type : tree
+      obj  : |
+        (() => {
+          try {
+            var data = $cache("data").get(0)
+            return {
+              available : ow.format.toBytesAbbreviation(data.node.fs.availableBytes),
+              capacity  : ow.format.toBytesAbbreviation(data.node.fs.capacityBytes),
+              used      : ow.format.toBytesAbbreviation(data.node.fs.usedBytes),
+              inodesFree: ow.format.toAbbreviation(data.node.fs.inodesFree),
+              inodes    : ow.format.toAbbreviation(data.node.fs.inodes),
+              inodesUsed: ow.format.toAbbreviation(data.node.fs.inodesUsed)
+            }
+          } catch(e) {
+            return {}
+          }
+        })()
+    - title: Filesystem chart
+      type : chart
+      xspan: 3
+      obj  : |
+        (() => "fs bytes fsUsage:blue:used fsCapacity:red:capacity -min:0")()
+
+todo:
+- Init
+- name: Show grid
+  args:
+    doneJob: Done
+
+ojob:
+  opacks:
+  - openaf: 20231014
+  - Kube
+  catch: printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception); exit(1, true)
+  logToConsole: false
+  loadLibs:
+  - kube.js
+
+jobsInclude:
+- /workspace/ojob.io/grid/show.yaml
+
+jobs:
+- name : Done
+  exec : |
+    global.kube.close()
+
+- name : Init
+  check:
+    in:
+      node: isString.default(__)
+  exec : |
+    if (isUnDef(args.node)) exit(1, true)
+
+    global.kube = new Kube()
+
+    $cache("data")
+    .ttl(1000)
+    .fn(() => {
+      if (isUnDef(args.node)) return {}
+      return global.kube.getNodeMetrics(args.node)
+    })
+    .create()
+
+    $cache("node")
+    .ttl(1000)
+    .fn(() => {
+      if (isUnDef(args.node)) return {}
+      return global.kube.getNode(args.node).status
+    })
+    .create()
+
+    global.memUsage = () => $cache("data").get(0).node.memory.usageBytes
+    global.memCapacity = () => $from( $cache("node").get(0).capacity ).equals("key", "memory").select(r => ({ r: ow.format.fromBytesAbbreviation(r.value.amount + " " + r.value.format) }))[0].r
+
+    global.fsUsage = () => $cache("data").get(0).node.fs.usedBytes
+    global.fsCapacity = () => $cache("data").get(0).node.fs.capacityBytes
