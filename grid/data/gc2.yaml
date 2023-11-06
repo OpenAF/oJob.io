@@ -121,13 +121,18 @@ init:
         var o = $cache("data").get(0).sun.gc.generation;
         var r = { max: 0, total: 0, used: 0, free: 0 };
         $from(o).select(gen => {
-            $from(gen.space).select(space => {
+          $from(gen.space).select(space => {
             r.max   = (r.max < Number(space.maxCapacity)) ? Number(space.maxCapacity) : r.max
             r.used  = r.used + Number(space.used)
             r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
           })
         })
-        return ow.format.string.chart("heap_used", r.used, my-1, mx-3)
+        if (isUnDef(ow.format.string.dataLineChart)) {
+          return ow.format.string.chart("heap_used", r.used, my-1, mx-3)
+        } else {
+          //return ow.format.string.dataLineChart("heap_used",[r.used,r.total],my-10,mx-3,{format:v=>ow.format.toBytesAbbreviation(v),colors:['blue','red']})
+          return ow.format.string.dataLineChart("heap_used",[r.used,r.total],my,mx-3,{format:v=>ow.format.toBytesAbbreviation(v),colors:['blue','red'],dColor:'BG(235)'})
+        }
         
 todo:
 - Init

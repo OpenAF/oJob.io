@@ -1,0 +1,263 @@
+init:
+  interval: 1000
+  elems:
+  - - title: Pod info
+      type : tree
+      obj: |
+        (() => {
+          try {
+            var pod = $cache("pod").get(0)
+            return { 
+              pod   : args.pod,
+              ns    : pod.metadata.namespace,
+              node  : global.node,
+              start : pod.status.startTime,
+              age   : ow.format.timeago(pod.status.startTime),
+              phase : pod.status.phase,
+              ip    : pod.status.podIP,
+              nodeCPUs: global.valueCvt($from(pod._nodeI.status.capacity).equals("key", "cpu").at(0).value),
+              nodeMem : global.valueCvt($from(pod._nodeI.status.capacity).equals("key", "memory").at(0).value, true, true),
+              nodeEph : global.valueCvt($from(pod._nodeI.status.capacity).equals("key", "ephemeral-storage").at(0).value, true, true),
+
+            }
+          } catch(e) {
+            return {}
+          }
+        })()
+    - title: Conditions
+      type : table
+      obj: |
+        (() => {
+          try {
+            var pod = $cache("pod").get(0)
+            return $from( pod.status.conditions.map(r => ({type: r.type, status: toBoolean(r.status), modified: r.lastTransitionTime })) ).sort("modified").select()
+          } catch(e) {
+            return {}
+          }
+        })()
+    - title : Containers
+      type  : table
+      obj   : |
+        (() => {
+          try {
+            var pod = $cache("pod").get(0)
+            var __r = pod.status.containerStatuses.map(r => {
+              var _c = $from(pod.spec.containers).equals("name", r.name).at(0)
+
+              var _r = {
+                name   : r.name, 
+                restr  : r.restartCount,
+                reqCpu : isDef(_c.resources) && isDef(_c.resources.requests) ? global.valueCvt($from(_c.resources.requests).equals("key", "cpu").at(0).value, false, true) : "n/a",
+                reqMem : isDef(_c.resources) && isDef(_c.resources.requests) ? global.valueCvt($from(_c.resources.requests).equals("key", "memory").at(0).value, true, true) : "n/a",
+                limCpu : isDef(_c.resources) && isDef(_c.resources.limits) ? global.valueCvt($from(_c.resources.limits).equals("key", "cpu").at(0).value, false, true) : "n/a",
+                limMem : isDef(_c.resources) && isDef(_c.resources.limits) ? global.valueCvt($from(_c.resources.limits).equals("key", "memory").at(0).value, true, true) : "n/a"
+              }
+              return _r
+            })
+            return __r
+          } catch(e) {
+            return []
+          }
+        })()
+  - - title: CPU
+      type : tree
+      obj  : |
+        (() => {
+          return getCPU(true)
+        })()
+    - title: CPU chart
+      type : chart
+      xspan: 4
+      obj  : |
+        (() => "cpu dec3 cpuUsage:blue:used cpuReq:green:request cpuLim:red:limit -min:0")()
+  - - title: Memory
+      type : tree
+      obj  : |
+        (() => {
+          return getMem(true)
+        })()
+    - title: Memory chart
+      type : chart
+      xspan: 4
+      obj  : |
+        (() => "mem bytes memUsage:blue:used memReq:green:request memLim:red:limit -min:0")()
+  - - title: Ephemeral storage
+      type : tree
+      obj  : |
+        (() => {
+          return getFS(true)
+        })()
+    - title: Ephemeral storage chart
+      type : chart
+      xspan: 4
+      obj  : |
+        (() => "fs bytes fsUsage:blue:used fsLim:red:limit -min:0")()
+
+todo:
+- Init
+- name: Show grid
+  args:
+    doneJob: Done
+
+ojob:
+  opacks:
+  - openaf: 20231014
+  - Kube
+  catch: printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception); exit(1, true)
+  logToConsole: false
+  loadLibs:
+  - kube.js
+
+jobsInclude:
+- /workspace/ojob.io/grid/show.yaml
+
+jobs:
+- name : Done
+  exec : |
+    global.kube.close()
+
+- name : Init
+  check:
+    in:
+      pod      : isString.default(__)
+      ns       : isString.default(__)
+      container: isString.default(__)
+  exec : |
+    if (isUnDef(args.pod)) exit(1, true)
+
+    log("Initializing access to K8S...")
+    global.kube = new Kube()
+
+    tlog("Retriving list of pods from namespace to determine node running {{pod}}...", args)
+    var _p = $from( global.kube.getPods(args.ns, true).items )
+             .equals("metadata.name", args.pod)
+             .at(0)
+    global.node = _p.spec.nodeName
+    tlog("Pod {{pod}} running on node " + global.node, args)
+    
+    $cache("pod")
+    .ttl(1000)
+    .fn(() => {
+      var pods = global.kube.getPods(args.ns, true)
+      if (isDef(pods) && isArray(pods.items)) {
+        var pod
+        if (isDef(args.ns)) {
+          pod = $from(pods.items).equals("metadata.name", args.pod).equals("metadata.namespace", args.ns).at(0)
+        } else {
+          pod = $from(pods.items).equals("metadata.name", args.pod).at(0)
+        }
+
+        // Define _metrics
+        pod = merge(pod, { _metrics: $from(global.kube.getPodsMetrics(args.ns)).equals("metadata.name", args.pod).at(0) })
+
+        // Define _container
+        if (isDef(args.container)) {
+          pod = merge(pod, { _container: $from(pod._metrics.containers).equals("name", args.container).at(0) })
+        } else {
+          pod = merge(pod, { _container: pod._metrics.containers[0] })
+        }
+
+        // Define _node
+        pod = merge(pod, { _nodeI: global.kube.getNode(global.node) })
+        var gNM = global.kube.getNodeMetrics(global.node)
+        if (isDef(args.ns)) {
+          pod = merge(pod, { _node: $from( gNM.pods ).equals("podRef.name", args.pod).equals("podRef.namespace", args.ns).at(0) })
+          if (isUnDef(args.container)) {
+            pod = merge(pod, { _nodeC: pod._node.containers[0] })
+          } else {
+            pod = merge(pod, { _nodeC: $from( pod._node.containers ).equals("name", args.container).at(0) })
+          }
+        } else {
+          pod = merge(pod, { _node: $from( gNM.pods ).equals("podRef.name", args.pod).at(0) })
+          if (isUnDef(args.container)) {
+            pod = merge(pod, { _nodeC: pod._node.containers[0] })
+          } else {
+            pod = merge(pod, { _nodeC: $from( pod._node.containers ).equals("name", args.container).at(0) })
+          }
+        }
+
+        return pod
+      }
+
+      return __
+    })
+
+    // Get memory usage
+    global.getMem = (shouldCvt) => {
+      var pod = $cache("pod").get(0)
+      var _c = isDef(args.container) ? $from(pod.spec.containers).equals("name", args.container).at(0) : $from(pod.spec.containers).at(0)
+
+      return { 
+        name    : _c.name,
+        usage   : global.valueCvt($from(pod._container.usage).equals("key", "memory").at(0).value, true, shouldCvt),
+        request : isDef(_c.resources) && isDef(_c.resources.requests) ? global.valueCvt($from(_c.resources.requests).equals("key", "memory").at(0).value, true, shouldCvt) : shouldCvt ? "n/a" : __,
+        limit   : isDef(_c.resources) && isDef(_c.resources.limits) ? global.valueCvt($from(_c.resources.limits).equals("key", "memory").at(0).value, true, shouldCvt) : shouldCvt ? "n/a" : __,
+        rss     : global.valueCvt(pod._node.memory.rssBytes, true, shouldCvt),
+        workSet : global.valueCvt(pod._node.memory.workingSetBytes, true, shouldCvt),
+      }
+    }
+
+    global.memUsage = () => global.getMem().usage
+    global.memReq = () => global.getMem().request
+    global.memLim = () => global.getMem().limit
+
+    // Get cpu usage
+    global.getCPU = (shouldCvt) => {
+      var pod = $cache("pod").get(0)
+      var _c = isDef(args.container) ? $from(pod.spec.containers).equals("name", args.container).at(0) : $from(pod.spec.containers).at(0)
+
+      return { 
+        name    : _c.name,
+        usage   : global.valueCvt($from(pod._container.usage).equals("key", "cpu").at(0).value, false, shouldCvt),
+        request : isDef(_c.resources) && isDef(_c.resources.requests) ? global.valueCvt($from(_c.resources.requests).equals("key", "cpu").at(0).value, false, shouldCvt) : shouldCvt ? "n/a" : __,
+        limit   : isDef(_c.resources) && isDef(_c.resources.limits) ? global.valueCvt($from(_c.resources.limits).equals("key", "cpu").at(0).value, false, shouldCvt) : shouldCvt ? "n/a" : __
+      }
+    }
+    global.cpuUsage = () => global.getCPU().usage
+    global.cpuReq = () => global.getCPU().request
+    global.cpuLim = () => global.getCPU().limit
+
+    // Get fs usage
+    global.getFS = (shouldCvt) => {
+      var pod = $cache("pod").get(0)
+      var _c = isDef(args.container) ? $from(pod.spec.containers).equals("name", args.container).at(0) : $from(pod.spec.containers).at(0)
+
+      return { 
+        name      : _c.name,
+        usage     : global.valueCvt(pod._nodeC.rootfs.usedBytes, true, shouldCvt),
+        limit     : global.valueCvt(pod._nodeC.rootfs.capacityBytes, true, shouldCvt),
+        iUsage    : global.valueCvt(pod._nodeC.rootfs.inodesUsed, false, shouldCvt),
+        iLimit    : global.valueCvt(pod._nodeC.rootfs.inodes, false, shouldCvt),
+        logsUsage : global.valueCvt(pod._nodeC.logs.usedBytes, true, shouldCvt),
+        logsLimit : global.valueCvt(pod._nodeC.logs.capacityBytes, true, shouldCvt),
+        iLogsUsage: global.valueCvt(pod._nodeC.logs.inodesUsed, false, shouldCvt),
+        iLogsLimit: global.valueCvt(pod._nodeC.logs.inodes, false, shouldCvt)
+      }
+    }
+
+    global.fsUsage = () => global.getFS().usage
+    global.fsLim = () => global.getFS().limit
+    global.fsiUsage = () => global.getFS().iUsage
+    global.fsiLim = () => global.getFS().iLimit
+
+    // Generic value converter
+    global.valueCvt = (obj, isBytes, cvtValues) => {
+      var _r
+      if (isMap(obj) && isDef(obj.format) && isDef(obj.amount)) {
+        _r = isBytes ? ow.format.fromBytesAbbreviation(obj.amount + " " + obj.format) : ow.format.fromSIAbbreviation(obj.amount + " " + obj.format)
+      } else {
+        if (isString(obj)) {
+          _r = isBytes ? ow.format.fromBytesAbbreviation(obj) : ow.format.fromSIAbbreviation(obj)
+        } else {
+          _r = obj
+        }
+      }
+      if (cvtValues && isNumber(_r)) {
+        _r = isBytes ? ow.format.toBytesAbbreviation(_r) : ow.format.toAbbreviation(_r)
+      }
+      return _r
+    }
+
+    log("Starting...")
+    $cache("pod").get(0)
+    io.writeFileJSON("data.json", $cache("pod").get(0))
