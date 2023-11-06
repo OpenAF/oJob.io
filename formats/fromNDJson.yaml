@@ -1,0 +1,40 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses a NDJson input content
+  expects: 
+  - name     : file
+    desc     : The NDJson file to process (if not defined will default to the stdin)
+    example  : example.ndjson
+    mandatory: false
+
+todo:
+- Parse NDJSON
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------
+- name : Parse NDJSON
+  check:
+    in:
+      file      : isString.default(__)
+  exec : |
+    var _ndjson = []
+
+    if (isDef(args.file)) {
+      io.readLinesNDJSON(args.file, line => {
+        _ndjson.push(line)
+        return false
+      })
+    } else {
+      io.pipeLn(line => {
+        _ndjson.push( jsonParse(line, true, __, true) )
+      })
+    }
+    
+    ow.oJob.output(_ndjson, args)
