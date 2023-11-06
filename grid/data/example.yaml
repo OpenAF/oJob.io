@@ -7,11 +7,11 @@ init:
       obj  : |
         "This is the first cell spanning through 2 rows"
     - title: Cell 1x2
-      type : map
+      type : tree
       obj  : |
         ({ currentTime: new Date(), text: "This is the second cell on the second column on a map" } )
   - - title: Cell 2x1
-      type : map
+      type : tree
       #obj  : This shouldn't be shown and can be commented
     - title: Cell 2x2
       type : table
@@ -23,7 +23,7 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20211229
+  - openaf: 20230325
   catch       : logErr(exception)
   logToConsole: false
 

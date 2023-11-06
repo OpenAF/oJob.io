@@ -2,13 +2,15 @@ init:
   interval: 1000
   elems:
   - - title: Memory
+      type : tree
       obj: |
         $cache("data").get().mem
     - title: CPU
+      type : tree
       obj: |
         $cache("data").get().cpu
     - title: Threads
-      type : map
+      type : tree
       obj  : |
         (() => {
           var o = $cache("data").get().threads
@@ -30,7 +32,7 @@ help:
 
 ojob:
   opacks:
-  - openaf: 20211229
+  - openaf: 20230325
   catch: logErr(exception)
   logToConsole: false
 
