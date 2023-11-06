@@ -116,23 +116,9 @@ init:
                    { item: "meta free",  value: ow.format.toBytesAbbreviation(o.metaspace.capacity - o.metaspace.used), perc: $f("% 3.2f",(100 - ((o.metaspace.used/o.metaspace.capacity)*100))) + "%" }]
         })()
     - title: Memory chart
-      type : func
+      type : chart
       obj  : |
-        var o = $cache("data").get(0).sun.gc.generation;
-        var r = { max: 0, total: 0, used: 0, free: 0 };
-        $from(o).select(gen => {
-          $from(gen.space).select(space => {
-            r.max   = (r.max < Number(space.maxCapacity)) ? Number(space.maxCapacity) : r.max
-            r.used  = r.used + Number(space.used)
-            r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
-          })
-        })
-        if (isUnDef(ow.format.string.dataLineChart)) {
-          return ow.format.string.chart("heap_used", r.used, my-1, mx-3)
-        } else {
-          //return ow.format.string.dataLineChart("heap_used",[r.used,r.total],my-10,mx-3,{format:v=>ow.format.toBytesAbbreviation(v),colors:['blue','red']})
-          return ow.format.string.dataLineChart("heap_used",[r.used,r.total],my,mx-3,{format:v=>ow.format.toBytesAbbreviation(v),colors:['blue','red'],dColor:'BG(235)'})
-        }
+        (() => "mem bytes memUsed:blue:used memTotal:green:total -min:0")()
         
 todo:
 - Init
@@ -157,7 +143,7 @@ help:
 
 ojob:
   opacks:
-  - openaf: 20220822
+  - openaf: 20231105
   catch: logErr(exception)
   logToConsole: false
 
@@ -211,3 +197,20 @@ jobs:
     .create()
 
     $ch("gcLoad").create()
+
+    global.memFn = () => {
+      var o = $cache("data").get(0).sun.gc.generation;
+      var r = { max: 0, total: 0, used: 0, free: 0 };
+      o.forEach(gen => {
+        gen.space.forEach(space => {
+          r.max   = (r.max < Number(space.maxCapacity)) ? Number(space.maxCapacity) : r.max
+          r.used  = r.used + Number(space.used)
+          r.total = isNumber(space.capacity) ? r.total + Number(space.capacity) : r.total
+        })
+      })
+      return r
+    }
+
+    global.memUsed = () => global.memFn().used
+    global.memTotal = () => global.memFn().total
+    global.memMax = () => global.memFn().max
