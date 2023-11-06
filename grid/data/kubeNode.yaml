@@ -112,7 +112,7 @@ ojob:
   - kube.js
 
 jobsInclude:
-- /workspace/ojob.io/grid/show.yaml
+- ttps://ojob.io/grid/show
 
 jobs:
 - name : Done
