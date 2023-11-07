@@ -1,0 +1,105 @@
+# Author: Nuno Aguiar
+help:
+  text   : Sets the necessary labels to enforce or not K8S Pod Security Standards per namespace
+  expects: 
+  - name     : ns
+    desc     : The K8S namespace to enforce or remove labels
+    example  : default
+    mandatory: false
+  - name     : op
+    desc     : The operation to execute (e.g. apply, remove, check). By default it uses 'check'.
+    example  : check
+    mandatory: false
+  - name     : level
+    desc     : The K8S Pod Security Standards level to apply (e.g. restricted, baseline)
+    example  : restricted
+    mandatory: false
+  - name     : action
+    desc     : The K8S Pod Security Standards action (e.g. audit, warn, enforce)
+    example  : enforce
+    mandatory: false
+
+todo:
+- (optionOn ): op
+  ((todos  )):
+    check:
+    - Check K8S PSS namespace
+    apply:
+    - Apply K8S PSS namespace 
+    - Check K8S PSS namespace
+    remove:
+    - Remove K8S PSS namespace 
+    - Check K8S PSS namespace
+  ((default)):
+  - Connect to K8S
+  - Check K8S PSS namespace
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - kube.js
+
+jobs:
+# ---------------------
+- name : Connect to K8S
+  exec : |
+    global.kube = new Kube()
+
+# ---------------------------
+- name : Close K8S connection
+  exec : |
+    global.kube.close()
+
+# ------------------------------
+- name : Apply K8S PSS namespace
+  check:
+    in:
+      ns    : isString.default(__)
+      level : isString.oneOf(["restricted", "baseline"]).default("restricted")
+      action: isString.oneOf(["audit", "warn", "enforce"]).default("enforce")
+  exec : |
+    $sh($t("kubectl label --overwrite ns {{ns}} pod-security.kubernetes.io/{{action}}={{level}}", args)).prefix("kubectl").get()
+
+# -------------------------------
+- name : Remove K8S PSS namespace
+  check:
+    in:
+      ns    : isString.default(__)
+      action: isString.oneOf(["audit", "warn", "enforce"]).default("enforce")
+  exec : |
+    $sh($t("kubectl label --overwrite ns {{ns}} pod-security.kubernetes.io/{{action}}-", args)).prefix("kubectl").get()
+
+
+# ------------------------------
+- name : Check K8S PSS namespace
+  from : Connect to K8S
+  check:
+    in:
+      ns: isString.default(__)
+  to   : Close K8S connection
+  exec : |
+    var lst = global.kube.getNamespaces(true)
+    if (isDef(args.ns)) {
+      // specific namespace
+      lst = $from(lst).equals("Metadata.Name", args.ns).select() 
+    }
+
+    lst.forEach(ns => {
+      if (isMap(ns.Labels)) ns.Labels = [ ns.Labels ]
+    })
+
+    // Check labels
+    var res = lst.map(ns => ({
+      ns     : ns.Metadata.Name,
+      audit  : $from(ns.Labels).equals("Key", "pod-security.kubernetes.io/audit").any() ? $from(ns.Labels).equals("Key", "pod-security.kubernetes.io/audit").select()[0].Value : "-",
+      warn   : $from(ns.Labels).equals("Key", "pod-security.kubernetes.io/warn").any() ? $from(ns.Labels).equals("Key", "pod-security.kubernetes.io/warn").select()[0].Value : "-",
+      enforce: $from(ns.Labels).equals("Key", "pod-security.kubernetes.io/enforce").any() ? $from(ns.Labels).equals("Key", "pod-security.kubernetes.io/enforce").select()[0].Value : "-"
+    }))
+
+    // Print
+    args.__format = _$(args.__format, "__format").isString().default("ctable")
+    ow.oJob.output(res, args)
