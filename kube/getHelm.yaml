@@ -6,6 +6,14 @@ help:
     desc     : If provided instead of running the helm automated installation script it will try to download the helm binary to the provided path
     example  : .
     mandatory: false
+  - name     : os
+    desc     : Force the operating system (e.g. windows, linux, darwin)
+    example  : linux
+    mandatory: false
+  - name     : arch
+    desc     : Force the architecture (e.g. armv5, armv6, armv7, aarch64, x86_64, x86, i686)
+    example  : x86_64
+    mandatory: false    
 
 init:
   url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
@@ -26,10 +34,21 @@ jobs:
   check:
     in:
       path: isString.default(".")
+      os  : isString.default(__)
+      arch: isString.default(__)
   exec : |
     // Check OS and arch
-    var os   = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
-    var arch = $sh("uname -m").get(0).stdout.trim()
+    var os, arch
+    if (isDef(args.os)) {
+      os = args.os
+    } else {
+      os = ow.format.isWindows() ? "windows" : $sh("echo `uname`|tr '[:upper:]' '[:lower:]'").get(0).stdout.trim()
+    }
+    if (isDef(args.arch)) {
+      arch = args.arch
+    } else {
+      arch = $sh("uname -m").get(0).stdout.trim()
+    }
 
     if (arch.startsWith("armv5")) arch = "armv5"
     if (arch.startsWith("armv6")) arch = "armv6"
