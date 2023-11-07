@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Parses a NDJson input content
+  text   : Parses a NDJson input content from a file or stdin
   expects: 
   - name     : file
     desc     : The NDJson file to process (if not defined will default to the stdin)

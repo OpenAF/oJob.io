@@ -1,0 +1,66 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses a __pm content into a series of SQL statements
+  expects: 
+  - name     : table
+    desc     : The table name to use
+    example  : A_TABLE
+    mandatory: false
+  - name     : print
+    desc     : Boolean flag that if 'true' will print the SQL statements
+    example  : 'true'
+    mandatory: false
+
+todo:
+- To SQL
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------
+- name : To SQL
+  check:
+    in:
+      table: isString.default("A_TABLE")
+      print: toBoolean.isBoolean.default(false)
+  exec : |
+    var _sql = []
+
+    ow.loadObj()
+    var out = __pm
+
+    if (isMap(__pm._map)) out = [ __pm._map ]
+    if (isArray(__pm._list)) out = __pm._list
+
+    _sql.push(ow.obj.fromObj2DBTableCreate(args.table, out[0], __, true))
+
+    var okeys, ookeys = Object.keys(ow.obj.flatMap(out[0]))
+    okeys = "\"" + ookeys.join("\", \"") + "\""
+
+    out.forEach(aValue => {
+      var _value = ow.obj.flatMap(aValue)
+      var values = []
+      
+      for (var k in ookeys) {
+        var _v = _value[ookeys[k]]
+        if (isDate(new Date(_v))) _v = new Date(_v)
+        if (isString(_v))  _v = "'" + _v + "'"
+        if (isDate(_v))    _v = "CAST('" + _v.toISOString().replace("T", " ").replace(/\.\d+Z$/, "") + "' AS DATETIME)"
+        if (isBoolean(_v)) _v = _v ? "TRUE" : "FALSE"
+        values.push(_v)g
+      }
+      _sql.push("INSERT INTO " + "\"" + args.table + "\" " + "(" + okeys + ") VALUES (" + values.join(",") + ")")
+    })
+    
+    if (args.print) {
+      _sql.forEach((v) => {
+        print(v)
+      })
+    } else {
+      ow.oJob.output(_sql, args)
+    }
