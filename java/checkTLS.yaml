@@ -1,0 +1,25 @@
+# Author: Nuno Aguiar
+help:
+  text   : Users www.howsmyssl.com to check which ciphers and TLS version is used, by default, by the current JRE.
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Check SSL
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Check SSL
+  exec : |
+    var data = $rest().get("https://www.howsmyssl.com/a/check")
+    ow.oJob.output(data, args)
