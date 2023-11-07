@@ -76,6 +76,7 @@ jobs:
   exec: |
     args.path = _$(args.path, "path").default(".")
 
+    args.os = args.os.toLowerCase()
     if (isDef(args.init.urls[args.os])) {
       var url = templify(args.init.urls[args.os], { version: args.version })
       log("Downloading " + url + "...")
