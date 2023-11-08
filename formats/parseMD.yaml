@@ -1,0 +1,45 @@
+# Author: Nuno Aguiar
+help:
+  text   : Tries to parse, in ascii format, a markdown file or through stdin 
+  expects: 
+  - name     : file
+    desc     : The markdown file to parse
+    example  : file.md
+    mandatory: false
+  - name     : url
+    desc     : The url to parse markdown content (if file is not defined)
+    example  : https://raw.githubusercontent.com/OpenAF/openaf/master/README.md
+    mandatory: false
+
+todo:
+- Parse MD
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------
+- name : Parse MD
+  check:
+    in:
+      file: isString.default(__)
+      url : isString.default(__)
+  exec : |
+    var _md = ""
+    if (isDef(args.file)) {
+      _md = io.readFileString(args.file)
+    } else {
+      if (isDef(args.url)) {
+        _md = $rest().get(args.url)
+      } else {
+        io.pipeLn(line => {
+          _md += line + "\n"
+          return false
+        })
+      }
+    }
+
+    print(ow.format.withMD(_md))
