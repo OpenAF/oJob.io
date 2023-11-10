@@ -6,6 +6,10 @@ help:
     desc     : The NDJson file to process (if not defined will default to the stdin)
     example  : example.ndjson
     mandatory: false
+  - name     : follow
+    desc     : If follow=true will follow the file (if not defined will default to the stdin)
+    example  : "true"
+    mandatory: false
 
 todo:
 - Parse NDJSON
@@ -23,6 +27,7 @@ jobs:
   check:
     in:
       file      : isString.default(__)
+      follow    : toBoolean.isBoolean.default(false)
   exec : |
     var _ndjson = []
 
@@ -33,8 +38,13 @@ jobs:
       })
     } else {
       io.pipeLn(line => {
-        _ndjson.push( jsonParse(line, true, __, true) )
+        if (!args.follow) {
+          _ndjson.push( jsonParse(line, true, __, true) )
+        } else {
+          ow.oJob.output( jsonParse(line, true, __, true), args )
+          if (isDef(args.__format) && args.__format == "yaml") print("\n---\n")
+        }
       })
     }
     
-    ow.oJob.output(_ndjson, args)
+    if (_ndjson.length > 0) ow.oJob.output(_ndjson, args)
