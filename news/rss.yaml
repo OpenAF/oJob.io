@@ -21,7 +21,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20210412
-  catch       : logErr(exception);
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
 
 init:
@@ -45,8 +45,8 @@ jobs:
     
     var rss
     if (args.nodesc) 
-      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), date: isDef(r.date) ? r.date : r.pubDate, link: r.link }))
+      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), date: new Date(isDef(r.date) ? r.date : r.pubDate), link: r.link }))
     else
-      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), description: fn(r.description), date: isDef(r.date) ? r.date : r.pubDate, link: r.link }))
+      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), description: fn(r.description), date: new Date(isDef(r.date) ? r.date : r.pubDate), link: r.link }))
 
     ow.oJob.output(rss, args)
