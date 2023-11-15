@@ -128,7 +128,7 @@ jobs:
     log("Generating openvpn configuration for " + global.url + "...");
     //res = $sh("docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm " + args.init.img + " ovpn_genconfig -N -d -s 10.200.0.0/16 -C 'AES-256-CBC' -a 'SHA384' -u " + global.url).prefix("config").get(0);
     var cmd = "docker run -v " + global.volume + ":/etc/openvpn --log-driver=none --rm " + args.init.img + " ovpn_genconfig ";
-    cmd += "-C 'AES-256-CBC' -a 'SHA384' -b ";
+    cmd += "-C 'AES-256-CBC:AES-256-GCM' -a 'SHA384' -b ";
     if (!toBoolean(args.default)) cmd += "-d ";
     if (toBoolean(args.nat))      cmd += "-N ";
     if (isDef(args.route))        cmd += "-p 'route " + args.route + "' ";
