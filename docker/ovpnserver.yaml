@@ -59,7 +59,7 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20220822
+  - openaf: 20230704
   catch       : |
     logErr(exception)
   logToConsole: true   # to change when finished
@@ -103,6 +103,7 @@ jobs:
     in:
       path: default(".")
       nat : default("true")
+      dns : default(Packages.org.xbill.DNS.ResolverConfig.getCurrentConfig().servers()[0].getAddress().getHostAddress())
   #from:
   #- Build container if ARM
   exec : |
