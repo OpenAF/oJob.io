@@ -22,6 +22,18 @@ help:
     desc     : Number of seconds, positive or negative, to adjust the timefield value if needed.
     example  : 1468800
     mandatory: false
+  - name     : filter
+    desc     : Comma-delimited list of labels to ignore in the resulting openmetrics output
+    example  : "_id,date"
+    mandatory: false
+  - name     : path
+    desc     : A JSON path to assume for each entry
+    example  : values
+    mandatory: false
+  - name     : convertValues
+    desc     : If "true" it will convert the values with units (e.g. 10ms) to numbers
+    example  : "true"
+    mandatory: false
 
 todo:
 - Convert to OpenMetrics
@@ -38,17 +50,61 @@ jobs:
 - name : Parsing function
   check:
     in:
-      prefix    : isString.default(__)
-      timestamp : toBoolean.isBoolean.default(false)
-      timeadjust: toNumber.isNumber.default(0)
-      timefield : isString.default(__)
+      prefix       : isString.default(__)
+      timestamp    : toBoolean.isBoolean.default(false)
+      timeadjust   : toNumber.isNumber.default(0)
+      timefield    : isString.default(__)
+      filter       : isString.default("")
+      path         : isString.default("")
+      convertValues: toBoolean.isBoolean.default(false)
   exec : |
     ow.loadMetrics()
+    var _filterLabels = args.filter.split(",")
+
     global.parseData = function(data) {
       if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
 
       var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
+
+      // If path is defined get specific data
+      data = $$(data).get(args.path)
+
+      // Convert values
+      if (args.convertValues) {
+        traverse(data, (aK, aV, aP, aO) => {
+          // Remove spaces in numbers
+          if (isString(aV) && /([0-9]+ )+/.test(aV)) aO[aK] = aV.replace(/ /g, "") 
+
+          if (isString(aV) && aV.indexOf(":") < 0 && /\d+ *[a-z]+$/i.test(aV)) {
+            var _ar = aV.match(/[a-z]+$/)
+            var _u = _ar[0].toUpperCase()
+            if (['BYTES', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB', 'KIB', 'MIB', 'GIB', 'TIB', 'PIB', 'EIB', 'ZIB', 'YIB', 'KI', 'MI', 'GI', 'TI', 'PI', 'EI', 'ZI', 'YI'].indexOf(_u) >= 0) {
+              // Its a bytes abbreviation
+              aO[aK] = ow.format.fromBytesAbbreviation(aV)
+              return
+            }
+            // Ignoring month 'M' alone to avoid conflict with SI
+            if (['MS', 'S', 'H', 'D', 'W', 'Y'].indexOf(_u) >= 0 || (['M'].indexOf(_u) >= 0 && aV.indexOf(" ") > 0)) {
+              // Its a time abbreviation
+              aO[aK] = ow.format.fromTimeAbbreviation(aV)
+              return
+            }
+            if (["da","h","k","M","G","T","P","E","Z","Y","R","Q","d","c","m","μ","n","p","f","a","z","y","r","q"].indexOf(_n) >= 0) {
+              // Its a SI abbreviation
+              aO[aK] = ow.format.fromSIAbbreviation(aV)
+              return
+            }
+          }
+        })
+      }
+
       var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, isDef(_ts) ? Math.round(_ts.getTime() / 1000) + args.timeadjust : __ )
+
+      // Filter labels
+      _filterLabels.forEach(l => {
+        var _l = l.trim()
+        out = out.replace(new RegExp("([{,])" + _l + "=\"[^\"]*\"([},])", "g"), "$1$2").replace(/,+/g, ",").replace(/,}/, "")
+      })
       
       if (isDef(args.joburl)) {
         var res = $rest().post(args.joburl, out)
