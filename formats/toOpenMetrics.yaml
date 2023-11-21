@@ -103,7 +103,7 @@ jobs:
       // Filter labels
       _filterLabels.forEach(l => {
         var _l = l.trim()
-        out = out.replace(new RegExp("([{,])" + _l + "=\"[^\"]*\"([},])", "g"), "$1$2").replace(/,+/g, ",").replace(/,}/, "")
+        out = out.replace(new RegExp("([{,])" + _l + "=\"[^\"]*\"([},])", "g"), "$1$2").replace(/,+/g, ",").replace(/,}/g, "}")
       })
       
       if (isDef(args.joburl)) {
