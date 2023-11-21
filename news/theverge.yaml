@@ -1,0 +1,23 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves The Verge RSS 
+
+todo:
+- The Verge
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------
+- name: The Verge
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url : https://www.theverge.com/rss/index.xml
+    path: feed.entry
+

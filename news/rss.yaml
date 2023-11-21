@@ -4,7 +4,7 @@ help:
   expects: 
   - name     : url
     desc     : The RSS url to retrieve
-    example  : 
+    example  : ""
     mandatory: true
   - name     : nodesc
     desc     : If nodesc=true no description will be included
@@ -12,7 +12,7 @@ help:
     mandatory: false
   - name     : path
     desc     : JSON path to the array of items
-    example  : RDF.item
+    example  : "RDF.item"
     mandatory: false
 
 todo:
@@ -41,12 +41,20 @@ jobs:
       return String(h).replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim()
     }
 
+    var fnT = r => {
+      if (isUnDef(r.date) && isDef(r.published)) r.date = new Date(r.published)
+      if (isUnDef(r.description) && isDef(r.content)) r.description = r.content.replace(/<[^>]+>/g, "").trim()
+      if (r.link == "" && r.id.startsWith("http")) r.link = r.id
+
+      return r
+    }
+
     if (isUnDef(args.path)) args.path = args.init.defaultPath
     
     var rss
     if (args.nodesc) 
-      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), date: new Date(isDef(r.date) ? r.date : r.pubDate), link: r.link }))
+      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(fnT).map(r => ({ title: fn(r.title), date: new Date(isDef(r.date) ? r.date : r.pubDate), link: r.link }))
     else
-      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(r => ({ title: fn(r.title), description: fn(r.description), date: new Date(isDef(r.date) ? r.date : r.pubDate), link: r.link }))
+      rss = $$(af.fromXML2Obj($rest().get(args.url))).get(args.path).map(fnT).map(r => ({ title: fn(r.title), description: fn(r.description), date: new Date(isDef(r.date) ? r.date : r.pubDate), link: r.link }))
 
     ow.oJob.output(rss, args)
