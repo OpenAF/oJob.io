@@ -94,16 +94,16 @@ init:
       #   docker-compose exec grafana curl -X POST http://127.0.0.1:3000/api/datasources -H 'Content-Type: application/json'  -d '{"name":"prometheus","type":"prometheus","url":"http://prometheus:9090","access":"proxy","isDefault":true}'
       #
       grafana:
-        image       : grafana/grafana
-        hostname    : grafana
-        environments:
+        image      : grafana/grafana
+        hostname   : grafana
+        environment:
         - GF_AUTH_ANONYMOUS_ENABLED=true
         - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
-        ports       :
+        ports      :
         - "3000:3000"
-        volumes     :
+        volumes    :
         - grafana:/var/lib/grafana
-        networks    :
+        networks   :
         - prom
       {{/if}}
 
