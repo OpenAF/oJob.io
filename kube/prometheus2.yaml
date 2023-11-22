@@ -162,7 +162,8 @@ init:
             - name: prometheus
               mountPath: /prometheus{{/if}}
           restartPolicy: Always
-          securityContext: {}
+          securityContext: 
+            fsGroup: 2000
           {{#if usePVC}}volumes:
           - name: prometheus
             persistentVolumeClaim:
@@ -201,7 +202,8 @@ init:
             - name: grafana
               mountPath: /var/lib/grafana{{/if}}
           restartPolicy: Always
-          securityContext: {}
+          securityContext:
+            fsGroup: 472
           {{#if usePVC}}volumes:
           - name: grafana
             persistentVolumeClaim:
