@@ -44,7 +44,7 @@ jobs:
       kubePod : isString
       kubeNS  : isString.default(__)
   exec : |
-    $from(io.listFiles(args.path).files)
+    $from(listFilesRecursive(args.path))
     .ends("filename", ".openmetrics")
     .sort("filename")
     .select(file => {
@@ -141,3 +141,4 @@ jobs:
       - openmetrics to Prometheus Kube
       docker:
       - openmetrics to Prometheus Docker
+
