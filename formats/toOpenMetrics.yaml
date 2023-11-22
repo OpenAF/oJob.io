@@ -34,15 +34,23 @@ help:
     desc     : If "true" it will convert the values with units (e.g. 10ms) to numbers
     example  : "true"
     mandatory: false
+  - name     : folder
+    desc     : A path to ndjson files to process (gzip or not)
+    example  : /my/folder
+    mandatory: false
 
 todo:
-- Convert to OpenMetrics
+- (if    ): "isDef(args.folder)"
+  ((then)):
+  - Convert folder to OpenMetrics
+  ((else)):
+  - Convert to OpenMetrics
 
 ojob:
   opacks      :
-  - openaf: 20211229
-  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
-  logToConsole: false   # to change when finished
+  - openaf: 20231014
+  catch       : &CATCH printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
         
 
 jobs:
@@ -59,19 +67,19 @@ jobs:
       convertValues: toBoolean.isBoolean.default(false)
   exec : |
     ow.loadMetrics()
-    var _filterLabels = args.filter.split(",")
+    global._filterLabels = args.filter.split(",")
 
-    global.parseData = function(data) {
+    global.parseData = function(data, returnFile) {
       if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
 
       var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
 
       // If path is defined get specific data
-      data = $$(data).get(args.path)
+      var _data = $$(data).get(args.path)
 
       // Convert values
       if (args.convertValues) {
-        traverse(data, (aK, aV, aP, aO) => {
+        traverse(_data, (aK, aV, aP, aO) => {
           // Remove spaces in numbers
           if (isString(aV) && /([0-9]+ )+/.test(aV)) aO[aK] = aV.replace(/ /g, "") 
 
@@ -89,7 +97,7 @@ jobs:
               aO[aK] = ow.format.fromTimeAbbreviation(aV)
               return
             }
-            if (["da","h","k","M","G","T","P","E","Z","Y","R","Q","d","c","m","μ","n","p","f","a","z","y","r","q"].indexOf(_n) >= 0) {
+            if (["da","h","k","M","G","T","P","E","Z","Y","R","Q","d","c","m","μ","n","p","f","a","z","y","r","q"].indexOf(_ar[0]) >= 0) {
               // Its a SI abbreviation
               aO[aK] = ow.format.fromSIAbbreviation(aV)
               return
@@ -98,10 +106,18 @@ jobs:
         })
       }
 
-      var out = ow.metrics.fromObj2OpenMetrics(data, args.prefix, isDef(_ts) ? Math.round(_ts.getTime() / 1000) + args.timeadjust : __ )
+      // Remove nulls
+      var _ov = __flags.ALTERNATIVES.traverse
+      __flags.ALTERNATIVES.traverse = false
+      traverse(_data, (aK, aV, aP, aO) => {
+        if (isNull(aV)) delete aO[aK]
+      })
+      __flags.ALTERNATIVES.traverse = _ov
 
+      var out = ow.metrics.fromObj2OpenMetrics(_data, args.prefix, isDef(_ts) ? Number(Math.round(_ts.getTime() / 1000) + args.timeadjust) : __ )
+ 
       // Filter labels
-      _filterLabels.forEach(l => {
+      global._filterLabels.forEach(l => {
         var _l = l.trim()
         out = out.replace(new RegExp("([{,])" + _l + "=\"[^\"]*\"([},])", "g"), "$1$2").replace(/,+/g, ",").replace(/,}/g, "}")
       })
@@ -113,7 +129,11 @@ jobs:
         }
         print("Sent " + out.length + " bytes to " + args.joburl)
       } else {
-        printnl(out)
+        if (isString(returnFile)) {
+          io.writeFileString(returnFile, out, __, true)
+        } else {
+          printnl(out)
+        }
       }
     }
 
@@ -132,3 +152,51 @@ jobs:
     } else {
       global.parseData(data)
     }
+
+# ------------------------------------
+- name : Convert folder to OpenMetrics
+  from :
+  - Parsing function
+  each : 
+  - Convert ndjson file
+  check:
+    in:
+      folder: isString.default(__)
+  exec : |
+    $from(listFilesRecursive(args.folder))
+    .ends("filename", ".ndjson")
+    .orEnds("filename", ".ndjson.gz")
+    .sort("filename")
+    .select(file => {
+      tlog("Processing {{filepath}}...", file)
+      var _target = file.canonicalPath.replace(/\.ndjson(.gz)?$/, ".openmetrics")
+      io.rm(_target)
+      each(merge(args, { source: file.canonicalPath, target: _target }))
+    })
+
+# --------------------------
+- name : Convert ndjson file
+  catch: *CATCH
+  check:
+    in:
+      source: isString 
+      target: isString
+  exec : |
+    var is
+    if (args.source.endsWith(".gz")) {
+      is = io.readFileGzipStream(args.source)
+    } else {
+      is = io.readFileStream(args.source)
+    }
+  
+    tlog("Converting {{source}} to {{target}}...", args)
+    io.readLinesNDJSON(is, line => {
+      try {
+        global.parseData(line, args.target)
+      } catch(e) {
+        tprintErr("Error parsing file {{source}}: {{{e}}}", merge(args, { e: e }))
+        exit(0, true)
+      }
+    })
+
+    is.close()
