@@ -1,0 +1,304 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a quick K8S deployment with prometheus and, optionally, grafana.
+  expects: 
+  - name     : grafana 
+    desc     : "If grafana=true grafana will be added."
+    example  : "true"
+    mandatory: false
+  - name     : apply
+    desc     : Boolean that if true indicates it should try to apply in K8S directly (otherwise just outputs YAML)
+    example  : "true"
+    mandatory: false
+  - name     : delete
+    desc     : Boolean that if true indicates that it should try to result of a previous apply in K8S directly
+    example  : "true"
+    mandatory: false
+  - name     : ns
+    desc     : K8S namespace where the apply or delete operation should be executed
+    example  : "default"
+    mandatory: false
+  - name     : usePV
+    desc     : Boolean that if true will create host paths PVs in /tmp (change the YAML later as needed)
+    example  : "true"
+    mandatory: false
+  - name     : usePVC
+    desc     : Boolean that if true will create PVCs to store prometheus (and grafana) data
+    example  : "true"
+    mandatory: false
+  - name     : grafanaSize
+    desc     : The grafana database size (for PV)
+    example  : "8Gi"
+    mandatory: false
+  - name     : prometheusSize
+    desc     : The prometheus database size (for PV)
+    example  : "8Gi"
+    mandatory: false
+
+init: 
+  all: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: prometheus
+    data:
+      prometheus.yml: |
+        # my global config
+        global:
+          scrape_interval:     15s # Set the scrape interval to every 15 seconds. Default is every 1 minute.
+          scrape_timeout:      15s
+          evaluation_interval: 15s # Evaluate rules every 15 seconds. The default is every 1 minute.
+          # scrape_timeout is set to the global default (10s).
+
+        # Alertmanager configuration
+        alerting:
+          alertmanagers:
+          - scheme: http
+            timeout: 10s
+            api_version: v2
+            static_configs:
+            - targets:
+            # - alertmanager:9093
+
+        # Load rules once and periodically evaluate them according to the global 'evaluation_interval'.
+        rule_files:
+          # - "first_rules.yml"
+          # - "second_rules.yml"
+
+        # A scrape configuration containing exactly one endpoint to scrape:
+        # Here it's Prometheus itself.
+        scrape_configs:
+          # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+          - job_name: 'prometheus'
+            honor_timestamps: true
+            scrape_interval: 15s
+            scrape_timeout: 10s
+            metrics_path: /metrics
+            scheme: http
+            # metrics_path defaults to '/metrics'
+            # scheme defaults to 'http'.
+            static_configs:
+            - targets: ['localhost:9090']
+
+    {{#if usePVC}}---
+
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: prometheus
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{prometheusSize}}
+
+    {{/if}}{{#if usePV}}---
+
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: prometheus
+    spec:
+      capacity:
+        storage: {{prometheusSize}}
+      accessModes:
+        - ReadWriteOnce
+      hostPath:
+        path: /tmp/prometheus
+
+    {{/if}}{{#if grafana}}{{#if usePVC}}---
+
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: grafana
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{grafanaSize}}
+
+    {{/if}}{{#if usePV}}---
+
+    apiVersion: v1
+    kind: PersistentVolume
+    metadata:
+      name: grafana
+    spec:
+      capacity:
+        storage: {{grafanaSize}}
+      accessModes:
+        - ReadWriteOnce
+      hostPath:
+        path: /tmp/grafana
+
+    {{/if}}{{/if}}---
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: prometheus
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: prometheus
+      template:
+        metadata:
+          labels:
+            app: prometheus
+        spec:
+          containers:
+          - image: prom/prometheus
+            imagePullPolicy: Always
+            name: prometheus
+            resources: {}
+            ports:
+            - name: http
+              containerPort: 9090
+            {{#if usePVC}}volumeMounts:
+            - name: prometheus
+              mountPath: /prometheus{{/if}}
+          restartPolicy: Always
+          securityContext: {}
+          {{#if usePVC}}volumes:
+          - name: prometheus
+            persistentVolumeClaim:
+              claimName: prometheus{{/if}}
+
+    {{#if grafana}}---
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: grafana
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: grafana
+      template:
+        metadata:
+          labels:
+            app: grafana
+        spec:
+          containers:
+          - image: grafana/grafana
+            imagePullPolicy: Always
+            name: grafana
+            resources: {}
+            env:
+            - name : GF_AUTH_ANONYMOUS_ENABLED  
+              value: "true"
+            - name : GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: Admin
+            ports:
+            - name: http
+              containerPort: 3000
+            {{#if usePVC}}volumeMounts:
+            - name: grafana
+              mountPath: /var/lib/grafana{{/if}}
+          restartPolicy: Always
+          securityContext: {}
+          {{#if usePVC}}volumes:
+          - name: grafana
+            persistentVolumeClaim:
+              claimName: grafana{{/if}}
+              
+    {{/if}}---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: prometheus
+    spec:
+      selector:
+        app: prometheus
+      ports:
+      - port: 9090
+        targetPort: 9090
+
+    {{#if grafana}}---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: grafana
+    spec:
+      selector:
+        app: grafana
+      ports:
+      - port: 3000
+        targetPort: 3000
+    {{/if}}
+  instructions: |
+    kubectl exec -it $(kubectl get pods -l app=grafana -o jsonpath='{.items[0].metadata.name}') -- curl -X POST http://127.0.0.1:3000/api/datasources -H 'Content-Type: application/json'  -d '{"name":"prometheus","type":"prometheus","url":"http://prometheus:9090","access":"proxy","isDefault":true}'
+
+todo:
+- Install prometheus
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - kube.js
+
+jobs:
+# -------------------------
+- name : Install prometheus
+  check:
+    in:
+      grafana       : toBoolean.isBoolean.default(false)
+      apply         : toBoolean.isBoolean.default(false)
+      delete        : toBoolean.isBoolean.default(false)
+      usePV         : toBoolean.isBoolean.default(false)
+      usePVC        : toBoolean.isBoolean.default(false)
+      grafanaSize   : isString.default("8Gi")
+      prometheusSize: isString.default("8Gi")
+      ns            : isString.default(__)
+  exec : |
+    if (args.usePV && !args.usePVC) args.usePVC = true
+    if (!args.usePVC) args.usePV = false
+    var obj = af.fromYAML( $t(args.init.all, args) )
+
+    if (args.apply || args.delete) {
+      var kube = new Kube()
+      if (isUnDef(args.ns)) {
+        args.ns = kube.client.getNamespace()
+        if (isNull(args.ns)) args.ns = "default"; else args.ns = String(args.ns)
+      }
+
+      printErr(args.apply ? `Applying (in namespace ${args.ns}):\n` : `Deleting (in namespace ${args.ns}):\n`)
+      if (args.apply && !args.delete) {
+        obj.forEach(o => {
+          printErr("✨ creating/updating (" + o.kind + ") " + o.metadata.name + "...")
+          try {
+            kube.apply(args.ns, o)
+          } catch(e) {
+            printErr("🪳 " + ansiColor("RED", e))
+          }
+        })
+        kube.close()
+      }
+      if (args.delete) {
+        obj.forEach(o => {
+          printErr("🧹 deleting (" + o.kind + ") " + o.metadata.name + "...")
+          try {
+            kube.delete(args.ns, o)
+          } catch(e) {
+            printErr("🪳 " + ansiColor("RED", e))
+          }
+        })
+        kube.close()
+      }
+      printErr("")
+    } else {
+      print( af.toYAML(obj, true) )
+    }
+
+    if (args.grafana) printErr( ow.format.withMD("---\n# ℹ️  To add Prometheus as a datasource in Grafana\n\n``` " + args.init.instructions + "```") )
