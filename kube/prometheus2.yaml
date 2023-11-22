@@ -236,7 +236,7 @@ init:
         targetPort: 3000
     {{/if}}
   instructions: |
-    kubectl exec -it $(kubectl get pods -l app=grafana -o jsonpath='{.items[0].metadata.name}') -- curl -X POST http://127.0.0.1:3000/api/datasources -H 'Content-Type: application/json'  -d '{"name":"prometheus","type":"prometheus","url":"http://prometheus:9090","access":"proxy","isDefault":true}'
+    kubectl exec {{#if ns}}-n {{ns}} {{/if}}-it $(kubectl get pods {{#if ns}}-n {{ns}} {{/if}}-l app=grafana -o jsonpath='{.items[0].metadata.name}') -- curl -X POST http://127.0.0.1:3000/api/datasources -H 'Content-Type: application/json'  -d '{"name":"prometheus","type":"prometheus","url":"http://prometheus:9090","access":"proxy","isDefault":true}'
 
 todo:
 - Install prometheus
@@ -303,4 +303,4 @@ jobs:
       print( af.toYAML(obj, true) )
     }
 
-    if (args.grafana) printErr( ow.format.withMD("---\n# ℹ️  To add Prometheus as a datasource in Grafana\n\n``` " + args.init.instructions + "```") )
+    if (args.grafana) printErr( ow.format.withMD("---\n# ℹ️  To add Prometheus as a datasource in Grafana\n\n``` " + $t(args.init.instructions, args) + "```") )
