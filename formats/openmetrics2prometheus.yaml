@@ -1,0 +1,143 @@
+# Author: Nuno Aguiar
+help:
+  text   : Loads openmetrics files into a Prometheus database
+  expects: 
+  - name     : path
+    desc     : Path of openmetrics files to load into a Prometheus database
+    example  : some/folder
+    mandatory: true
+  - name     : type
+    desc     : Type of Prometheus database deploy (e.g. kube, docker)
+    example  : "kube"
+    mandatory: true
+  - name     : kubePod
+    desc     : If type=kube the pod name of the Prometheus database
+    example  : prometheus
+    mandatory: false
+  - name     : kubeNS
+    desc     : If type=kube the pod namespace of the Prometheus database
+    example  : default
+    mandatory: false
+  - name     : dockName
+    desc     : If type=dock the docker container name of the Prometheus database
+    example  : prometheus
+    mandatory: false
+
+todo:
+- openmetrics to Prometheus
+
+ojob:
+  opacks      :
+  - openaf: 20231014
+  catch       : &CATCH printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------------------------
+- name : openmetrics to Prometheus Kube
+  each :
+  - Check for EOF
+  - Copy file to Kube
+  check: 
+    in:
+      kubePod : isString
+      kubeNS  : isString.default(__)
+  exec : |
+    $from(io.listFiles(args.path).files)
+    .ends("filename", ".openmetrics")
+    .sort("filename")
+    .select(file => {
+      tlog("Processing {{filepath}}...", file)
+      each(merge(args, { source: file.canonicalPath, target: "/tmp/" + file.filename }))
+    })
+
+# --------------------
+- name : Check for EOF
+  catch: *CATCH
+  check:
+    in:
+      source: isString 
+  exec : |
+    var is = io.readFileStream(args.source)
+    var hasEOF = false
+    ioStreamReadLines(is, line => {
+      if (line.match(/^# EOF$/)) hasEOF = true
+    })
+    is.close()
+
+    if (!hasEOF) {
+      tlog("Adding EOF to {{source}}...", args)
+      io.writeFileString(args.source, "# EOF\n", __, true)
+    } else {
+      tlog("{{source}} has EOF.", args)
+    }
+
+# ------------------------
+- name : Copy file to Kube
+  catch: *CATCH
+  lang : shell
+  check: 
+    in:
+      source  : isString
+      target  : isString
+      kubePod : isString
+      kubeNS  : isString.default(__)
+  exec : |
+    echo ---
+    echo \| Copying $source to $kubePod:$target...
+    kubectl cp $source {{#if kubeNS}}-n {{kubeNS}}{{/if}} $kubePod:$target
+    echo \| Loading data from $kubePod:$target...
+    kubectl exec -i {{#if kubeNS}}-n {{kubeNS}}{{/if}} $kubePod -- promtool tsdb create-blocks-from openmetrics $target /prometheus
+    echo \| Removing $kubePod:$target...
+    kubectl exec -i {{#if kubeNS}}-n {{kubeNS}}{{/if}} $kubePod -- rm $target
+
+# --------------------------
+- name : Copy file to Docker
+  catch: *CATCH
+  lang : shell
+  check: 
+    in:
+      source  : isString
+      target  : isString
+      dockName: isString
+  exec : |
+    echo ---
+    echo \| Copying $source to $dockName:$target...
+    docker cp $source $dockName:$target
+    echo \| Loading data from $dockName:$target...
+    docker exec -i $dockName promtool tsdb create-blocks-from openmetrics $target /prometheus
+    echo \| Removing $dockName:$target...
+    docker exec -i $dockName rm $target
+
+# ---------------------------------------
+- name : openmetrics to Prometheus Docker
+  each :
+  - Check for EOF
+  - Copy file to Docker
+  check: 
+    in:
+      dockName: isString
+  exec : |
+    $from(io.listFiles(args.path).files)
+    .ends("filename", ".openmetrics")
+    .sort("filename")
+    .select(file => {
+      tlog("Processing {{filepath}}...", file)
+      each(merge(args, { source: file.canonicalPath, target: "/tmp/" + file.filename }))
+    })
+
+# --------------------------------
+- name : openmetrics to Prometheus
+  check:
+    in:
+      path    : isString
+      type    : isString.oneOf(["kube","docker"]).default("docker")
+  to   :
+  - (optionOn   ): type
+    ((lowerCase)): true
+    ((todos    )):
+      kube:
+      - openmetrics to Prometheus Kube
+      docker:
+      - openmetrics to Prometheus Docker
