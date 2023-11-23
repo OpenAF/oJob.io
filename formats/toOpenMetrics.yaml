@@ -2,6 +2,14 @@
 help:
   text   : Converts input __pm map (or stdin) into a OpenMetrics format and optionally send it to a gateway.
   expects: 
+  - name     : input
+    desc     : The path where to find the openmetrics files
+    example  : some/path
+    mandatory: true
+  - name     : output
+    desc     : The output path
+    example  : some/path
+    mandatory: true
   - name     : prefix
     desc     : The metrics prefix to use
     example  : test
@@ -34,15 +42,11 @@ help:
     desc     : If "true" it will convert the values with units (e.g. 10ms) to numbers
     example  : "true"
     mandatory: false
-  - name     : folder
-    desc     : A path to ndjson files to process (gzip or not)
-    example  : /my/folder
-    mandatory: false
 
 todo:
-- (if    ): "isDef(args.folder)"
+- (if    ): "isDef(args.input)"
   ((then)):
-  - Convert folder to OpenMetrics
+  - Process ndjson files
   ((else)):
   - Convert to OpenMetrics
 
@@ -54,6 +58,71 @@ ojob:
         
 
 jobs:
+# ---------------------------
+- name : Process ndjson files
+  each : Process ndjson file
+  check:
+    in:
+      input  : isString
+      output : isString
+      pattern: isString.default("yyyyMMdd-HH")
+  from : Parsing function
+  exec : |
+    $from(listFilesRecursive(args.input))
+    .ends("filename", ".ndjson")
+    .orEnds("filename", ".ndjson.gz")
+    .select(r => {
+      tlog("Processing {{filepath}}...", r)
+      each({ source: r.filepath, target: args.output, pattern: args.pattern })
+    })
+
+# --------------------------
+- name : Process ndjson file
+  check:
+    in:
+      source : isString
+      target : isString
+      pattern: isString.default("yyyyMMdd-HH")
+  exec : |
+    try {
+      // Parse file
+      var _f = {}, is
+      if (args.source.endsWith(".gz")) 
+        is = io.readFileGzipStream(args.source)
+      else
+        is = io.readFileStream(args.source)
+
+      io.readLinesNDJSON(is, line => {
+        try {
+          var _d = global.parseData(line, true)
+
+          _d.split("\n").filter(l => l.length > 0).forEach(l => {
+            var _ar = l.match(/\d+$/)
+            if (isDef(_ar[0])) {
+              var _t = ow.format.fromDate(new Date(_ar[0] * 1000), args.pattern)
+              if (isUnDef(_f[_t])) _f[_t] = []
+              _f[_t].push(l)
+            } else {
+              logErr("Can't find a timestamp for line '" + l + "' in file '" + args.source + "'")
+            }
+          })
+        } catch(erl) {
+          logErr("Error parsing line '" + line + "' in ndjson file '" + args.source + "': " + erl)
+        }
+      })
+      is.close()
+x
+      // Write in each bucket file
+      Object.keys(_f).forEach(k => {
+        var _ft = args.target + "/" + k + ".openmetrics"
+        io.writeFileString(_ft, _f[k].join("\n"), __, true)
+        log("Wrote #" + _f[k].length + " lines to " + _ft)
+      })
+    } catch(e) {
+      tlogErr("Error parsing file {{source}}: {{{e}}}", merge(args, { e: e }))
+      exit(0, true)
+    }
+    
 # -----------------------
 - name : Parsing function
   check:
@@ -69,7 +138,7 @@ jobs:
     ow.loadMetrics()
     global._filterLabels = args.filter.split(",")
 
-    global.parseData = function(data, returnFile) {
+    global.parseData = function(data, returnData) {
       if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
 
       var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
@@ -79,6 +148,7 @@ jobs:
 
       // Convert values
       if (args.convertValues) {
+        __flags.ALTERNATIVES.traverse = false
         traverse(_data, (aK, aV, aP, aO) => {
           // Remove spaces in numbers
           if (isString(aV) && /([0-9]+ )+/.test(aV)) aO[aK] = aV.replace(/ /g, "") 
@@ -129,8 +199,8 @@ jobs:
         }
         print("Sent " + out.length + " bytes to " + args.joburl)
       } else {
-        if (isString(returnFile)) {
-          io.writeFileString(returnFile, out, __, true)
+        if (isDef(returnData)) {
+          return out
         } else {
           printnl(out)
         }
@@ -143,60 +213,11 @@ jobs:
   - Parsing function
   exec : |
     var data = __pm
-
     if (isDef(__pm._map)) data = __pm._map
     if (isDef(__pm._list)) data = __pm._list
-
     if (Object.keys(data).length == 0) {
       io.pipeLn(global.parseData)
     } else {
       global.parseData(data)
     }
-
-# ------------------------------------
-- name : Convert folder to OpenMetrics
-  from :
-  - Parsing function
-  each : 
-  - Convert ndjson file
-  check:
-    in:
-      folder: isString.default(__)
-  exec : |
-    $from(listFilesRecursive(args.folder))
-    .ends("filename", ".ndjson")
-    .orEnds("filename", ".ndjson.gz")
-    .sort("filename")
-    .select(file => {
-      tlog("Processing {{filepath}}...", file)
-      var _target = file.canonicalPath.replace(/\.ndjson(.gz)?$/, ".openmetrics")
-      io.rm(_target)
-      each(merge(args, { source: file.canonicalPath, target: _target }))
-    })
-
-# --------------------------
-- name : Convert ndjson file
-  catch: *CATCH
-  check:
-    in:
-      source: isString 
-      target: isString
-  exec : |
-    var is
-    if (args.source.endsWith(".gz")) {
-      is = io.readFileGzipStream(args.source)
-    } else {
-      is = io.readFileStream(args.source)
-    }
-  
-    tlog("Converting {{source}} to {{target}}...", args)
-    io.readLinesNDJSON(is, line => {
-      try {
-        global.parseData(line, args.target)
-      } catch(e) {
-        tprintErr("Error parsing file {{source}}: {{{e}}}", merge(args, { e: e }))
-        exit(0, true)
-      }
-    })
-
-    is.close()
+    
