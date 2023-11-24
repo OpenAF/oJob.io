@@ -35,7 +35,7 @@ jobs:
       gecos: isString.default(__)
   lang    : shell
   exec    : |
-    sudo adduser {{user}}{{#if group}} -g {{group}}{{/if}}{{#if gecos}} --gecos '{{gecos}}'{{/if}}
+    sudo adduser {{user}}{{#if group}} -g {{group}}{{/if}}{{#if gecos}} --gecos '{{{gecos}}}'{{/if}}
     sudo mkdir /home/{{user}}/.ssh
     sudo chmod 700 /home/{{user}}/.ssh
     sudo touch /home/{{user}}/.ssh/authorized_keys
