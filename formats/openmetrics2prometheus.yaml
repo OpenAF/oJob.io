@@ -6,6 +6,10 @@ help:
     desc     : Path of openmetrics files to load into a Prometheus database
     example  : some/folder
     mandatory: true
+  - name     : dedupSort
+    desc     : If true, deduplicates and sorts the openmetrics files before loading them
+    example  : true
+    mandatory: false
   - name     : type
     desc     : Type of Prometheus database deploy (e.g. kube, docker)
     example  : "kube"
@@ -37,6 +41,7 @@ jobs:
 # -------------------------------------
 - name : openmetrics to Prometheus Kube
   each :
+  - DeDup and Sort
   - Check for EOF
   - Copy file to Kube
   check: 
@@ -49,7 +54,7 @@ jobs:
     .sort("filename")
     .select(file => {
       tlog("Processing {{filepath}}...", file)
-      each(merge(args, { source: file.canonicalPath, target: "/tmp/" + file.filename }))
+      each(merge(args, { source: file.canonicalPath, target: "/tmp/" + file.filename, dedupSort: args.dedupSort }))
     })
 
 # --------------------
@@ -68,15 +73,49 @@ jobs:
 
     if (!hasEOF) {
       tlog("Adding EOF to {{source}}...", args)
-      io.writeFileString(args.source, "# EOF\n", __, true)
+      io.writeFileString(args.source, "\n# EOF\n", __, true)
     } else {
       tlog("{{source}} has EOF.", args)
+    }
+
+# ---------------------
+- name : DeDup and Sort
+  catch: *CATCH
+  check:
+    in:
+      source   : isString
+      dedupSort: toBoolean.isBoolean.default(false)
+  exec : |
+    if (args.dedupSort) {
+      log("Loading file '" + args.source + "' to memory...")
+      var arrayOfLines = io.readFileAsArray(args.source)
+
+      log("Eliminating duplicates of file (part 1): " + args.source)
+      var uniqueMaps = Array.from( new Set(arrayOfLines.filter(l => l != "# EOF")) )
+      arrayOfLines = __
+
+      log("Eliminating duplicates from #" + uniqueMaps.length + " of file (part 2): " + args.source)
+      var uniqueMaps2 = Array.from(new Map( uniqueMaps.map(l => ([
+        l.substring(0, l.substring(0, l.lastIndexOf(" ")).lastIndexOf(" ")) + "|" + l.substring(l.lastIndexOf(" ") + 1), 
+        l
+      ])) ).values())
+      uniqueMaps = __
+
+      log("Sorting #" + uniqueMaps2.length + " lines of file: " + args.source)
+      var sortedMaps = quickSort(uniqueMaps2, (a, b) => Number(a.substring(a.lastIndexOf(" ") + 1)) - Number(b.substring(b.lastIndexOf(" ") + 1)))
+      uniqueMaps2 = __
+
+      var _target = args.source
+      log("Saving #" + sortedMaps.length + " results to file: " + _target)
+      io.writeFileString(_target, sortedMaps.join("\n"))
     }
 
 # ------------------------
 - name : Copy file to Kube
   catch: *CATCH
   lang : shell
+  typeArgs:
+    shellPrefix: copy
   check: 
     in:
       source  : isString
@@ -96,6 +135,8 @@ jobs:
 - name : Copy file to Docker
   catch: *CATCH
   lang : shell
+  typeArgs:
+    shellPrefix: copy
   check: 
     in:
       source  : isString
@@ -113,6 +154,7 @@ jobs:
 # ---------------------------------------
 - name : openmetrics to Prometheus Docker
   each :
+  - DeDup and Sort
   - Check for EOF
   - Copy file to Docker
   check: 
@@ -124,7 +166,7 @@ jobs:
     .sort("filename")
     .select(file => {
       tlog("Processing {{filepath}}...", file)
-      each(merge(args, { source: file.canonicalPath, target: "/tmp/" + file.filename }))
+      each(merge(args, { source: file.canonicalPath, target: "/tmp/" + file.filename, dedupSort: args.dedupSort }))
     })
 
 # --------------------------------
