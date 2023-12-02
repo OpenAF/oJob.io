@@ -1,0 +1,278 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts input __pm map (or stdin) into a OpenMetrics format and optionally send it to a gateway.
+  expects: 
+  - name     : input
+    desc     : The path where to find the openmetrics files
+    example  : some/path
+    mandatory: true
+  - name     : output
+    desc     : The output path
+    example  : some/path
+    mandatory: true
+  - name     : prefix
+    desc     : The metrics prefix to use
+    example  : test
+    mandatory: false
+  - name     : joburl
+    desc     : The prometheus gateway equivalent job url (e.g. http://gw:9091/metrics/job/myjob)
+    example  : http://gw:9091/metrics/job/myjob
+    mandatory: false
+  - name     : timestamp
+    desc     : If "timestamp=true" it will include the timestamp of when the data was produced. If timefield is not defined it uses the current time.
+    example  : "true"
+    mandatory: false
+  - name     : timefield
+    desc     : The JSON path to the field from where to derive the timestamp if timestamp=true (the field will be removed from the metrics data)
+    example  : "__ts"
+    mandatory: false
+  - name     : timeadjust
+    desc     : Number of seconds, positive or negative, to adjust the timefield value if needed.
+    example  : 1468800
+    mandatory: false
+  - name     : filter
+    desc     : Comma-delimited list of labels to ignore in the resulting openmetrics output
+    example  : "_id,date"
+    mandatory: false
+  - name     : path
+    desc     : A JSON path to assume for each entry
+    example  : values
+    mandatory: false
+  - name     : convertValues
+    desc     : If "true" it will convert the values with units (e.g. 10ms) to numbers
+    example  : "true"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.input)"
+  ((then)):
+  - Process ndjson files
+  ((else)):
+  - Convert to OpenMetrics
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished    
+  poolThreadFactor: 3
+  numThreads: 30
+
+jobs:
+# -----------------------
+- name : Read ndjson file
+  each : Process ndjson data
+  check:
+    in:
+      source : isString
+      target : isString
+      pattern: isString.default("yyyyMMdd-HH")
+  exec : |
+    var is
+    try {
+      if (args.source.endsWith(".gz")) is = io.readFileGzipStream(args.source); else is = io.readFileStream(args.source)
+      var data = []
+      io.readLinesNDJSON(is, line => {
+        data.push(line)
+      })
+      each(merge(args, { data: data, source: args.source, target: args.target, pattern: args.pattern }))
+    } catch(e) {
+      logErr("Read file: " + e)
+    } 
+
+# --------------------------
+- name : Process ndjson data
+  each : Write to files
+  check:
+    in:
+      source : isString
+      target : isString
+      pattern: isString.default("yyyyMMdd-HH")
+  exec : |
+    try {
+      ow.loadObj()
+      log(">> Converting #" + args.data.length + " lines of " + args.source + " to OpenMetrics...")
+      var _localF = {}, _dos = []
+      var _fnLineP = (_d, _i) => {
+        try {
+          var _tinit = now()
+          var conv = global.parseData(_d, true).split("\n").filter(l => l.length > 0)
+          var _tinit = now() - _tinit 
+
+          //log(">> Distributing line " + _i + " of #" + conv.length + " lines of " + args.source + " to buckets (" + ow.format.elapsedTime4ms(_tinit) + ")")
+          conv.forEach(l => {
+            var _t = ow.format.fromDate(new Date(Number(l.substring(l.lastIndexOf(" ")+1)) * 1000), args.pattern)
+            if (isUnDef(_localF[_t])) _localF[_t] = new ow.obj.syncArray()
+            _localF[_t].add(l)
+          })
+        } catch(ee) {
+          logErr("Process data from " + args.source + ": " + ee)
+        }
+        } 
+      args.data.forEach((__d, __i) => {
+        _dos.push($do(() => _fnLineP(__d, __i)))
+      }) 
+      $doWait($doAll(_dos))
+      Object.keys(_localF).forEach(k => {
+        log(">>> Writing #" + _localF[k].length() + " lines of " + k + " (" + args.source + ")")
+        each({ key: k, queue: _localF[k].toArray(), source: args.source, target: args.target, pattern: args.pattern })
+        _localF[k].clear()
+        delete _localF[k]
+      })
+    } catch(e) {
+      logErr("Process data: " + e)
+    }
+
+# ---------------------
+- name : Write to files
+  exec : |
+    if (isUnDef(global._lck)) global._lck = {}
+    if (isUnDef(global._lck[args.key])) global._lck[args.key] = true
+
+    var _ft = args.target + "/" + args.key + ".openmetrics"
+    log(">>>> Appending to bucket " + _ft)
+    log(">>>> Dumping #" + args.queue.length + " lines to " + _ft)
+    try {
+      $lock(_ft).tryLock(() => io.writeFileString(_ft, args.queue.join("\n") + "\n", __, true))
+      log(">>>> Wrote #" + args.queue.length + " lines to " + _ft)
+      $lock(".tracking").tryLock(() => io.writeFileString(args.target + "/.tracking", args.source + "\n", __, true))
+
+      args.queue = []
+    } catch(e) {
+      logErr("Write to file " + _ft + ": " + e)
+    }
+
+
+# ---------------------------
+- name : Process ndjson files
+  each : Read ndjson file
+  from : Parsing function
+  check:
+    in:
+      source : isString
+      target : isString
+      pattern: isString.default("yyyyMMdd-HH")
+  exec : |
+    var lst = $from(listFilesRecursive(args.source))
+              .ends("filename", ".ndjson")
+              .orEnds("filename", ".ndjson.gz")
+              .select()
+            
+    io.mkdir(args.target)
+    var excepts = []
+    if (io.fileExists(args.target + "/.tracking")) {
+      excepts = io.readFileAsArray(args.target + "/.tracking")
+    }
+
+    lst.forEach((r, i) => {
+      try {
+        if (excepts.indexOf(r.filepath) >= 0) {
+          tlog("Ignoring already processed {{filepath}}..", r)
+        } else {
+          tlog("> Processing {{filepath}} (" + (i+1) + "/" + lst.length + ")...", r)
+          each(merge(args, { source: r.filepath, target: args.target, pattern: args.pattern }))
+        }
+      } catch(e) {
+        logErr("Process files: " + e)
+      }
+    })
+
+# -----------------------
+- name : Parsing function
+  check:
+    in:
+      prefix       : isString.default(__)
+      timestamp    : toBoolean.isBoolean.default(false)
+      timeadjust   : toNumber.isNumber.default(0)
+      timefield    : isString.default(__)
+      filter       : isString.default("")
+      path         : isString.default("")
+      convertValues: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadMetrics()
+    global._filterLabels = args.filter.split(",")
+
+    global.parseData = function(data, returnData) {
+      if (!isMap(data) && !isArray(data)) data = jsonParse(String(data), true)
+
+      var _ts = (args.timestamp ? (isUnDef(args.timefield) ? new Date() : new Date($$(data).get(args.timefield))) : __)
+
+      // If path is defined get specific data
+      var _data = $$(data).get(args.path)
+
+      // Convert values
+      if (args.convertValues) {
+        //__flags.ALTERNATIVES.traverse = false
+
+        traverse(_data, (aK, aV, aP, aO) => {
+          if (isNull(aV)) return
+
+          // Remove spaces in numbers
+          if (isString(aV) && /([0-9]+ )+/.test(aV)) aO[aK] = aV.replace(/ /g, "") 
+
+          if (isString(aV) && aV.indexOf(":") < 0 && /\d+ *[a-z]+$/i.test(aV)) {
+            var _ar = aV.match(/[a-z]+$/)
+            var _u = _ar[0].toUpperCase()
+            if (['BYTES', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB', 'KIB', 'MIB', 'GIB', 'TIB', 'PIB', 'EIB', 'ZIB', 'YIB', 'KI', 'MI', 'GI', 'TI', 'PI', 'EI', 'ZI', 'YI'].indexOf(_u) >= 0) {
+              // Its a bytes abbreviation
+              aO[aK] = ow.format.fromBytesAbbreviation(aV)
+              return
+            }
+            // Ignoring month 'M' alone to avoid conflict with SI
+            if (['MS', 'S', 'H', 'D', 'W', 'Y'].indexOf(_u) >= 0 || (['M'].indexOf(_u) >= 0 && aV.indexOf(" ") > 0)) {
+              // Its a time abbreviation
+              aO[aK] = ow.format.fromTimeAbbreviation(aV)
+              return
+            }
+            if (["da","h","k","M","G","T","P","E","Z","Y","R","Q","d","c","m","μ","n","p","f","a","z","y","r","q"].indexOf(_ar[0]) >= 0) {
+              // Its a SI abbreviation
+              aO[aK] = ow.format.fromSIAbbreviation(aV)
+              return
+            }
+          }
+        })
+      }
+
+      // Remove nulls
+      //var _ov = __flags.ALTERNATIVES.traverse
+      //__flags.ALTERNATIVES.traverse = false
+      traverse(_data, (aK, aV, aP, aO) => {
+        if (isNull(aV)) delete aO[aK]
+      })
+      //__flags.ALTERNATIVES.traverse = _ov
+
+      var out = ow.metrics.fromObj2OpenMetrics(_data, args.prefix, isDef(_ts) ? Number((_ts.getTime() + args.timeadjust)/1000) : __ )
+
+      // Filter labels
+      global._filterLabels.forEach(l => {
+        var _l = l.trim()
+        out = out.replace(new RegExp("([{,])" + _l + "=\"[^\"]*\"([},])", "g"), "$1$2").replace(/,+/g, ",").replace(/,}/g, "}")
+      })
+      
+      if (isDef(args.joburl)) {
+        var res = $rest().post(args.joburl, out)
+        if (isDef(res.error)) {
+          printErr(res.error.response)
+        }
+        print("Sent " + out.length + " bytes to " + args.joburl)
+      } else {
+        if (isDef(returnData)) {
+          return out
+        } else {
+          printnl(out)
+        }
+      }
+    }
+
+# -----------------------------
+- name : Convert to OpenMetrics
+  from : Parsing function
+  exec : |
+    var data = __pm
+    if (isDef(__pm._map)) data = __pm._map
+    if (isDef(__pm._list)) data = __pm._list
+    if (Object.keys(data).length == 0) {
+      io.pipeLn(global.parseData)
+    } else {
+      global.parseData(data)
+    }
