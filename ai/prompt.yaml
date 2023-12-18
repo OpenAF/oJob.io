@@ -1,0 +1,74 @@
+# Author: Nuno Aguiar
+help:
+  text   : |
+    Using a LLM model returns the result of a prompt, with an optional context as provided text (through stdin) or from a file. The model should be defined through
+    OpenAF's sBuckets or system variable (MODEL). 
+  expects: 
+  - name     : prompt
+    desc     : The text prompt to ask to the LLM model
+    example  : Produce an array 'results' with the sumamry of the command output.
+    mandatory: true
+  - name     : context
+    desc     : The text context of the provided text.
+    example  : This is the result of running the 'abc' command.
+    mandatory: false
+  - name     : instructions
+    desc     : Provide additional instructions to the LLM model
+    example  : Always answer with an array.
+    mandatory: false
+  - name     : file
+    desc     : The file to describe in instead of stdin
+    example  : /tmp/abc.txt
+    mandatory: false
+  - name     : withMD
+    desc     : If true, the output will be in Markdown format
+    example  : "true"
+    mandatory: false
+
+todo:
+- Describe input using LLM
+
+ojob:
+  opacks      :
+  - openaf: 20231215
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------------------
+- name : Describe input using LLM
+  from :
+  - (secget  ): MODEL
+    ((secEnv)): true
+    ((secOut)): model
+  check:
+    in:
+      context: isString.default(__)
+      prompt : isString
+      file   : isString.default(__)
+      withMD : toBoolean.isBoolean.default(false)
+  exec : |
+    let data = {}, context = ""
+
+    if (isDef(args.context)) {
+      if (isUnDef(args.file)) {
+        io.pipeLn(line => {
+          context += line + "\n"
+        })
+      } else {
+        context = io.readFileString(args.file)
+      }
+    }
+
+    var llm = $llm(args.model)
+    if (isDef(args.context)) llm = llm.withContext(context, args.context)
+    if (isDef(args.instructions)) llm = llm.withInstructions(args.instructions)
+    
+    if (args.withMD) {
+      data = llm.promptMD(args.prompt)
+      args.__format = "md"
+    } else
+      data = llm.promptJSON(args.prompt)
+  
+    ow.oJob.output(data, args)
