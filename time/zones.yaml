@@ -1,0 +1,42 @@
+# Author: Nuno Aguiar
+help:
+  text   : List available time zones or a time zone transition information.
+  expects:
+  - name     : zone
+    desc     : Time zone name to get the corresponding transition information.
+    example  : Europe/Lisbon
+    mandatory: false
+  - name     : date
+    desc     : "Date to get the corresponding transition information (format: yyyy-MM-dd)"
+    example  : 2020-01-01
+    mandatory: false
+
+todo:
+- (if    ): isDef(args.zone)
+  ((then)): Get time zone transition information
+  ((else)): List available time zones
+
+ojob:
+  opacks      :
+  - openaf: 20231101
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+- name : Get time zone transition information
+  check:
+    in:
+      zone: isString
+      date: isString.default(__)
+  exec : |
+    var dt
+    if (isDef(args.date)) dt = ow.format.toDate(args.date, "yyyy-MM-dd")
+    let data = ow.format.dateTimeTransition(args.zone, dt)
+    ow.oJob.output(data, args)
+
+# --------------------------------
+- name : List available time zones 
+  exec : |
+    let data = ow.format.dateTimeZones()
+    ow.oJob.output(data, args)
