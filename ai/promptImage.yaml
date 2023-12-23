@@ -1,0 +1,79 @@
+# Author: Nuno Aguiar
+help:
+  text   : |
+    Using a LLM model returns the result of a prompt over a provided image. OpenAF's sBuckets or system variable (MODEL). 
+  expects: 
+  - name     : prompt
+    desc     : The text prompt to ask to the LLM model
+    example  : Produce an array 'results' with the sumamry of the command output.
+    mandatory: true
+  - name     : image
+    desc     : The file or URL of an image to consider
+    example  : image.jpeg
+    mandatory: true
+  - name     : instructions
+    desc     : Provide additional instructions to the LLM model
+    example  : Always answer with an array.
+    mandatory: false
+  - name     : withMD
+    desc     : If true, the output will be in Markdown format
+    example  : "true"
+    mandatory: false
+
+todo:
+- Describe input image using LLM
+
+ojob:
+  opacks      :
+  - openaf: 20231215
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------------------------
+- name : Describe input image using LLM
+  from :
+  - (secget  ): MODEL
+    ((secEnv)): true
+    ((secOut)): model
+  check:
+    in:
+      context: isString.default(__)
+      prompt : isString
+      image  : isString.default(__)
+      withMD : toBoolean.isBoolean.default(false)
+  exec : |
+    let data = {}, context = ""
+
+    if (isDef(args.context)) {
+      if (isUnDef(args.file)) {
+        io.pipeLn(line => {
+          context += line + "\n"
+        })
+      } else {
+        context = io.readFileString(args.file)
+      }
+    }
+
+    var llm = $llm(args.model)
+    if (isDef(args.instructions)) {
+      llm = llm.withInstructions(args.instructions)
+    } else {
+      if (!args.withMD) {
+        llm = llm.withInstructions("You only output answers as a JSON map string")
+      }
+    } 
+    
+    if (args.image.toLowerCase().match(/^https?:\/\//)) {
+      data = llm.promptImage(args.prompt, af.fromBytes2String(af.toBase64Bytes(af.fromInputStream2Bytes($rest().get2Stream(args.image)))))
+    } else {
+      data = llm.promptImage(args.prompt, args.image)
+    }
+
+    if (!args.withMD) {
+      data = jsonParse(data, __, __, true)
+      ow.oJob.output(data, args)
+    } else {
+      print(ow.format.withMD(data))
+    }
