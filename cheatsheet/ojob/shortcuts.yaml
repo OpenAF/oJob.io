@@ -98,12 +98,12 @@ todo:
 
       * **(each)**  : The path to consider from **'key'**
       * **((key))** : Can be a global key or 'args'
-      * **((jobs))**: One job or a list of jobs to execute each time
+      * **((todo))**: One job or a list of jobs to execute each time
 
     ```yaml 
     - (each  ): files
       ((key )): myFilesList
-      ((jobs)):
+      ((todo)):
       - Copy file
       - Process file
       - Send processed file
