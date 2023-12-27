@@ -1,0 +1,107 @@
+# Author: Nuno Aguiar
+help:
+  text   : Parses a Nginx log file from stdin or a provided file.
+  expects: 
+  - name     : file
+    desc     : The file to parse. If not provided, stdin is used.
+    example  : access.log
+    mandatory: false
+  - name     : parseGeo
+    desc     : If true, will parse the geoip information from the remoteAddr.
+    example  : "true"
+    mandatory: false
+  - name     : flat
+    desc     : If true, will flatten the output.
+    example  : "true"
+    mandatory: false
+
+todo:
+- Parse nginx log file
+
+ojob:
+  opacks      :
+  - openaf: 20230325
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  owraps      :
+  - Net
+  - Obj
+
+jobs:
+# ---------------------------
+- name : Parse nginx log file
+  check:
+    in:
+      file    : isString.default(__)
+      parseGeo: toBoolean.isBoolean.default(false)
+      flat    : toBoolean.isBoolean.default(false)
+  exec : |
+    var parseNginxLogLine = logLine => {
+      //const logFormat = '$remote_addr - - [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" "$http_x_forwarded_for"'
+      const logKeys   = ['remoteAddr', __, __, 'timeLocal', 'request', 'status', 'bodyBytesSent', 'httpReferer', 'httpUserAgent', 'httpXForwardedFor']
+      const logValues = logLine.match(/("[^"]+"|\[[^\]]+\]|[^ ]+)/g)
+      const logMap    = {}
+      for (let i = 0; i < logKeys.length; i++) {
+        if (isDef(logKeys[i])) {
+          logMap[logKeys[i]] = logValues[i].replace(/^\[(.+)\]$/, "$1").replace(/^"(.+)"$/, "$1")
+          if (logKeys[i] == 'status' || logKeys[i] == 'body_bytes_sent') logMap[logKeys[i]] = Number(logMap[logKeys[i]])
+          if (logKeys[i] == 'time_local') logMap[logKeys[i]] = ow.format.toDate(logMap[logKeys[i]], 'dd/MMM/yyyy:HH:mm:ss Z')
+          if (logKeys[i] == 'request') {
+            const request = logMap[logKeys[i]].split(' ')
+            logMap['request_method'] = request[0]
+            logMap['request_uri']    = request[1]
+            logMap['request_proto']  = request[2]
+          }
+        }
+      }
+      return logMap
+    }
+
+    if (args.parseGeo) {
+      $cache("geoip")
+      .fn(aKey => {
+        var _d = ow.net.getPublicIP(aKey.ip)
+        return {
+          continent: _d.continent,
+          country  : _d.country,
+          region   : _d.regionName,
+          city     : _d.city,
+          as       : _d.as,
+          asName   : _d.asname,
+          isp      : _d.isp,
+          org      : _d.org,
+          mobile   : _d.mobile,
+          proxy    : _d.proxy,
+          hosting  : _d.hosting
+        }
+      })
+      .create()
+    }
+
+    var parseLine = line => {
+      try {
+        let logObject = parseNginxLogLine(line)
+        if (logObject.remoteAddr == "" || logObject.remoteAddr == "-" || logObject.remoteAddr.match(/\d+\.\d+\.\d+\.\d+/)) {
+          if (args.parseGeo) {
+            // remoteAddr
+            logObject.remoteAddrGeo = $cache("geoip").get({ ip: logObject.remoteAddr })
+            // httpXForwardedFor
+            logObject.httpXForwardedForGeo = $cache("geoip").get({ ip: logObject.httpXForwardedFor })
+          }
+          if (args.flat) {
+            logObject = ow.obj.flatMap(logObject)
+          }
+          ow.oJob.output(logObject, args)
+        }
+      } catch(e) {
+        printErr(e)
+      }
+    }
+
+    if (isUnDef(args.file)) {
+      io.pipeLn(parseLine)
+    } else {
+      var is = io.readFileStream(args.file)
+      ioStreamReadLines(is, parseLine)
+      is.close()  
+    }
