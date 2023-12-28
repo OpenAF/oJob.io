@@ -92,6 +92,7 @@ jobs:
 # -----------------
 - name : S3 connect
   exec : |
+    if (isDef(args.secEnv)) args.secEnv = toBoolean(args.secEnv)
     if (isDef(args.secKey)) args = $job("ojob sec get", args)
     if (isDef(args._args)) {
       args.url = args._args.aURL
