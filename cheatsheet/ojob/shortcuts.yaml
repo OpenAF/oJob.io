@@ -23,11 +23,12 @@ todo:
     | Control       | (todo)           | Sub ToDo list                                              |
     | Control       | (parallel)       | Runs a list of jobs in parallel                            |
     | Control       | (optionOn)       | Selects a list of jobs to run based on an option           |
-    | Control       | (state)          | Changes the current running state                          |
+    | Control       | (stateOn)        | Changes the current running state                          |
     | Control       | (pass)           | Represents a pass-through job                              |
     | Control       | (fail)           | Represents a failure job                                   |
     | Control       | (check)          | Organize idempotent jobs                                   |
     | Control       | (wait)           | Waits for a specific amount of time                        |
+    | Control       | (state)          | Changes the current state. |
     | Data          | (ch)             | Operates data on an OpenAF channel                         |
     | Input         | (get)            | Retrieves a global value from a key                        |
     | Input         | (fileget)        | Retrieves arguments from a file                            |
@@ -44,9 +45,10 @@ todo:
     | Output        | (templateFolder) | Generates several outputs, based on templates, in a folder  |
     | Debug         | (jobdebug)       | Sets debug for a single job                                 |
     | Debug         | (jobsdebug)      | Sets debug for a series of jobs                             |
+    | Debug         | (debug)          | Outputs the current args and res values to help debug an ojob flow. |
     | Security      | (secget)         | Obtains secret arguments (e.g. credentials)                 |
     | Functionality | (fn)             | Access an OpenAF functionality / function                   |
-    | Functionality | (runfile)        | Runs another local or remote oJob                           |
+    | Functionality | (run)            | Runs another local or remote oJob                           |
     |---|---|---|
 
     ---
@@ -213,7 +215,7 @@ todo:
 
     ```
 
-    ### 🔖 (state)
+    ### 🔖 (stateOn)
 
     Changes the current state depending on the value of a provided args variable.
 
@@ -260,11 +262,11 @@ todo:
 
     Expects:
 
-      * **(code)**   : The exit code number to use.
+      * **(fail)**   : The exit code number to use.
       * **((force))**: A boolean indicating if instead of exit the processing should halt
 
     ```yaml 
-    - (code   ): -1
+    - (fail   ): -1
       ((force)): true
 
     ```
@@ -298,6 +300,19 @@ todo:
 
     ```yaml 
     - (wait): 5000
+
+    ```
+
+    ### 🔖 (state)
+  
+    Changes the current state.
+
+    Expects:
+
+      * **(state)**: The state to change to (to execute todo.when)
+
+    ```yaml 
+    - (state): stateA
 
     ```
 
@@ -395,10 +410,11 @@ todo:
 
     Expects:
 
-      * **((inKey))**: The path on the input contents for the string to convert
+      * **(convert)**   : Where to find the input contents to convert (if 'args' will default to the current args)
+      * **((inPath))**  : The path on the input contents for the string to convert
       * **((inFormat))**: The format of the input contents (yaml, json, xml, ndjson, slon)
-      * **((outKey))**: Where the converted output object should be placed (if 'args' with default to the current args)
-      * **((outPath))**: The path on the output contents to store the converted object
+      * **((outKey))**  : Where the converted output object should be placed (if 'args' with default to the current args)
+      * **((outPath))** : The path on the output contents to store the converted object
 
     ```
     - name: Convert from JSON
@@ -568,7 +584,7 @@ todo:
     
     todo:
     - Replace text
-    
+     
     ```
 
     ### 🔖 (output)
@@ -578,7 +594,7 @@ todo:
     Expects:
 
       * **(output)**    : The key string to retrieve previous results (defaults to 'res'). If "args" will retrieve from current args.
-      * **((path))**    : A path string to a map/array over the results set on key.
+      * **((path))**    : A path string to a map/array over the results set on key. 
       * **((format))**  : The output format (e.g. see ow.oJob.output help).
       * **((title))**   : Encapsulates the output map/array with a title key.
       * **((internal))**: Boolean value that if true it will display the internal oJob entries on the arguments (default false).
@@ -757,10 +773,6 @@ todo:
 
     ```  
 
-    ---
-
-    ## 🗂️ Security
-
     ### 🔖 (debug)
 
     Prints the current "args" and "res"
@@ -773,6 +785,10 @@ todo:
       - (debug) 
 
     ```
+
+    ---
+
+    ## 🗂️ Security
 
     ### 🔖 (secget)
 
