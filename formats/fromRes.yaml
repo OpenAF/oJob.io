@@ -12,7 +12,7 @@ help:
     mandatory: false
   - name     : wait
     desc     : If browser=true the time, in ms, to wait for the browser to open
-    example  : 5000
+    example  : "5000"
     mandatory: false
 
 todo:

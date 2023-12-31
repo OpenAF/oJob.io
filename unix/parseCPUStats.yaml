@@ -6,9 +6,9 @@ help:
     desc     : Command to obtain the result of /proc/stat (defaults to "cat /proc/stat")
     example  : cat /proc/stat
     mandatory: false
-  - name     : interval
+  - name     : interval 
     desc     : Interval of sampling of /proc/stat in ms
-    example  : 1000
+    example  : "1000"
     mandatory: false
   - name     : dontShowFirst
     desc     : Boolean to indicate that the first line should not be shown until a previous sample if collected to properly calculate the difference

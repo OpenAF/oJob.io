@@ -2,17 +2,17 @@
 help:
   text   : Test the provided cron expression a provides a list of dates of occurrence.
   expects: 
-  - name   : cron
-    desc   : The cron expression to evaluate
-    example: "*/5 * * * *"
+  - name     : cron
+    desc     : The cron expression to evaluate
+    example  : "*/5 * * * *"
     mandatory: false
-  - name   : next
-    desc   : How many occurrences in the future to provide (default to 5)
-    example: 5
+  - name     : next
+    desc     : How many occurrences in the future to provide (default to 5)
+    example  : "5"
     mandatory: false
-  - name   : prev
-    desc   : How many occurrences in the past to provide (default to 0)
-    example: 0
+  - name     : prev
+    desc     : How many occurrences in the past to provide (default to 0)
+    example  : "0"
     mandatory: false
 
 todo:

@@ -9,14 +9,14 @@ help:
   - name     : name
     desc     : When creating or deleting the hVSCs name
     example  : test
-    mandatory: false
+    mandatory: false 
   - name     : image
     desc     : The hVSCs image to use (defaults to nmaguiar/hvscs)
-    example  : false
+    example  : "false"
     mandatory: false
   - name     : mac
     desc     : If mac=true the host is a Mac OS server
-    example  : true
+    example  : "true"
     mandatory: false
   - name     : volume
     desc     : If defined a container volume to mount as /workspace on op=create
