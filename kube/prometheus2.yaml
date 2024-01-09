@@ -158,13 +158,21 @@ init:
             ports:
             - name: http
               containerPort: 9090
-            {{#if usePVC}}volumeMounts:
+            volumeMounts:
+            - name: prometheus-config
+              mountPath: /etc/prometheus/
+            {{#if usePVC}}
             - name: prometheus
               mountPath: /prometheus{{/if}}
           restartPolicy: Always
           securityContext: 
             fsGroup: 2000
-          {{#if usePVC}}volumes:
+          volumes:
+          - name: prometheus-config
+            configMap:
+              defaultMode: 420
+              name       : prometheus
+          {{#if usePVC}}
           - name: prometheus
             persistentVolumeClaim:
               claimName: prometheus{{/if}}
