@@ -6,9 +6,9 @@ ARCH=${ARCH:-`uname -m`}
 SYST=${SYST:-`uname -s`}
 MUSL=${MUSL:-`cat /etc/*-release | grep -q "Alpine" && echo 'alpine'`}
 DIST=${DIST:-}
-BASH=${BASH:-/bin/bash}
+PBSH=${PBSH:-/bin/bash}
 
-if [ ! -e $BASH ]
+if [ ! -e $PBSH ]
 then
   echo bash is needed to run this script
   exit 1
@@ -16,12 +16,12 @@ fi
 
 parseURL() {
     # Parse protocol
-    proto=$(echo $url | grep :// | sed -e's,^\(.*://\).*,\1,g')
-    url=$(echo $url | sed -e"s,$proto,,g")
+    proto=$(echo $_url | grep :// | sed -e's,^\(.*://\).*,\1,g')
+    _url=$(echo $_url | sed -e"s,$proto,,g")
 
     # Parse user / host / port
-    user="$(echo $url | grep @ | cut -d@ -f1)"
-    hostport=$(echo $url | sed -e"s,$user@,,g" | cut -d/ -f1)
+    user="$(echo $_url | grep @ | cut -d@ -f1)"
+    hostport=$(echo $_url | sed -e"s,$user@,,g" | cut -d/ -f1)
     host="$(echo $hostport | sed -e 's,:.*,,g')"
     port="$(echo $hostport | sed -e 's,^.*:,:,g' -e 's,.*:\([0-9]*\).*,\1,g')"
 
@@ -39,7 +39,7 @@ parseURL() {
         fi
     fi
 
-    uri="$(echo $url | grep / | cut -d/ -f2-)"
+    uri="$(echo $_url | grep / | cut -d/ -f2-)"
     file="$(echo $uri | sed -e 's/.*\///')"
 
     if [ "$file" = "" ]; then
@@ -52,11 +52,17 @@ parseURL() {
 downloadURL() {
     parseURL
 
-    echo "Downloading from '$proto$url' to '$output'..."
-    $BASH -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > $output
-    sed -i '1,/connection: close/d' $output
-    tail -n +2 $output > $output.temp
-    mv $output.temp $output
+    echo "Downloading from '$proto$_url' to '$_output'..."
+    echo "host = $host | port = $port | uri = $uri | output = $_output | PBSH = $PBSH"
+    $PBSH -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > "$_output"
+    if [ "$SYST" = "Darwin" ]
+    then    
+      sed -i '' '1,/connection: close/d' "$_output"
+    else
+      sed -i '1,/connection: close/d' "$_output"
+    fi
+    tail -n +2 $_output > $_output.temp
+    mv $_output.temp $_output
 }
 
 help() {
@@ -110,11 +116,11 @@ esac
 
 echo ---------------------
 echo Downloading openaf...
-url=http://openaf.io/$DIST/oaf-$TARCH
-output=oaf-$TARCH
+_url=http://openaf.io/${DIST:+${DIST}/}oaf-$TARCH
+_output=oaf-$TARCH
 downloadURL
-url=http://ojob.io/autoComplete.sh
-output=ojobAutoComplete.sh
+_url=http://ojob.io/autoComplete.sh
+_output=ojobAutoComplete.sh
 downloadURL
 chmod u+x oaf-$TARCH
 ./oaf-$TARCH
