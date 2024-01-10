@@ -53,7 +53,7 @@ downloadURL() {
     parseURL
 
     echo "Downloading from '$proto$_url' to '$_output'..."
-    echo "host = $host | port = $port | uri = $uri | output = $_output | PBSH = $PBSH"
+    #echo "host = $host | port = $port | uri = $uri | output = $_output | PBSH = $PBSH"
     $PBSH -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > "$_output"
     if [ "$SYST" = "Darwin" ]
     then    
