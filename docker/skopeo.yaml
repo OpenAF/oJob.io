@@ -20,9 +20,6 @@ ojob:
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
 
-include:
-- ojob.io/docker/_common
-
 jobs:
 # -----------------------
 - name : Deploy container
@@ -36,6 +33,16 @@ jobs:
     var res = {}
 
     if (isDef(args.cmd)) {
+      args.cmd = args.cmd.trim()
+      args.cmd = args.cmd.replace(/\&\&/g, "\\&\\&")
+      args.cmd = args.cmd.replace(/\|/g, "\\|")
+      args.cmd = args.cmd.replace(/\>/g, "\\>")
+      args.cmd = args.cmd.replace(/\</g, "\\<")
+      args.cmd = args.cmd.replace(/\;/g, "\\;")
+      args.cmd = args.cmd.replace(/\(/g, "\\(")
+      args.cmd = args.cmd.replace(/\)/g, "\\)")
+      args.cmd = args.cmd.replace(/\`/g, "\\`")
+
       extra = "&& cd /input && skopeo " + args.cmd
     } else {
       cmds.push("-ti")
@@ -44,6 +51,7 @@ jobs:
     cmds = cmds.concat(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
     cmds = cmds.concat(["-v", io.fileInfo(args.volume).canonicalPath + ":/input"])
     cmds = cmds.concat(["openaf/oaf:nightly", "-c", "$sh(\"sudo apk update 2>&1 > /dev/null && sudo apk add docker 2>&1 > /dev/null && sudo apk add skopeo 2>&1 > /dev/null " + extra + "\").exec()"])
-    if (isDef(args.cmd)) res = $sh(cmds).getJson(0); else $sh(cmds).exec()
+    if (isDef(args.cmd)) res = $sh(cmds).prefix("skopeo").get(0); else $sh(cmds).exec()
 
-    ow.oJob.output(isMap(res) ? res.stdout : res, args)
+    if (isUnDef(args.__format)) args.__format = "pm"
+    ow.oJob.output(res.stdout, args)
