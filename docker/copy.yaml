@@ -1,0 +1,129 @@
+# Author: Nuno Aguiar
+help:
+  text   : Copy, using a docker container, an OCI image from one registry to another. Alternatively, it can be used to copy from/to a file.
+  expects: 
+  - name     : sourceUser
+    desc     : The source registry user
+    example  : user
+    mandatory: false
+  - name     : sourcePass
+    desc     : The source registry password
+    example  : pass
+    mandatory: false
+  - name     : sourceFile
+    desc     : The source image OCI file to copy
+    example  : /tmp/file
+    mandatory: false
+  - name     : sourceImg
+    desc     : The source image to copy
+    example  : source.registry/myimage:latest
+    mandatory: false
+  - name     : targetUser
+    desc     : The target registry user
+    example  : user
+    mandatory: false
+  - name     : targetPass
+    desc     : The target registry password
+    example  : pass
+    mandatory: false
+  - name     : targetFile
+    desc     : The target image OCI file to copy
+    example  : /tmp/file
+    mandatory: false
+  - name     : targetImg
+    desc     : The target image to copy
+    example  : target.registry/myimage:latest
+    mandatory: false
+  - name     : extra
+    desc     : Extra skopeo command-line parameters
+    example  : "--all --src-tls-verify=false --dest-tls-verify=false"
+    mandatory: false
+
+todo:
+- Copy container image
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+jobs:
+# ---------------------------
+- name : Run Skopeo container
+  check:
+    in:
+      cmd   : isString
+      volume: isString.default(".") 
+  exec : |
+    var cmds = ["docker", "run", "--rm"]
+    var names = [], extra = "&& /bin/sh"
+    var res = {}
+
+    extra = "&& cd /input && " + args.cmd
+
+    cmds = cmds.concat(["-v", "/var/run/docker.sock:/var/run/docker.sock"])
+    cmds = cmds.concat(["-v", io.fileInfo(args.volume).canonicalPath + ":/input"])
+    cmds = cmds.concat(["openaf/oaf:nightly", "-c", "$sh(\"sudo apk update 2>&1 > /dev/null && sudo apk add docker 2>&1 > /dev/null && sudo apk add skopeo 2>&1 > /dev/null " + extra + "\").exec()"])
+    $sh(cmds).exec()
+
+# ---------------------------
+- name : Copy container image
+  check:
+    in:
+      sourceUser: isString.default(__)
+      sourcePass: isString.default(__)
+      sourceFile: isString.default(__)
+      sourceImg : isString.default("")
+      targetUser: isString.default(__)
+      targetPass: isString.default(__)
+      targetFile: isString.default(__)
+      targetImg : isString.default("")
+      extra     : isString.default("")
+  exec : |
+    let isSourceFile = isDef(args.sourceFile), isTargetFile = isDef(args.targetFile)
+
+    // ask for passwords
+    if (isDef(args.sourceUser) && isUnDef(args.sourcePass)) {
+      args.sourcePass = ask("Source '" + args.sourceUser + "' password: ", "*")
+    }
+
+    if (isDef(args.targetUser) && isUnDef(args.targetPass)) {
+      args.targetPass = ask("Target '" + args.targetUser + "' password: ", "*")
+    }
+
+    // define source and target
+    let sourceTxt, targetTxt
+    if (isSourceFile) {
+      sourceTxt = "docker-archive:" + args.sourceFile
+    } else {
+      if (isDef(args.sourceImg))
+        sourceTxt = "docker://" + args.sourceImg
+      else
+        throw "No source image defined"
+    }
+
+    if (isTargetFile) {
+      targetTxt = "docker-archive:" + args.targetFile
+    } else {
+      if (isDef(args.targetImg)) 
+        targetTxt = "docker://" + args.targetImg
+      else
+        throw "No target image defined"
+    }
+
+    if (isDef(args.extra)) {
+      args.extra = args.extra.trim()
+      args.extra = args.extra.replace(/\&\&/g, "\\&\\&")
+      args.extra = args.extra.replace(/\|/g, "\\|")
+      args.extra = args.extra.replace(/\>/g, "\\>")
+      args.extra = args.extra.replace(/\</g, "\\<")
+      args.extra = args.extra.replace(/\;/g, "\\;")
+      args.extra = args.extra.replace(/\(/g, "\\(")
+      args.extra = args.extra.replace(/\)/g, "\\)")
+      args.extra = args.extra.replace(/\`/g, "\\`")
+    }
+
+    $job("Run Skopeo container", { 
+      cmd: "sudo skopeo copy " + (!isSourceFile && isDef(args.sourceUser) ? "--src-creds " + args.sourceUser + ":" + args.sourcePass + " " : "") + sourceTxt + " " + (!isTargetFile && isDef(args.targetUser) ? "--dest-creds " + args.targetUser + ":" + args.targetPass + " " : "") + targetTxt + " " + args.extra
+    })
