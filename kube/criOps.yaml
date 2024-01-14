@@ -1,0 +1,250 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a Kubernetes cluster tries to perform crictl operations such as listing images or removing an image in one or all nodes.
+  expects: 
+  - name     : op
+    desc     : "The operation to perform: list, rmi"
+    example  : list
+    mandatory: true
+  - name     : node
+    desc     : If defined the crictl command will only be applied to a specific node name
+    example  : node-1
+    mandatory: false
+  - name     : ns
+    desc     : The namespace where jobs will be created to perform the crictl commands
+    example  : kube-system
+    mandatory: false
+  - name     : name
+    desc     : The prefix of the jobs that will be created to perform the crictl commands
+    example  : imglist
+    mandatory: false
+  - name     : jobimg
+    desc     : Use a different container image with crictl
+    example  : nmaguiar/imgutils
+    mandatory: false
+
+init:
+  sep: "---+++***---"
+  rt: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: "{{name}}"
+    spec:
+      template:
+        spec:
+          nodeName: "{{node}}"
+          containers:
+          - image: {{jobimg}}
+            imagePullPolicy: IfNotPresent
+            command: []
+            name: "{{name}}"
+            resources: {}
+            volumeMounts:
+            - mountPath: /run/containerd/containerd.sock
+              name: containerd-volume
+              readOnly: false
+          restartPolicy: Never
+          volumes:
+          - name: containerd-volume
+            hostPath:
+              path: /run/k3s/containerd/containerd.sock
+
+todo:
+- (optionOn   ): op
+  ((lowerCase)): true
+  ((todos    )):
+    list:
+    - List images in nodes
+    rmi :
+    - Remove image in nodes
+  ((default  )):
+  - List images in nodes
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - kube.js
+  owraps      :
+  - Obj
+
+jobs:
+# ------------------------------
+- name : Determine list of nodes
+  check:
+    in:
+      node: isString.default(__)
+  exec : |
+    // Build nodes list
+    if (isDef(args.node)) 
+      args.nodes = [ args.node ]
+    else
+      args.nodes = $kube().getNodes().map(r => r.Metadata.Name)
+
+# ----------------------------
+- name : Remove image in nodes
+  from :
+  #- Determine backup file
+  - Determine list of nodes
+  check:
+    in:
+      ns    : isString.default("kube-system")
+      name  : isString.default("imgrm")
+      node  : isString.default(__)
+      image : isString
+      jobimg: isString.default("nmaguiar/imgutils")
+  exec : |
+    var _dos = []
+    args.nodes.forEach(node => {
+      _dos.push($do(() => {
+        var _r = $job("Get crictl data", {
+          init  : args.init,
+          ns    : args.ns,
+          name  : args.name + "-" + md5(node).substr(0, 7),
+          node  : node,
+          cmd   : "rmi " + args.image,
+          jobimg: args.jobimg
+        })
+
+        if (isDef(_r.data) && isDef(_r.data._error)) {
+          var _out = _r.data._error.error.substr(_r.data._error.error.indexOf(args.init.sep) + args.init.sep.length + 1)
+          _out = _out.split("\n").map(r => "[" + node + "] " + r).join("\n")
+          logErr(_r.data._error.node + __logFormat.separator + "Error on running command:\n" + _out)
+        } else {
+          if (isDef(_r.data) && isDef(_r.data.output)) {
+            var _out = _r.data.output.substr(_r.data.output.indexOf(args.init.sep) + args.init.sep.length + 1)
+            _out = _out.split("\n").map(r => "[" + node + "] " + r).join("\n")
+            print(_out)
+          }
+        }
+      }))
+    })
+
+    $doWait($doAll(_dos))
+
+# ---------------------------
+- name : List images in nodes
+  from :
+  #- Determine backup file
+  - Determine list of nodes
+  check:
+    in:
+      ns    : isString.default("kube-system")
+      name  : isString.default("imglist")
+      jobimg: isString.default("nmaguiar/imgutils")
+  exec : |
+    var res = new ow.obj.syncArray(), _dos = []
+    args.nodes.forEach(node => {
+      _dos.push($do(() => {
+        var _r = $job("Get crictl data", {
+          init  : args.init,
+          ns    : args.ns,
+          name  : args.name + "-" + md5(node).substr(0, 7),
+          node  : node,
+          cmd   : "images -o json",
+          jobimg: args.jobimg
+        })
+
+        if (isDef(_r.data) && isDef(_r.data.images)) {
+          _r.data.images.forEach(_s => {
+            res.add({
+              node : node,
+              image: _s.repoTags[0],
+              size : Number(_s.size),
+              id   : _s.id
+            })
+          })
+        } else {
+          if (isDef(_r.data) && isDef(_r.data._error)) {
+            logErr(_r.data._error.node + __logFormat.separator + "Error on running command:\n" + _r.data._error.error)
+          }
+        }
+      }))
+    })
+    $doWait($doAll(_dos))
+    if (res.length() > 0) res = $from(res.toArray()).sort("node", "-size").select()
+
+    ow.oJob.output(res, args)
+
+# ----------------------
+- name : Get crictl data
+  check:
+    in:
+      ns    : isString
+      name  : isString
+      node  : isString
+      cmd   : isString.default("images -o json")
+      jobimg: isString.default("nmaguiar/imgutils")
+    out:
+      data: isMap.default({})
+  exec : |
+    var data = {}
+
+    // Prepare templates and commands
+    var def = af.fromYAML($t(args.init.rt, {
+      name  : args.name,
+      node  : args.node,
+      jobimg: args.jobimg
+    }))
+    var cmds = []
+    const sep = args.init.sep
+
+    cmds.push("echo " + sep)
+    cmds.push("sudo crictl -r unix:///run/containerd/containerd.sock " + args.cmd)
+
+    def.spec.template.spec.containers[0].command = [
+      "/bin/sh",
+      "-c",
+      cmds.join(" && ")
+    ]
+
+    // Apply job definition
+    // io.writeFileString(args.bak, (io.fileExists(args.bak) ? "\n---\n" : "") + af.toYAML(def), __, true)
+    //$sh("kubectl apply -f b.yaml").exec()
+    $kube().apply(def, args.ns)
+
+    try {
+      printErr(ow.format.fromDate(new Date(), __logFormat.dateFormat) + __logFormat.separator + args.node + __logFormat.separator + "In case of failure you can delete the Kubernetes job by executing: 'kubectl delete job " + args.name + " -n " + args.ns + "'")
+      var pod, status = {}
+      do {
+        pod = $from( $kube().getFPO(args.ns).items ).starts("metadata.name", args.name + "-").at(0)
+        if (isDef(pod)) {
+          var giveStatus = false
+          if (isUnDef(status[pod.metadata.name])) {
+            status[pod.metadata.name] = pod.status.phase
+            giveStatus = true
+          } else {
+            if (status[pod.metadata.name] != pod.status.phase) giveStatus = true
+            status[pod.metadata.name] = pod.status.phase
+          }
+          if (giveStatus) printErr(ow.format.fromDate(new Date(), __logFormat.dateFormat) + __logFormat.separator + pod.spec.nodeName + __logFormat.separator + "Pod " + pod.metadata.name + " " + pod.status.phase.toLowerCase())
+        }
+        sleep(500, true)
+      } while(isUnDef(pod) || (pod.status.phase != "Succeeded" && pod.status.phase != "Failed"))
+
+      var out
+      out = $kube().getLog(args.ns, pod.metadata.name)
+      if (pod.status.phase == "Succeeded") {
+        //out = $sh("kubectl logs " + pod.metadata.name + " -n " + args.ns).get(0).stdout
+        if (args.cmd.indexOf(" json") >= 0) {
+          out = out.substr(out.indexOf(sep) + sep.length)
+          out = out.substr(out.indexOf("{"))
+          args.data = jsonParse(out)
+        } else {
+          args.data = { output: out }
+        }
+      } else {
+        args.data = {
+          _error: {
+            node : args.node,
+            error: out
+          }
+        }
+      }
+    } finally {
+      $kube().delete(def, args.ns)
+    }
