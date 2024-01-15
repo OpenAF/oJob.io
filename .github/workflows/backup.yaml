@@ -60,7 +60,7 @@ jobs:
               // Downloading backup
               $rest().get2File(args._file, "https://ojob.io/_output.zip")
 
-              args._target = "ojobio/ojobio_" + ow.format.fromDate(global._date, "yyyyMMdd-HHmm") + ".zip"
+              args._target = "ojobio/ojobio_" + ow.format.fromDate(args._date, "yyyyMMdd-HHmm") + ".zip"
 
               args.bucket     = "nmaback"
               args.objectName = args._target
