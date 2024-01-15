@@ -40,6 +40,8 @@ jobs:
             logToConsole: true   # to change when finished
             loadLibs    :
             - s3.js 
+            owraps      :
+            - Format
 
           include:
           - s3.yaml       
