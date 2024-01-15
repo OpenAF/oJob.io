@@ -22,6 +22,10 @@ help:
     desc     : Use a different container image with crictl
     example  : nmaguiar/imgutils
     mandatory: false
+  - name     : containerd
+    desc     : The path to containerd socket if the node is different from /run/container.d/containerd.sock (e.g. k3s /run/k3s/containerd/containerd.sock)
+    example  : /run/k3s/containerd/containerd.sock
+    mandatory: false
 
 init:
   sep: "---+++***---"
@@ -48,7 +52,7 @@ init:
           volumes:
           - name: containerd-volume
             hostPath:
-              path: /run/k3s/containerd/containerd.sock
+              path: {{containerd}}
 
 todo:
 - (optionOn   ): op
@@ -92,22 +96,24 @@ jobs:
   - Determine list of nodes
   check:
     in:
-      ns    : isString.default("kube-system")
-      name  : isString.default("imgrm")
-      node  : isString.default(__)
-      image : isString
-      jobimg: isString.default("nmaguiar/imgutils")
+      ns        : isString.default("kube-system")
+      name      : isString.default("imgrm")
+      node      : isString.default(__)
+      image     : isString
+      jobimg    : isString.default("nmaguiar/imgutils")
+      containerd: isString.default("/run/containerd/containerd.sock")
   exec : |
     var _dos = []
     args.nodes.forEach(node => {
       _dos.push($do(() => {
         var _r = $job("Get crictl data", {
-          init  : args.init,
-          ns    : args.ns,
-          name  : args.name + "-" + md5(node).substr(0, 7),
-          node  : node,
-          cmd   : "rmi " + args.image,
-          jobimg: args.jobimg
+          init      : args.init,
+          ns        : args.ns,
+          name      : args.name + "-" + md5(node).substr(0, 7),
+          node      : node,
+          cmd       : "rmi " + args.image,
+          jobimg    : args.jobimg,
+          containerd: args.containerd
         })
 
         if (isDef(_r.data) && isDef(_r.data._error)) {
@@ -133,20 +139,22 @@ jobs:
   - Determine list of nodes
   check:
     in:
-      ns    : isString.default("kube-system")
-      name  : isString.default("imglist")
-      jobimg: isString.default("nmaguiar/imgutils")
+      ns        : isString.default("kube-system")
+      name      : isString.default("imglist")
+      jobimg    : isString.default("nmaguiar/imgutils")
+      containerd: isString.default("/run/containerd/containerd.sock")
   exec : |
     var res = new ow.obj.syncArray(), _dos = []
     args.nodes.forEach(node => {
       _dos.push($do(() => {
         var _r = $job("Get crictl data", {
-          init  : args.init,
-          ns    : args.ns,
-          name  : args.name + "-" + md5(node).substr(0, 7),
-          node  : node,
-          cmd   : "images -o json",
-          jobimg: args.jobimg
+          init      : args.init,
+          ns        : args.ns,
+          name      : args.name + "-" + md5(node).substr(0, 7),
+          node      : node,
+          cmd       : "images -o json",
+          jobimg    : args.jobimg,
+          containerd: args.containerd
         })
 
         if (isDef(_r.data) && isDef(_r.data.images)) {
@@ -174,11 +182,12 @@ jobs:
 - name : Get crictl data
   check:
     in:
-      ns    : isString
-      name  : isString
-      node  : isString
-      cmd   : isString.default("images -o json")
-      jobimg: isString.default("nmaguiar/imgutils")
+      ns        : isString
+      name      : isString
+      node      : isString
+      cmd       : isString.default("images -o json")
+      jobimg    : isString.default("nmaguiar/imgutils")
+      containerd: isString.default("/run/containerd/containerd.sock")
     out:
       data: isMap.default({})
   exec : |
@@ -186,9 +195,10 @@ jobs:
 
     // Prepare templates and commands
     var def = af.fromYAML($t(args.init.rt, {
-      name  : args.name,
-      node  : args.node,
-      jobimg: args.jobimg
+      name      : args.name,
+      node      : args.node,
+      jobimg    : args.jobimg,
+      containerd: args.containerd
     }))
     var cmds = []
     const sep = args.init.sep
