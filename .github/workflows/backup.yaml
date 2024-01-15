@@ -1,0 +1,69 @@
+name: Backup oJob.io
+
+on:
+  #push:
+  #  branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    #permissions:
+    #  contents: write
+    #  pull-requests: write
+
+    steps  :
+    # --------------------------
+    - name: Cache OpenAF runtime
+      uses: actions/cache@v3
+      with:
+        key : oaf-nightly
+        path: /tmp/oaf
+
+    # --------------------
+    - name: Backup oJob.io
+      uses: openaf/ojob-action@v4
+      env :
+        OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
+      with:
+        dist  : nightly
+        def   : |
+          todo:
+          - Backup ojob.io
+
+          ojob:
+            opacks      :
+            - openaf: 20231222
+            - S3    : 20231112
+            catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+            logToConsole: true   # to change when finished
+            loadLibs    :
+            - s3.js 
+
+          include:
+          - s3.yaml       
+
+          jobs:
+          # ---------------------
+          - name : Backup ojob.io
+            exec : |
+              args._file = io.createTempFile("ojobio", ".zip")
+
+              // Checking backup download info
+              var _info = $rest().head("https://ojob.io/_output.zip")
+              log("Downloading " + ow.format.toBytesAbbreviation(_info.response["content-length"]) + " modified on " + _info.response["last-modified"] + "...")
+              args._date = new Date(_info.response["last-modified"]) 
+
+              // Downloading backup
+              $rest().get2File(args._file, "https://ojob.io/_output.zip")
+
+              args._target = "ojobio/ojobio_" + ow.format.fromDate(global._date, "yyyyMMdd-HHmm") + ".zip"
+
+              args.bucket     = "nmaback"
+              args.objectName = args._target
+              args.localPath  = args._file
+            to   :
+            - (secget  ): OS_OJOBIO
+              ((secEnv)): true
+            - S3 Put object
