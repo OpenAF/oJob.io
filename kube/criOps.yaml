@@ -1,7 +1,7 @@
 # Author: Nuno Aguiar
 help:
   text   : Given a Kubernetes cluster tries to perform crictl operations such as listing images or removing an image in one or all nodes.
-  expects: 
+  expects:
   - name     : op
     desc     : "The operation to perform: list, rmi"
     example  : list
@@ -22,9 +22,13 @@ help:
     desc     : Use a different container image with crictl
     example  : nmaguiar/imgutils
     mandatory: false
-  - name     : containerd
+  - name     : socket
     desc     : The path to containerd socket if the node is different from /run/container.d/containerd.sock (e.g. k3s /run/k3s/containerd/containerd.sock)
     example  : /run/k3s/containerd/containerd.sock
+    mandatory: false
+  - name     : crio
+    desc     : If crio=true it will use the cri-o socket (e.g. OpenShift) instead of the containerd.
+    example  : "true"
     mandatory: false
 
 init:
@@ -41,18 +45,20 @@ init:
           containers:
           - image: {{jobimg}}
             imagePullPolicy: IfNotPresent
+            securityContext:
+              privileged: true
             command: []
             name: "{{name}}"
             resources: {}
             volumeMounts:
-            - mountPath: /run/containerd/containerd.sock
+            - mountPath: {{#if crio}}/run/crio/crio.sock{{else}}/run/containerd/containerd.sock{{/if}}
               name: containerd-volume
               readOnly: false
           restartPolicy: Never
           volumes:
           - name: containerd-volume
             hostPath:
-              path: {{containerd}}
+              path: {{socket}}
 
 todo:
 - (optionOn   ): op
@@ -68,7 +74,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20231222
-  - Kube
+  - Kube  : 20240112
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
   loadLibs    :
@@ -84,7 +90,7 @@ jobs:
       node: isString.default(__)
   exec : |
     // Build nodes list
-    if (isDef(args.node)) 
+    if (isDef(args.node))
       args.nodes = [ args.node ]
     else
       args.nodes = $kube().getNodes().map(r => r.Metadata.Name)
@@ -101,7 +107,8 @@ jobs:
       node      : isString.default(__)
       image     : isString
       jobimg    : isString.default("nmaguiar/imgutils")
-      containerd: isString.default("/run/containerd/containerd.sock")
+      socket    : isString.default(__)
+      crio      : toBoolean.isBoolean.default(false)
   exec : |
     var _dos = []
     args.nodes.forEach(node => {
@@ -113,7 +120,8 @@ jobs:
           node      : node,
           cmd       : "rmi " + args.image,
           jobimg    : args.jobimg,
-          containerd: args.containerd
+          socket    : args.socket,
+          crio      : args.crio
         })
 
         if (isDef(_r.data) && isDef(_r.data._error)) {
@@ -142,7 +150,8 @@ jobs:
       ns        : isString.default("kube-system")
       name      : isString.default("imglist")
       jobimg    : isString.default("nmaguiar/imgutils")
-      containerd: isString.default("/run/containerd/containerd.sock")
+      socket    : isString.default(__)
+      crio      : toBoolean.isBoolean.default(false)
   exec : |
     var res = new ow.obj.syncArray(), _dos = []
     args.nodes.forEach(node => {
@@ -154,14 +163,15 @@ jobs:
           node      : node,
           cmd       : "images -o json",
           jobimg    : args.jobimg,
-          containerd: args.containerd
+          socket    : args.socket,
+          crio      : args.crio
         })
 
         if (isDef(_r.data) && isDef(_r.data.images)) {
           _r.data.images.forEach(_s => {
             res.add({
               node : node,
-              image: _s.repoTags[0],
+              image: (_s.repoTags.length > 0 ? _s.repoTags[0] : _s.repoDigests[0]),
               size : Number(_s.size),
               id   : _s.id
             })
@@ -187,24 +197,27 @@ jobs:
       node      : isString
       cmd       : isString.default("images -o json")
       jobimg    : isString.default("nmaguiar/imgutils")
-      containerd: isString.default("/run/containerd/containerd.sock")
+      crio      : toBoolean.isBoolean.default(false)
     out:
       data: isMap.default({})
   exec : |
     var data = {}
+
+    if (!isString(args.socket) || isUnDef(args.socket)) args.socket = (args.crio ? "/run/crio/crio.sock" : "/run/containerd/containerd.sock")
 
     // Prepare templates and commands
     var def = af.fromYAML($t(args.init.rt, {
       name      : args.name,
       node      : args.node,
       jobimg    : args.jobimg,
-      containerd: args.containerd
+      socket    : args.socket,
+      crio      : args.crio
     }))
     var cmds = []
     const sep = args.init.sep
 
     cmds.push("echo " + sep)
-    cmds.push("sudo crictl -r unix:///run/containerd/containerd.sock " + args.cmd)
+    cmds.push("sudo crictl -r unix://" + args.socket + " " + args.cmd)
 
     def.spec.template.spec.containers[0].command = [
       "/bin/sh",
