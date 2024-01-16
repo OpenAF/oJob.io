@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : "Prints a cheatsheet with the oJob's langs"
+  text   : Prints a cheatsheet with the oJob langs
 
 ojob:
   opacks:
