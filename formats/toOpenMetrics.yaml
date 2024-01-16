@@ -111,7 +111,7 @@ jobs:
         }
       })
       is.close()
-x
+
       // Write in each bucket file
       Object.keys(_f).forEach(k => {
         var _ft = args.target + "/" + k + ".openmetrics"
