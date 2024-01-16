@@ -7,8 +7,8 @@ help:
     example  : list
     mandatory: true
   - name     : node
-    desc     : If defined the crictl command will only be applied to a specific node name
-    example  : node-1
+    desc     : If defined the crictl command will only be applied to a specific node name (or specific nodes if a list comma delimited)
+    example  : node-1,node-2
     mandatory: false
   - name     : ns
     desc     : The namespace where jobs will be created to perform the crictl commands
@@ -91,7 +91,7 @@ jobs:
   exec : |
     // Build nodes list
     if (isDef(args.node))
-      args.nodes = [ args.node ]
+      args.nodes = args.node.split(",").map(s => s.trim())
     else
       args.nodes = $kube().getNodes().map(r => r.Metadata.Name)
 
