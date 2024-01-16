@@ -1,0 +1,96 @@
+# Author: Nuno Aguiar
+help:
+  text   : Perform operations using Ollama's API
+  expects: 
+  - name     : op
+    desc     : "The operation to perform op: list, update, pull, delete"
+    example  : list
+    mandatory: true
+  - name     : url
+    desc     : The Ollama URL to access the API
+    example  : http://ollama:8080
+    mandatory: true
+  - name     : model
+    desc     : The Ollama model to operate over
+    example  : myModel
+    mandatory: false
+
+todo:
+- (optionOn   ): op
+  ((lowerCase)): true
+  ((todos    )):
+    update:
+    - Update Ollama models
+    list:
+    - List Ollama models
+    pull:
+    - Pull Ollama model
+    delete:
+    - Delete Ollama model
+  ((default  )):
+  - List Ollama models
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+jobs:
+# --------------------------
+- name : Delete Ollama model
+  check:
+    in:
+      url  : isString
+      model: isString
+  exec : |
+    printErr("Deleting model " + args.model + "...")
+    var _data = $rest().delete(args.url + "/api/delete", { name: args.model })
+    ow.oJob.output(_data, args)
+
+# ------------------------
+- name : Pull Ollama model
+  check:
+    in:
+      url  : isString
+      model: isString
+  exec : |
+    var _data = $rest().post(args.url + "/api/pull", { name: args.model })
+    ow.oJob.output(_data.split("\n").filter(rr => rr.length > 0).map(rr => "[" + model + "] " + af.toSLON(jsonParse(rr), true)).join("\n"), args)
+
+# ---------------------------
+- name : Update Ollama models
+  check:
+    in:
+      url  : isString
+      model: isString.default(__)
+  exec : |
+    var lst
+    if (isDef(args.model)) {
+      lst = [ args.model ]
+    } else {
+      lst = $rest().get(args.url + "/api/tags").models.map(r => r.name)
+    }
+
+    var _data = []
+    lst.forEach(model => {
+      printErr("Updating model " + model + "...")
+      var _r = $rest().post(args.url + "/api/pull", { name: model }) 
+      try {
+        printErr("Model " + model + " updated:\n" + _r.split("\n").filter(rr => rr.length > 0).map(rr => "[" + model + "] " + af.toSLON(jsonParse(rr), true)).join("\n"))
+      } catch(e) {
+        printErr("Model " + model + " updated:\n" + af.toSLON(_r, true))
+      }
+    })
+
+    _data = $rest().get(args.url + "/api/tags")
+    ow.oJob.output(_data, args)
+
+# -------------------------
+- name : List Ollama models
+  check:
+    in:
+      url  : isString
+  exec : |
+    var _data = $rest().get(args.url + "/api/tags")
+    ow.oJob.output(_data.models, args)
