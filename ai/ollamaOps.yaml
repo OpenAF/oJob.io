@@ -84,7 +84,7 @@ jobs:
     })
 
     _data = $rest().get(args.url + "/api/tags")
-    ow.oJob.output(_data, args)
+    ow.oJob.output(_data.models, args)
 
 # -------------------------
 - name : List Ollama models
