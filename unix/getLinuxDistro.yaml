@@ -1,0 +1,111 @@
+todo:
+- Get Linux Distro
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+jobs:
+- name: Get Linux Distro
+  to  :
+  - (output): args
+  lang: shell
+  exec: |
+    OS='unknown'
+    OS_LIKE='unknown'
+    # Check if the /etc/os-release file exists
+    if [ -f /etc/os-release ]; then
+      # Read the ID and ID_LIKE variables from the file
+      . /etc/os-release
+      # Compare the ID and ID_LIKE values with known distributions
+      OS_LIKE=$ID_LIKE
+      case "$ID" in
+        "redhat"|"centos"|"fedora"|"rhel")
+          OS='redhat'
+          ;;
+        "debian"|"mint"|"pop")
+          OS='debian'
+          ;;
+        "ubuntu")
+          OS='ubuntu'
+          ;;
+        "alpine")
+          OS='alpine'
+          ;;
+        "amzn")
+          OS='amazon'
+          ;;
+        *)
+          OS=$ID_LIKE
+          ;;
+      esac
+    else
+      # Check if the lsb_release command is available
+      if command -v lsb_release &> /dev/null; then
+        # Use the lsb_release command to get the OS information
+        OS=$(lsb_release -si)
+        # Compare the OS value with known distributions
+        case "$OS" in
+          "RedHatEnterprise"|"CentOS"|"Fedora")
+            OS='redhat'
+            OS_LIKE='redhat'
+            ;;
+          "Debian"|"Ubuntu"|"LinuxMint"|"Pop")
+            OS='debian'
+            OS_LIKE='debian'
+            ;;
+          "Ubuntu")
+            OS='ubuntu'
+            OS_LIKE='debian'
+            ;;
+          "AmazonAMI")
+            OS='amazon'
+            OS_LIKE='redhat'
+            ;;
+          *)
+            OS='unknown'
+            OS_LIKE='unknown'
+            ;;
+        esac
+      else
+        # Check if the /etc/issue file exists
+        if [ -f /etc/issue ]; then
+          # Read the first line of the /etc/issue file
+          ISSUE=$(head -n 1 /etc/issue)
+          # Compare the ISSUE value with known distributions
+          case "$ISSUE" in
+            "Red Hat"*)
+              OS='redhat'
+              OS_LIKE='redhat'
+              ;;
+            "Debian"*)
+              OS='debian'
+              OS_LIKE='debian'
+              ;;
+            "Ubuntu"*)
+              OS='ubuntu'
+              OS_LIKE='debian'
+              ;;
+            "Alpine"*)
+              OS='alpine'
+              OS_LIKE='alpine'
+              ;;
+            "Amazon Linux"*)
+              OS='amazon'
+              OS_LIKE='redhat'
+              ;;
+            *)
+              OS='unknown'
+              OS_LIKE='unknown'
+              ;;
+          esac
+        else
+          OS='unknown'
+          OS_LIKE='unknown'
+        fi
+      fi
+    fi
+
+    # return OS, OS_LIKE
