@@ -14,33 +14,78 @@ help:
     desc     : Add extra optional information
     example  : "John Doe,Room 1234,555-1234,555-5678,John.Doe@example.com"
     mandatory: false
+  - name     : debian
+    desc     : Uses different syntax for debian based systems
+    example  : "true"
+    mandatory: false
+  - name     : sudo
+    desc     : Boolean if false will not use sudo to execute the commands (default to true)
+    example  : "false"
+    mandatory: false
 
 todo:
 - Create user
 
 ojob:
   opacks      :
-  - openaf: 20230325
+  - openaf: 20231222
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
-        
 
 jobs:
 # ---------------------
+- name : Determine sudo
+  check:
+    in:
+      sudo: toBoolean.isBoolean.default(__)
+  exec : |
+    if (isUnDef(args.sudo)) {
+      if ( $sh("sudo").get(0).exitcode == 0) {
+        args.sudo = true
+      } else {
+        args.sudo = false
+      }
+    }
+
+# -----------------------
+- name : Determine debian
+  check:
+    in:
+      debian: toBoolean.isBoolean.default(__)
+  exec : |
+    if (isUnDef(args.debian) && io.fileExists("/etc/os-release")) {
+      ow.loadJava()
+      var _d = ow.java.ini().loadFile("/etc/os-release").get()
+
+      if (isDef(_d.ID_LIKE) && _d.ID_LIKE.toLowerCase().indexOf("debian") >= 0) {
+        args.debian = true
+      } else {
+        args.debian = false
+      }
+    }
+
+# ---------------------
 - name    : Create user
+  from    : 
+  - Determine debian
+  - Determine sudo
   check   :
     in:
-      user : isString
-      group: isString.default(__)
-      gecos: isString.default(__)
+      user  : isString
+      group : isString.default(__)
+      gecos : isString.default(__)
   lang    : shell
   exec    : |
-    sudo adduser {{user}}{{#if group}} -g {{group}}{{/if}}{{#if gecos}} --gecos '{{{gecos}}}'{{/if}}
-    sudo mkdir /home/{{user}}/.ssh
-    sudo chmod 700 /home/{{user}}/.ssh
-    sudo touch /home/{{user}}/.ssh/authorized_keys
-    sudo chmod 600 /home/{{user}}/.ssh/authorized_keys
-    sudo chown -R {{user}}: /home/{{user}}/.ssh
+    {{#if debian}}
+    {{#if sudo}}sudo {{/if}}adduser {{#if group}} --ingroup {{group}}{{/if}}{{#if gecos}} --gecos '{{{gecos}}}'{{/if}} --disabled-password {{user}}
+    {{else}}
+    {{#if sudo}}sudo {{/if}}adduser {{user}}{{#if group}} -g {{group}}{{/if}}{{#if gecos}} --gecos '{{{gecos}}}'{{/if}}
+    {{/if}}
+    {{#if sudo}}sudo {{/if}}mkdir /home/{{user}}/.ssh
+    {{#if sudo}}sudo {{/if}}chmod 700 /home/{{user}}/.ssh
+    {{#if sudo}}sudo {{/if}}touch /home/{{user}}/.ssh/authorized_keys
+    {{#if sudo}}sudo {{/if}}chmod 600 /home/{{user}}/.ssh/authorized_keys
+    {{#if sudo}}sudo {{/if}}chown -R {{user}}: /home/{{user}}/.ssh
 
     echo
-    echo To delete just execute \"sudo deluser {{user}} \&\& sudo rm -rf /home/example\"
+    echo To delete just execute \"{{#if sudo}}sudo {{/if}}deluser {{user}} \&\& {{#if sudo}}sudo {{/if}}rm -rf /home/example\"
