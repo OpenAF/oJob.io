@@ -235,7 +235,7 @@ jobs:
     // Apply job definition
     // io.writeFileString(args.bak, (io.fileExists(args.bak) ? "\n---\n" : "") + af.toYAML(def), __, true)
     //$sh("kubectl apply -f b.yaml").exec()
-    sync(() => $kube().apply(def, args.ns))
+    $kube().apply(def, args.ns)
 
     try {
       printErr(ow.format.fromDate(new Date(), __logFormat.dateFormat) + __logFormat.separator + args.node + __logFormat.separator + "In case of failure you can delete the Kubernetes job by executing: 'kubectl delete job " + args.name + " -n " + args.ns + "'")
