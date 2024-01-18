@@ -99,6 +99,7 @@ jobs:
 - name : Remove image in nodes
   from :
   #- Determine backup file
+  - Load YAML functionality
   - Determine list of nodes
   check:
     in:
@@ -140,10 +141,16 @@ jobs:
 
     $doWait($doAll(_dos))
 
+# ------------------------------
+- name : Load YAML functionality
+  exec : |
+    loadJSYAML()
+
 # ---------------------------
 - name : List images in nodes
   from :
   #- Determine backup file
+  - Load YAML functionality
   - Determine list of nodes
   check:
     in:
