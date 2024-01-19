@@ -1,0 +1,21 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Retrieves Microsoft blog RSS
+
+todo:
+- Microsoft
+
+ojob:
+  opacks      :
+  - openaf: 20211229
+  catch       : logErr(exception);
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------
+- name: Microsoft
+  type: jobs
+  typeArgs:
+    url: ojob.io/news/rss
+  args:
+    url: https://blogs.microsoft.com/feed/
