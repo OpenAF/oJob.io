@@ -46,6 +46,8 @@ For jobs following the standard output practice you can add an extra argument, "
   * PRETTYJSON - \_\_format=pretty json for formatted json output.
   * MAP        - \_\_format=map for output in a map tabular human-readable form.
   * TABLE      - \_\_format=table for output in a table human-readable form.
+  * CTABLE     - \_\_format=ctable for output in a table with row colors and word-wrap.
+  * STABLE     - \_\_format=stable for output in a table with row dividers and word-wrap.
   * TREE       - \_\_format=tree for output in tree ascii format.
   * HTML       - \_\_format=html for output in HTML format.
   * PM         - \_\_format=pm for output into a global variable __pm._list. 
@@ -66,6 +68,8 @@ For jobs following the standard output practice you can add an extra argument, "
 
 ### For string results
 
+  * TEXT  - \_\_format=Text for output in string text representation (if possible).
+  * MD    - \_\_format=md for output with markdown parsing (if possible).
   * HUMAN - \_\_format=human for output in the raw human-readable representation.
   * PM    - \_\_format=pm for output into a global variable __pm.result.
 
