@@ -34,7 +34,7 @@ jobs:
       flags: __flags,
       memory: ow.java.getMemory(),
       cpu: {
-        cores: getNumberOfCores()
+        cores: getNumberOfCores(true)
       },
       opacks: $m4a(getOPackLocalDB(), "path").map(r => ({
         name: r.name,
