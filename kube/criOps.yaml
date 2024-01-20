@@ -1,9 +1,9 @@
 # Author: Nuno Aguiar
 help:
-  text   : Given a Kubernetes cluster tries to perform crictl operations such as listing images or removing an image in one or all nodes.
+  text   : Given a Kubernetes cluster tries to perform crictl operations such as list, remove, prune and pull images in one or all nodes.
   expects:
   - name     : op
-    desc     : "The operation to perform: list, rmi"
+    desc     : "The operation to perform: list, pull, rmi, prune, interactive"
     example  : list
     mandatory: true
   - name     : node
@@ -23,7 +23,7 @@ help:
     example  : nmaguiar/imgutils
     mandatory: false
   - name     : socket
-    desc     : The path to containerd socket if the node is different from /run/container.d/containerd.sock (e.g. k3s /run/k3s/containerd/containerd.sock)
+    desc     : "The path to containerd socket if the node is different from /run/container.d/containerd.sock (e.g. k3s: /run/k3s/containerd/containerd.sock; os: /var/run/crio/crio.sock; eks/gke/aks: /run/containerd/containerd.sock)"
     example  : /run/k3s/containerd/containerd.sock
     mandatory: false
   - name     : crio
@@ -68,6 +68,12 @@ todo:
     - List images in nodes
     rmi :
     - Remove image in nodes
+    prune:
+    - Prune images in nodes
+    pull:
+    - Pull image in nodes
+    interactive:
+    - Interactive over a node
   ((default  )):
   - List images in nodes
 
@@ -95,6 +101,73 @@ jobs:
     else
       args.nodes = $kube().getNodes().map(r => r.Metadata.Name)
 
+# ------------------------------
+- name : Interactive over a node
+  from :
+  - Load YAML functionality
+  check:
+    in:
+      ns        : isString.default("kube-system")
+      name      : isString.default("imgutils")
+      node      : isString
+      jobimg    : isString.default("nmaguiar/imgutils")
+      socket    : isString.default(__)
+      crio      : toBoolean.isBoolean.default(false)
+  exec : |
+    if (isDef(args.node) && args.node.indexOf(",") >= 0) throw "For interactive mode you can only specify one node"
+
+    var def = {
+      apiVersion: "v1",
+      spec: {
+        nodeName: args.node,
+        containers: [
+          {
+            name: args.name,
+            image: args.jobimg,
+            stdin: true,
+            stdinOnce: true,
+            tty: true,
+            securityContext: {
+              privileged: true
+            },
+            args: [
+              "sudo", "-E", "/bin/bash"
+            ],
+            env: [{
+              name: "CONTAINER_RUNTIME_ENDPOINT",
+              value: (args.crio ? "unix:///run/crio/crio.sock" : "unix:///run/containerd/containerd.sock")
+            }],
+            volumeMounts: [{
+              name: "cri",
+              mountPath: (args.crio ? "unix:///run/crio/crio.sock" : "/run/containerd/containerd.sock")
+            }]
+          }
+        ],
+        volumes: [{
+          name: "cri",
+          hostPath: {
+            path: args.socket
+          }
+        }]
+      }
+    }
+
+    $sh(["/bin/sh", "-c", [
+      "kubectl",
+      "run", 
+      "-n",
+      args.ns,
+      args.name,
+      "--rm",
+      "-ti",
+      "--image=" + args.jobimg,
+      "--overrides=\"" + stringify(def, __ ,"").replace(/"/g, "\\\"") + "\"",
+      "--",
+      "sudo",
+      "-E", 
+      "/bin/bash"
+    ].join(" ")]).exec()
+
 # ----------------------------
 - name : Remove image in nodes
   from :
@@ -120,6 +193,96 @@ jobs:
           name      : args.name + "-" + md5(node).substr(0, 7),
           node      : node,
           cmd       : "rmi " + args.image,
+          jobimg    : args.jobimg,
+          socket    : args.socket,
+          crio      : args.crio
+        })
+
+        if (isDef(_r.data) && isDef(_r.data._error)) {
+          var _out = _r.data._error.error.substr(_r.data._error.error.indexOf(args.init.sep) + args.init.sep.length + 1)
+          _out = _out.split("\n").map(r => "[" + node + "] " + r).join("\n")
+          logErr(_r.data._error.node + __logFormat.separator + "Error on running command:\n" + _out)
+        } else {
+          if (isDef(_r.data) && isDef(_r.data.output)) {
+            var _out = _r.data.output.substr(_r.data.output.indexOf(args.init.sep) + args.init.sep.length + 1)
+            _out = _out.split("\n").map(r => "[" + node + "] " + r).join("\n")
+            print(_out)
+          }
+        }
+      }))
+    })
+
+    $doWait($doAll(_dos))
+
+# ----------------------------
+- name : Prune images in nodes
+  from :
+  #- Determine backup file
+  - Load YAML functionality
+  - Determine list of nodes
+  check:
+    in:
+      ns        : isString.default("kube-system")
+      name      : isString.default("imgprune")
+      node      : isString.default(__)
+      jobimg    : isString.default("nmaguiar/imgutils")
+      socket    : isString.default(__)
+      crio      : toBoolean.isBoolean.default(false)
+  exec : |
+    var _dos = []
+    args.nodes.forEach(node => {
+      _dos.push($do(() => {
+        var _r = $job("Get crictl data", {
+          init      : args.init,
+          ns        : args.ns,
+          name      : args.name + "-" + md5(node).substr(0, 7),
+          node      : node,
+          cmd       : "rmi --prune",
+          jobimg    : args.jobimg,
+          socket    : args.socket,
+          crio      : args.crio
+        })
+
+        if (isDef(_r.data) && isDef(_r.data._error)) {
+          var _out = _r.data._error.error.substr(_r.data._error.error.indexOf(args.init.sep) + args.init.sep.length + 1)
+          _out = _out.split("\n").map(r => "[" + node + "] " + r).join("\n")
+          logErr(_r.data._error.node + __logFormat.separator + "Error on running command:\n" + _out)
+        } else {
+          if (isDef(_r.data) && isDef(_r.data.output)) {
+            var _out = _r.data.output.substr(_r.data.output.indexOf(args.init.sep) + args.init.sep.length + 1)
+            _out = _out.split("\n").map(r => "[" + node + "] " + r).join("\n")
+            print(_out)
+          }
+        }
+      }))
+    })
+
+    $doWait($doAll(_dos))
+
+# --------------------------
+- name : Pull image in nodes
+  from :
+  #- Determine backup file
+  - Load YAML functionality
+  - Determine list of nodes
+  check:
+    in:
+      ns        : isString.default("kube-system")
+      name      : isString.default("imgprune")
+      node      : isString.default(__)
+      jobimg    : isString.default("nmaguiar/imgutils")
+      socket    : isString.default(__)
+      crio      : toBoolean.isBoolean.default(false)
+  exec : |
+    var _dos = []
+    args.nodes.forEach(node => {
+      _dos.push($do(() => {
+        var _r = $job("Get crictl data", {
+          init      : args.init,
+          ns        : args.ns,
+          name      : args.name + "-" + md5(node).substr(0, 7),
+          node      : node,
+          cmd       : "pull " + args.image,
           jobimg    : args.jobimg,
           socket    : args.socket,
           crio      : args.crio
@@ -224,7 +387,7 @@ jobs:
     const sep = args.init.sep
 
     cmds.push("echo " + sep)
-    cmds.push("sudo crictl -r unix://" + args.socket + " " + args.cmd)
+    cmds.push("sudo crictl -r unix://" + (args.crio ? "/run/crio/crio.sock" : "/run/containerd/containerd.sock") + " " + args.cmd)
 
     def.spec.template.spec.containers[0].command = [
       "/bin/sh",
