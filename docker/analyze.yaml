@@ -2,11 +2,14 @@
 help: 
   text   : Starts dive (https://github.com/wagoodman/dive) over a specific container image for analysis.
   expects: 
-  - name   : image
-    desc   : The container image to analyze
-    example: openaf/openaf:nightly
-  - name   : gui
-    desc   : If "false" it won't start the GUI (for batch processing). Defaults to "true"
+  - name     : image
+    desc     : The container image to analyze
+    example  : openaf/openaf:nightly
+    mandatory: true
+  - name     : gui
+    desc     : If "false" it won't start the GUI (for batch processing). Defaults to "true"
+    example  : "false"
+    mandatory: false
 
 todo:
 - Check for docker
@@ -15,7 +18,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20210412
-  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception); return false;"
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
 
 include:
@@ -37,7 +40,9 @@ jobs:
       path = info.canonicalPath.replace(new RegExp(info.filename + "$"), "");
       cmds.push("-v"); cmds.push(path + ":/out");
     }
-    cmds.push("wagoodman/dive");
+    cmds.push("nmaguiar/imgutils")
+    cmds.push("sudo")
+    cmds.push("dive")
     var id;
 
     if (!args.gui) { 
