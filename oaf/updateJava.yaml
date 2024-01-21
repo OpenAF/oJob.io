@@ -1,0 +1,88 @@
+# Author: Nuno Aguiar
+help:
+  text   : Check, download and update (in Linux) the OpenAF's runtime if necessary.
+  expects: 
+  - name     : version
+    desc     : The major version of the Java runtime to download (otherwise only updates within the same major version)
+    example  : 21
+    mandatory: false
+  - name     : arch
+    desc     : The architecture of the Java runtime to download (otherwise the current one)
+    example  : aarch64
+    mandatory: false
+  - name     : path
+    desc     : The path where to install the Java runtime (otherwise the current one associated with OpenAF)
+    example  : /some/path
+    mandatory: false
+
+todo:
+- Sample job
+
+ojob:
+  opacks      :
+  - openaf: 20240121
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Sample job
+  check:
+    in:
+      path   : isString.default(__)
+      version: toNumber.isNumber.default(__)
+      arch   : isString.default(__)
+  exec : |
+    ow.oJob.loadJobs("ojob.io/java/download")
+
+    // Set path if not defined
+    if (isUnDef(args.path)) {
+      args.path = ow.format.getJavaHome()
+    }
+
+    // Set version if not defined
+    if (isUnDef(args.version)) {
+      args.version = ow.format.getJavaVersion().replace(/^1\./, "").replace(/(\d+).*/, "$1")
+    }
+
+    var _rversion = String(java.lang.System.getProperty("java.runtime.version")).replace("-LTS", "")
+    log("Current Java version: " + _rversion + " (" + ow.format.getOSArch() + ")")
+
+    // Set arch if not defined
+    if (isUnDef(args.arch)) {
+      args.arch = ow.format.getOSArch()
+    }
+
+    // If not windows
+    if (!ow.format.isWindows()) {
+      // If Linux or Mac OS try to find the java executable
+      if (io.fileExists(args.path + "/bin/java")) {
+        var res = $job("List options", { list: true, version: args.version, arch: args.arch, os:"linux" }, __, true)
+        if (res.length > 0) {
+          log("Current latest Java release available: " + res[0].release + " (" + res[0].arch + ")")
+          if (res[0].release.indexOf(_rversion) < 0) {
+            $job("Download package", { version: args.version, arch: args.arch, os: "linux", type: "jre", output: "jre.tgz" }, __, true)
+            if (args.path.indexOf(getOpenAFPath()) == 0 && args.path.indexOf(ow.format.getCurrentDirectory()) != 0 && args.path.endsWith("jre")) {
+              log("Installing Java runtime...")
+              $sh("mv jre.tgz " + getOpenAFPath() + "jre.tgz").prefix("mv").exec()
+              $sh(["/bin/sh", "-c", "cd " + getOpenAFPath() + " && rm -rf jre.bak && mv jre jre.bak && tar xzf jre.tgz && rm -rf jre.tgz && " + args.path + "/bin/java -jar openaf.jar --install"]).exec()
+            } else {
+              log("Use the jre.tgz file to install the Java runtime.")
+            }
+          } else {
+            log("No need to update Java")
+          }
+        }
+      } else {
+        throw "Java executable not found in '" + args.path + "'"
+      }
+    } else {
+      // If Windows
+      if (io.fileExists(args.path + "/bin/java.exe")) {
+        $job("Download package", { version: args.version, arch: args.arch, os: "windows", type: "jre", output: "jre.zip" }, __, true)
+        log("Use the jre.zip file to install the Java runtime.")
+      } else {
+        throw "Java executable not found in '" + args.path + "'"
+      }
+    }
