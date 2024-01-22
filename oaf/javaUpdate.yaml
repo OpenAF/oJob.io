@@ -1,7 +1,7 @@
 # Author: Nuno Aguiar
 help:
   text   : Check, download and update (in Linux) the OpenAF's runtime if necessary.
-  expects: 
+  expects:
   - name     : version
     desc     : The major version of the Java runtime to download (otherwise only updates within the same major version)
     example  : 21
@@ -16,18 +16,18 @@ help:
     mandatory: false
 
 todo:
-- Sample job
+- Update oaf java
 
 ojob:
   opacks      :
   - openaf: 20240121
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
-        
+
 
 jobs:
-# -----------------
-- name : Sample job
+# ----------------------
+- name : Update oaf java
   check:
     in:
       path   : isString.default(__)
@@ -58,12 +58,15 @@ jobs:
     if (!ow.format.isWindows()) {
       // If Linux or Mac OS try to find the java executable
       if (io.fileExists(args.path + "/bin/java")) {
-        var res = $job("List options", { list: true, version: args.version, arch: args.arch, os:"linux" }, __, true)
+        args.os = $sh("uname -s").get(0).stdout.trim() == "Darwin" ? "mac" : "linux"
+        var res = $job("List options", { list: true, version: args.version, arch: args.arch, os: args.os }, __, true)
         if (res.length > 0) {
           log("Current latest Java release available: " + res[0].release + " (" + res[0].arch + ")")
           if (res[0].release.indexOf(_rversion) < 0) {
-            $job("Download package", { version: args.version, arch: args.arch, os: "linux", type: "jre", output: "jre.tgz" }, __, true)
-            if (args.path.indexOf(getOpenAFPath()) == 0 && args.path.indexOf(ow.format.getCurrentDirectory()) != 0 && args.path.endsWith("jre")) {
+            $job("Download package", { version: args.version, arch: args.arch, os: args.os, type: "jre", output: "jre.tgz" }, __, true)
+            if (args.path.indexOf(getOpenAFPath()) == 0
+            && args.path.indexOf(ow.format.getCurrentDirectory()) != 0
+            && (args.path.endsWith("jre") || args.path.endsWith("jre/Contents/Home")) ) {
               log("Installing Java runtime...")
               $sh("mv jre.tgz " + getOpenAFPath() + "jre.tgz").prefix("mv").exec()
               $sh(["/bin/sh", "-c", "cd " + getOpenAFPath() + " && rm -rf jre.bak && mv jre jre.bak && tar xzf jre.tgz && rm -rf jre.tgz && " + args.path + "/bin/java -jar openaf.jar --install"]).exec()
