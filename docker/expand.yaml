@@ -1,0 +1,99 @@
+# Author: Nuno Aguiar
+help:
+  text   : Expands a docker container archive file, layer by layer, into an output folder.
+  expects: 
+  - name     : image
+    desc     : The .tar or .tar.gz docker container image archive
+    example  : image.tar
+    mandatory: true
+  - name     : output
+    desc     : The output folder where the layers will be expanded to
+    example  : output
+    mandatory: true
+  - name     : usetar
+    desc     : If true, the tar unix tool will be used to set unix permissions and ownerships
+    example  : "true"
+    mandatory: false
+
+todo:
+- Save container layers
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------------------
+- name : Get container manifest
+  check:
+    in:
+      image : isString
+  exec : |
+    var os = af.newOutputStream()
+    io.readFileTARStream(args.image, "manifest.json", args.image.endsWith(".gz"), s => ioStreamCopy(os, s))
+    args.manif = jsonParse(os.toString())
+    os.close() 
+
+# -------------------------
+- name : Get container info
+  check:
+    in:
+      image : isString
+  exec : |
+    if (isArray(args.manif)) {
+      var os = af.newOutputStream()
+      io.readFileTARStream(args.image, args.manif[0].Config, args.image.endsWith(".gz"), s => ioStreamCopy(os, s))
+      args.info = jsonParse(os.toString())
+      os.close() 
+    }
+
+# ----------------------------
+- name : Save container layers
+  from : Get container manifest
+  to   :
+  - Get container info
+  - (output): args
+    ((path)): info
+  check:
+    in:
+      image : isString
+      output: isString
+      usetar: toBoolean.isBoolean.default(false)
+  exec : |
+    if (isArray(args.manif) && args.manif.length > 0) {
+      io.mkdir(args.output)
+
+      args.manif[0].Layers.forEach((l, i) => {
+        var _f = io.createTempFile("layer", ".tar")
+        var os = io.writeFileStream(_f)
+        io.readFileTARStream(args.image, l, args.image.endsWith(".gz"), s => ioStreamCopy(os, s))
+        printErr("Writing layer " + l.replace(/\/layer\.tar$/, "") + "...")
+        os.close() 
+
+        if (args.usetar) {
+          $sh("tar xf " + _f)
+          .pwd(args.output)
+          .get()
+        } else {
+          args.lst = io.listFilesTAR(_f)
+          args.lst.forEach(f => {
+            if (f.isDirectory) {
+              io.mkdir(args.output + "/" + f.filepath)
+            }
+          })
+          args.lst.forEach(f => {
+            if (f.isFile) {
+              io.readFileTARStream(_f, f.filepath, args.image.endsWith(".gz"), s => {
+                var _os = io.writeFileStream(args.output + "/" + f.filepath)
+                printErr(" writing " + f.filepath + "... ")
+                ioStreamCopy(_os, s)
+                _os.close()
+              })
+            }
+          })
+        }
+      })
+    }
