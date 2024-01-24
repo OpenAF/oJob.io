@@ -61,8 +61,12 @@ jobs:
     in:
       image : isString
       output: isString
-      usetar: toBoolean.isBoolean.default(false)
+      usetar: toBoolean.isBoolean.default(__)
   exec : |
+    // Determine if tar can be used
+    if (isUnDef(args.usetar)) args.usetar = ($sh("tar --help").get(0).exitcode == 0 ? true : false)
+
+    // If there is a manifest try to use it
     if (isArray(args.manif) && args.manif.length > 0) {
       io.mkdir(args.output)
 
