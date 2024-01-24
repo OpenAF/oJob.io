@@ -3,7 +3,7 @@ help:
   text   : Tests if the SSL/TLS certificate in a host:port is trusted or not for an optional provided keystore. If not, it will retrieve the corresponding certificate and add it to a Java keystore. Optionally you can provide the file certificate to add.
   expects: 
   - name     : op
-    desc     : The operation to perform (e.g. list, test, add)
+    desc     : The operation to perform (e.g. list, test, save, add)
     example  : list
     mandatory: false
   - name     : keystore
@@ -45,6 +45,8 @@ todo:
   name: List keystore
 - when: test
   name: Test target with key store
+- when: save
+  name: Test target with key store
 - when: add
   name: Adding certificate
 
@@ -62,7 +64,7 @@ jobs:
 - name : Choose operation
   check:
     in:
-      op: isString.oneOf(["list","test","add"]).default("list")
+      op: isString.oneOf(["list","test","add","save"]).default("list")
   exec : | 
     ow.oJob.setState(args.op)
 
@@ -241,7 +243,17 @@ jobs:
       return mcert
     }), args)
 
-    if (ow.oJob.getState() != "add" && args.needAdding) logWarn("To add the certificate(s) rerun the same command with 'op=add'")
+    if (args.op == "save") {
+      ow.loadJava()
+      var _cipher = new ow.java.cipher()
+      args.chain.map((cert, i) => {
+        var _f = args.host + "_" + args.port + "_" + String(i) + ".cer"
+        log("Saving " + _f + "...")
+        io.writeFileString(_f, _cipher.encodeCert(cert))
+      })
+    } else {
+      if (ow.oJob.getState() != "add" && args.needAdding) logWarn("To add the certificate(s) rerun the same command with 'op=add'")
+    }
 
 # ---------------------------------
 - name : Test target with key store
