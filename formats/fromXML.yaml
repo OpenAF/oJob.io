@@ -1,22 +1,22 @@
 # Author: Nuno Aguiar
 help:
-  text   : Parses a XML input content
+  text   : Reads XML from stdin or from a file if defined.
   expects: 
   - name     : file
-    desc     : The XML file to process (if not defined will default to the stdin)
-    example  : example.xml
+    desc     : File to read XML from
+    example  : folder/myfile.xml
     mandatory: false
   - name     : ignore
-    desc     : Number of lines on the headed to ignore (usually to remove the xml header and any doctype)
-    example  : 1
+    desc     : Comma separated list of tags to ignore (or to include if filterTags is true)
+    example  : tag1,tag2
     mandatory: false
-  - name     : tags
-    desc     : Boolean flag that when true will include XML attributes as properties starting with the prefix '_'
+  - name     : prefix
+    desc     : Prefix to add for representing the tags
+    example  : "_"
+    mandatory: false
+  - name     : filterTags
+    desc     : If true, only the tags defined in ignore will be returned
     example  : "true"
-    mandatory: false
-  - name     : ignoreTags
-    desc     : A comma delimited list of XML attributes to ignore if tags=true
-    example  : "tag1,tag2"
     mandatory: false
 
 todo:
@@ -24,34 +24,26 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20230704
+  - openaf: 20231222
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
-  logToConsole: true   # to change when finished
+  logToConsole: false   # to change when finished
         
-
 jobs:
 # ----------------
 - name : Parse XML
   check:
     in:
       file      : isString.default(__)
-      ignore    : toNumber.isNumber.default(0)
-      tags      : toBoolean.isBoolean.default(false)
-      ignoreTags: isString.default("")
+      ignore    : isString.default(__)
+      prefix    : isString.default(__)
+      filterTags: toBoolean.isBoolean.default(__)
   exec : |
-    var _xml = "", c = 0
-
+    var _s = ""
     if (isDef(args.file)) {
-      _xml = io.readFileString(args.file).split('\n').splice(args.ignore).join("\n")
+      _s = io.readFileString(args.file)
     } else {
-      io.pipeLn(line => {
-        if (c >= args.ignore) {
-          _xml += String(line)
-        }
-        c++
-      })
+      io.pipeLn(s => { _s += s + "\n"; return false })
     }
-    
-    if (isDef(args.tags)) args.ignoreTags = args.ignoreTags.split(",").map(t => t.trim())
-    var data = af.fromXML2Obj(new XMLList(_xml), args.tags ? args.ignoreTags : __)
-    ow.oJob.output(data, args)
+
+    var res = af.fromXML2Obj(_s, (isDef(args.ignore) ? args.ignore.split(",").map(e => e.trim()) : __), args.prefix, !args.filterTags)
+    ow.oJob.output(res, args)
