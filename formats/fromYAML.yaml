@@ -1,0 +1,34 @@
+# Author: Nuno Aguiar
+help:
+  text   : Reads YAML from stdin or from a file if defined.
+  expects: 
+  - name     : file
+    desc     : File to read YAML from
+    example  : folder/myfile.jyamlson
+    mandatory: false
+
+todo:
+- Parse YAML
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+jobs:
+# -----------------
+- name : Parse YAML
+  check:
+    in:
+      file: isString.default(__)
+  exec : |
+    var _s = ""
+    if (isDef(args.file)) {
+      _s = io.readFileString(args.file)
+    } else {
+      io.pipeLn(s => { _s += s + "\n"; return false })
+    }
+
+    var res = af.fromYAML(_s)
+    ow.oJob.output(res, args)
