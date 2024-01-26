@@ -10,6 +10,10 @@ help:
     desc     : The output folder where the layers will be expanded to
     example  : output
     mandatory: true
+  - name     : layers
+    desc     : If layers=true will create a sub-folder for each layer
+    example  : "true"
+    mandatory: false
   - name     : usetar
     desc     : If true, the tar unix tool will be used to set unix permissions and ownerships
     example  : "true"
@@ -61,6 +65,7 @@ jobs:
     in:
       image : isString
       output: isString
+      layers: toBoolean.isBoolean.default(__)
       usetar: toBoolean.isBoolean.default(__)
   exec : |
     // Determine if tar can be used
@@ -78,21 +83,31 @@ jobs:
         os.close() 
 
         if (args.usetar) {
-          $sh("tar xf " + _f)
-          .pwd(args.output)
-          .get()
+          if (args.layers) {
+            io.mkdir(args.output + "/" + i)
+            $sh("tar xf " + _f)
+            .pwd(args.output + "/" + i)
+            .get()
+          } else {
+            $sh("tar xf " + _f)
+            .pwd(args.output)
+            .get() 
+          }
         } else {
+          if (args.layers) {
+            io.mkdir(args.output + "/" + i)
+          }
           args.lst = io.listFilesTAR(_f)
           args.lst.forEach(f => {
             if (f.isDirectory) {
-              io.mkdir(args.output + "/" + f.filepath)
+              io.mkdir(args.output + "/" + (args.layers ? i + "/" : "") + f.filepath)
             }
           })
           args.lst.forEach(f => {
             if (f.isFile) {
               io.readFileTARStream(_f, f.filepath, args.image.endsWith(".gz"), s => {
-                var _os = io.writeFileStream(args.output + "/" + f.filepath)
-                printErr(" writing " + f.filepath + "... ")
+                var _os = io.writeFileStream(args.output + "/" + (args.layers ? i + "/" : "") + f.filepath)
+                printErr(" writing " + f.filepath + (args.layers ? " (" + i + ")" : "") + "... ")
                 ioStreamCopy(_os, s)
                 _os.close()
               })
