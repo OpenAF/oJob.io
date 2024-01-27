@@ -29,11 +29,11 @@ init:
     {{#if message}}echo "{{{message}}}"{{else}} {{/if}}
     {{#if message}}echo{{else}} {{/if}}
     export TMPDIR={{#if tmppath}}{{tmppath}}{{else}}`mktemp -d /tmp/extract.XXXXXX`{{/if}}
-    {{#if tmppath}}if [ ! -f {{tmppath}}/{{setup}} ]; then /bin/sh -c "mkdir {{tmppath}} && {{/if}}tail -n+{{nlines}} $0 | tar xz -C $TMPDIR"; fi
+    {{#if tmppath}}if [ ! -f {{tmppath}}/{{setup}} ]; then mkdir {{tmppath}} && {{/if}}$(tail -n+{{nlines}} $0 | tar xz -C $TMPDIR); fi
     export CDIR=`pwd`
     cd $TMPDIR
-    chmod u+x {{setup}}
-    sh ./{{setup}} "$@"
+    chmod u+x {{#if tmppath}}{{tmppath}}/{{/if}}{{setup}}
+    sh {{#if tmppath}}{{tmppath}}{{else}}.{{/if}}/{{setup}} "$@"
     cd $CDIR
     {{#if tmppath}}{{else}}rm -rf $TMPDIR{{/if}}
     exit 0
