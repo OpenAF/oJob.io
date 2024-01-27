@@ -18,6 +18,10 @@ help:
     desc     : If true, the tar unix tool will be used to set unix permissions and ownerships
     example  : "true"
     mandatory: false
+  - name     : json
+    desc     : If defined, the container json file will be saved to the specified path.
+    example  : container.json
+    mandatory: false
 
 todo:
 - Save container layers
@@ -46,12 +50,14 @@ jobs:
   check:
     in:
       image : isString
+      json  : isString.default(__)
   exec : |
     if (isArray(args.manif)) {
       var os = af.newOutputStream()
       io.readFileTARStream(args.image, args.manif[0].Config, args.image.endsWith(".gz"), s => ioStreamCopy(os, s))
       args.info = jsonParse(os.toString())
       os.close() 
+      if (isDef(args.json)) io.writeFileString(args.json, stringify(args.info, __, ""))
     }
 
 # ----------------------------
@@ -65,6 +71,7 @@ jobs:
     in:
       image : isString
       output: isString
+      json  : isString.default(__)
       layers: toBoolean.isBoolean.default(__)
       usetar: toBoolean.isBoolean.default(__)
   exec : |
