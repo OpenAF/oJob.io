@@ -1,0 +1,144 @@
+# Author: Nuno Aguiar
+help:
+  text   : Collapse a previously expanded docker container archive file, layer by layer, into an output image file.
+  expects: 
+  - name     : image
+    desc     : The .tar docker container image archive
+    example  : image.tar
+    mandatory: true
+  - name     : input
+    desc     : The input folder from where the layers will be collapsed from
+    example  : input
+    mandatory: true
+  - name     : json
+    desc     : The container json file will be saved to the specified path.
+    example  : container.json
+    mandatory: true
+  - name     : usetar
+    desc     : If true, the tar unix tool will be used to set unix permissions and ownerships
+    example  : "true"
+    mandatory: false
+
+todo:
+- Collapse layers into image
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------------------
+- name : Collapse layers into image
+  check:
+    in:
+      image : isString
+      input : isString
+      json  : isString
+      usetar: toBoolean.isBoolean.default(__)
+  exec : |
+    // Determine if tar can be used
+    if (isUnDef(args.usetar)) args.usetar = ($sh("tar --help").get(0).exitcode == 0 ? true : false)
+
+    ow.loadObj()
+    // Create tar file for each layer folder
+    var tars = new ow.obj.syncArray()
+
+    $from( io.listFiles(args.input).files )
+    .equals("isDirectory", true)
+    .sort("filename")
+    .select((folder, i) => {
+      log("Processing layer " + folder.filename + "...")
+      var _f = io.createTempFile("layer", ".tar")
+
+      if (args.usetar) {
+        // Create tar file for each layer folder
+        $sh("tar -cf " + _f + " -C " + folder.filepath + " .").exec()
+      } else {
+        // Create tar file for each layer folder
+        io.writeFileTARStream(_f, true, writer => {
+          $from( listFilesRecursive(folder.filepath) )
+          .select(r => {
+            r.bytesAbb = ow.format.toBytesAbbreviation(r.size)
+            tlog("|" + folder.filename + "| writing {{filepath}} ({{bytesAbb}})", r)
+
+            writer(r.filepath, io.readFileStream(r.filepath))
+          })
+        })
+      }
+
+      tars.add({ idx: i, tar: _f })
+    })
+
+    // Generate sha256 hash for each layer folder tar
+    var _d = io.createTempDir("image")
+
+    var hashList = [], emptyList = [], prevHash = __
+    $from( tars.toArray() )
+    .sort("idx")
+    .select(tar => {
+      var _h = sha256(io.readFileStream(tar.tar))
+      log("Creating layer " + _h + "...")
+      io.mv(tar.tar, _d + "/" + _h + ".tar")
+      if (io.listFilesTAR(_d + "/" + _h + ".tar").length == 0) emptyList.push(_h)
+
+      // Create new folder named with hash
+      io.mkdir(_d + "/" + _h)
+
+      // In each layer folder create a VERSION file and a json file with {id, parent}
+      io.writeFileString(_d + "/" + _h + "/VERSION", "1.0")
+
+      // Create symlink in each layer folder to the root hash tar file
+      $sh("ln -sf ../" + _h + ".tar " + _d + "/" + _h + "/layer.tar").exec()
+
+      // Create json file with {id, parent}
+      var _json = { id: _h, parent: prevHash }
+      prevHash = _h
+      hashList.push(_h)
+
+      io.writeFileJSON(_d + "/" + _h + "/json", _json, "")
+    })
+    
+    // Change image json file with { architecture, config, container, container_config, created, docker_version, history, os, rootfs: { type, diff_ids (change each array entry with sha256 of layer)}
+    log("Creating image json file...")
+    var _json = io.readFileJSON(args.json)
+    _json.rootfs.diff_ids = hashList.map(h => "sha256:" + h)
+    if (isDef(_json.history) && _json.history.length != hashList.length) {
+      _json.history = hashList.map((h, i) => { return { 
+        created    : (new Date()).toISOString(), 
+        created_by : "Layer " + i, 
+        comment    : "buildkit.dockerfile.v0",
+        empty_layer: emptyList.indexOf(h) >= 0
+       } })
+    }
+
+    var _sjson = stringify(_json, __, "")
+    var _jsonFilename = sha256(_sjson) + ".json"
+    io.writeFileString(_d + "/" + _jsonFilename, _sjson)
+
+    // Create manifest.json file with an array of { Config (json file (named after sha256 of it)), RepoTags (empty array), Layers (each tar file) }
+    log("Creating manifest.json file...")
+    var _manifest = [{ Config: _jsonFilename, RepoTags: [], Layers: hashList.map(h => h + ".tar") }]
+    io.writeFileJSON(_d + "/" + "manifest.json", _manifest, "")
+
+    // Create repositories file empty ({})
+    log("Creating repositories file...")
+    var _repositories = {}
+    io.writeFileString(_d + "/" + "repositories", stringify(_repositories, __, ""))
+
+    // Create the image tar
+    if (args.usetar) {
+      $sh("tar -cf " + args.image + " -C " + _d + " .").exec()
+    } else {
+      io.writeFileTARStream(args.image, true, writer => {
+        $from( listFilesRecursive(_d) )
+        .select(r => {
+          r.bytesAbb = ow.format.toBytesAbbreviation(r.size)
+          tlog("|" + _d + "| writing {{filepath}} ({{bytesAbb}})", r)
+
+          writer(r.filepath, io.readFileStream(r.filepath))
+        })
+      })
+    }
