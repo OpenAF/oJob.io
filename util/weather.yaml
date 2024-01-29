@@ -1,0 +1,56 @@
+# Author: Nuno Aguiar
+help:
+  text   : Get weather information for a given location (using wttr.in)
+  expects: 
+  - name     : location
+    desc     : The location name (e.g. city, IATA airport code, ~attraction, @domain, "lat,log")
+    example  : London
+    mandatory: true
+  - name     : ansi
+    desc     : If true, returns the ANSI text output
+    example  : true
+    mandatory: false
+  - name     : oneline
+    desc     : If true, returns the output in one line
+    example  : true
+    mandatory: false
+  - name     : format
+    desc     : The output format (see https://github.com/chubin/wttr.in)
+    example  : "%l:+%c+%t"
+    mandatory: false
+  - name     : options
+    desc     : View options to use (0, 1, 2, 3, A, d, F, n, q, Q, T)
+    example  : "1FQ"
+
+todo:
+- Get weather information
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# ------------------------------
+- name : Get weather information
+  check:
+    in:
+      location: isString.default(__)
+      ansi    : toBoolean.isBoolean.default(false)
+      oneline : toBoolean.isBoolean.default(false)
+      format  : isString.default(__)
+  exec : |
+    var options = {}
+    if (!args.ansi) options.format = "j1"
+    if (args.oneline) options.format = 3
+    if (isDef(args.format)) options.format = args.format
+
+    args.location = args.location.replace(/ /g, "+")
+    var data = $rest({ uriQuery:true, requestHeaders: { "User-Agent": "curl" }}).get("https://wttr.in/" + args.location, options)
+    
+    if (args.ansi) 
+      isMap(data) ? ow.oJob.output(data, args) : printnl(data)
+    else
+      ow.oJob.output(args.oneline ? { output: data } : data, args)
