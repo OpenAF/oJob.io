@@ -21,6 +21,7 @@ help:
   - name     : options
     desc     : View options to use (0, 1, 2, 3, A, d, F, n, q, Q, T)
     example  : "1FQ"
+    mandatory: false
 
 todo:
 - Get weather information
@@ -41,11 +42,13 @@ jobs:
       ansi    : toBoolean.isBoolean.default(false)
       oneline : toBoolean.isBoolean.default(false)
       format  : isString.default(__)
+      options : isString.default(__)
   exec : |
     var options = {}
     if (!args.ansi) options.format = "j1"
     if (args.oneline) options.format = 3
     if (isDef(args.format)) options.format = args.format
+    if (isDef(args.options)) options[args.options] = ""
 
     args.location = args.location.replace(/ /g, "+")
     var data = $rest({ uriQuery:true, requestHeaders: { "User-Agent": "curl" }}).get("https://wttr.in/" + args.location, options)
