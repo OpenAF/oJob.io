@@ -88,8 +88,8 @@ jobs:
         if (res.exitcode == 0) {
           _r["path"] = r
           _r["cmd"]  = _hsp.sun.rt.javaCommand
-          _r["gc"]   = "ojob ojob.io/java/gc cmd=" + templify(args.tmpl, merge(args, { cmd: "cat " + r })).replace(/ +/g, "\\\\ ")
-          _r["grid"] = "ojob ojob.io/grid/data/gc cmd=" + templify(args.tmpl, merge(args, { cmd: "cat " + r })).replace(/ +/g, "\\\\ ")
+          _r["gc"]   = "ojob ojob.io/java/gc cmd=\"" + templify(args.tmpl, merge(args, { cmd: "cat " + r })) + "\""
+          _r["grid"] = "ojob ojob.io/grid/data/gc cmd=\"" + templify(args.tmpl, merge(args, { cmd: "cat " + r })) + "\""
         } else {
           printErr(res.stderr)
         }
