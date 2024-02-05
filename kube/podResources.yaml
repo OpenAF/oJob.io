@@ -1,0 +1,99 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves per pod resources (CPU and memory) requests and limits.
+  expects:
+  - name     : ns
+    desc     : A comma delimited list of namespaces
+    example  : kube-system,ns-a,ns-b
+    mandatory: false
+  - name     : raw
+    desc     : Boolean flag to parse requests and limits
+    example  : "true"
+    mandatory: false
+  - name     : includeSA
+    desc     : Boolean flag to include the corresponding service account
+    example  : "true"
+    mandatory: false
+  - name     : includeNode
+    desc     : Boolean flag to include the corresponding node
+    example  : "true"
+    mandatory: false
+
+todo:
+- Pod resources
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - kube.js
+
+jobs:
+# --------------------
+- name : Pod resources
+  check:
+    in:
+      ns         : isString.default(__)
+      raw        : toBoolean.isBoolean.default(false)
+      includeSA  : toBoolean.isBoolean.default(false)
+      includeNode: toBoolean.isBoolean.default(false)
+  exec : |
+    ow.loadObj()
+    var data = new ow.obj.syncArray()
+
+    // Conversion value function
+    var convValue = (n, isBytes) => {
+      if (isNull(n) || isUnDef(n)) return n
+      if (args.raw) {
+        if (isBytes)
+          return Number(ow.format.fromBytesAbbreviation(n))
+        else
+          return Number(ow.format.fromSIAbbreviation(n))
+      } else {
+        return n
+      }
+    }
+
+    // Check each ns
+    var f = []
+    $kube().getNS().filter(r => isUnDef(args.ns) ? true : args.ns.split(",").map(s => s.trim()).indexOf(r.Metadata.Name) >= 0).forEach(rns => {
+      var ns = rns.Metadata.Name
+
+      printErr(`Checking ${ns}...`)
+      var pods = $kube().getFPO(ns).items
+      if (isUnDef(pods)) return;
+
+      // Check each pod
+      printErr(` checking #${pods.length} pods...`)
+      f.push($do(() => {
+        pods.forEach(rpo => {
+          // Check each container
+          cnts = rpo.spec.containers
+          cnts.forEach(rc => {
+            try {
+              var _d = {
+                ns: ns,
+                pod: rpo.metadata.name,
+                startTime: ow.format.timeago(rpo.metadata.creationTimestamp),
+                status: rpo.status.phase,
+                container: rc.name,
+                limitCPU  : isUnDef(rc.resources) || isUnDef(rc.resources.limits)   || $from(rc.resources.limits).equals("key", "cpu").none()      ? null : convValue($from(rc.resources.limits).equals("key", "cpu").at(0).value.amount      + $from(rc.resources.limits).equals("key", "cpu").at(0).value.format),
+                limitMEM  : isUnDef(rc.resources) || isUnDef(rc.resources.limits)   || $from(rc.resources.limits).equals("key", "memory").none()   ? null : convValue($from(rc.resources.limits).equals("key", "memory").at(0).value.amount   + $from(rc.resources.limits).equals("key", "memory").at(0).value.format, true),
+                requestCPU: isUnDef(rc.resources) || isUnDef(rc.resources.requests) || $from(rc.resources.requests).equals("key", "cpu").none()    ? null : convValue($from(rc.resources.requests).equals("key", "cpu").at(0).value.amount    + $from(rc.resources.requests).equals("key", "cpu").at(0).value.format),
+                requestMEM: isUnDef(rc.resources) || isUnDef(rc.resources.requests) || $from(rc.resources.requests).equals("key", "memory").none() ? null : convValue($from(rc.resources.requests).equals("key", "memory").at(0).value.amount + $from(rc.resources.requests).equals("key", "memory").at(0).value.format, true)
+              }
+              if (args.includeSA)   _d.svcAccount = rpo.spec.serviceAccountName || rpo.spec.serviceAccount
+              if (args.includeNode) _d.node       = rpo.spec.nodeName
+              data.add(_d) 
+            } catch(e) {
+                printErr(`Error | ${ns} | ${rc.name} | ${e}`)
+            }
+          })
+        })
+      }))
+    })
+
+    ow.oJob.output(data.toArray(), args)
