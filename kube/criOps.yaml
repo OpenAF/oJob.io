@@ -22,6 +22,10 @@ help:
     desc     : Use a different container image with crictl
     example  : nmaguiar/imgutils
     mandatory: false
+  - name     : iamge
+    desc     : The image to be used in op=rmi or op=pull
+    example  : "library/nginx:latest"
+    mandatory: false
   - name     : socket
     desc     : "The path to containerd socket if the node is different from /run/container.d/containerd.sock (e.g. k3s: /run/k3s/containerd/containerd.sock; os: /var/run/crio/crio.sock; eks/gke/aks: /run/containerd/containerd.sock)"
     example  : /run/k3s/containerd/containerd.sock
@@ -177,7 +181,7 @@ jobs:
   check:
     in:
       ns        : isString.default("kube-system")
-      name      : isString.default("imgrm")
+      name      : isString.default("imgrmi")
       node      : isString.default(__)
       image     : isString
       jobimg    : isString.default("nmaguiar/imgutils")
@@ -268,7 +272,7 @@ jobs:
   check:
     in:
       ns        : isString.default("kube-system")
-      name      : isString.default("imgprune")
+      name      : isString.default("imgpull")
       node      : isString.default(__)
       jobimg    : isString.default("nmaguiar/imgutils")
       socket    : isString.default(__)
