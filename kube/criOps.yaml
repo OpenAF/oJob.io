@@ -22,7 +22,7 @@ help:
     desc     : Use a different container image with crictl
     example  : nmaguiar/imgutils
     mandatory: false
-  - name     : iamge
+  - name     : image
     desc     : The image to be used in op=rmi or op=pull
     example  : "library/nginx:latest"
     mandatory: false
