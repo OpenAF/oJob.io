@@ -52,6 +52,7 @@ jobs:
     // Set arch if not defined
     if (isUnDef(args.arch)) {
       args.arch = ow.format.getOSArch()
+      if (args.arch == "amd64") args.arch = "x64"
     }
 
     // If not windows
