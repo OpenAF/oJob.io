@@ -61,6 +61,7 @@ jobs:
       delete _c.memory.time
       delete _c.rootfs.time
       delete _c.logs.time
+      delete _c.cnt
 
       var res = {
         usageNanoCores   : _c.cpu.usageNanoCores,
