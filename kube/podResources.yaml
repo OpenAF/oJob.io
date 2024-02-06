@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Retrieves per pod resources (CPU and memory) requests and limits.
+  text   : Retrieves per pod container resources usage and limits
   expects:
   - name     : ns
     desc     : A comma delimited list of namespaces
@@ -48,7 +48,7 @@ jobs:
     .fn(k => {
       if (isDef(k) && isDef(k.node)) {
         if (isUnDef(global.kube)) global.kube = new Kube()
-        var res = jsonParse( global.kube.client.raw("/api/v1/nodes/k3d-k3s-default-server-0/proxy/stats/summary").toString() )
+        var res = jsonParse( global.kube.client.raw("/api/v1/nodes/" + k.node + "/proxy/stats/summary").toString() )
         return res
       }
     })
@@ -146,6 +146,7 @@ jobs:
         })
       }))
     })
+    $doWait($doAll(f))
 
     if (isDef(global.kube)) global.kube.close()
 

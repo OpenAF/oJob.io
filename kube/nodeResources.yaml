@@ -1,0 +1,45 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves per node stats
+  expects: 
+  - name     : nodes
+    desc     : A comma delimited list of nodes
+    example  : node-1,node-2,node-3
+    mandatory: false
+
+todo:
+- Get node stats
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  - Kube
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - kube.js
+        
+jobs:
+# ---------------------
+- name : Get node stats
+  check:
+    in:
+      nodes  : isString.default(__)
+  exec : |
+    ow.loadObj()
+    var data = new ow.obj.syncArray()
+    var kube = new Kube()
+
+    var f = []
+    $kube().getFNO().items.filter(r => isUnDef(args.nodes) ? true : args.nodes.split(",").map(s => s.trim()).indexOf(r.nodeName) >= 0).forEach(_node => {
+      var node = _node.metadata.name
+      printErr(`Checking node '${node}'...`)
+      f.push($do(() => {
+        var _d = jsonParse( kube.client.raw("/api/v1/nodes/" + node + "/proxy/stats/summary").toString() )
+        data.add(_d.node)
+      }))
+    })
+    $doWait($doAll(f))
+    kube.close()
+
+    ow.oJob.output(data.toArray(), args)
