@@ -18,6 +18,10 @@ help:
     desc     : Boolean flag to include the corresponding node
     example  : "true"
     mandatory: false
+  - name     : includeStats
+    desc     : Boolean flag to include extra stats
+    example  : "true"
+    mandatory: false
 
 todo:
 - Pod resources
@@ -27,19 +31,58 @@ ojob:
   - openaf: 20231222
   - Kube
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
-  logToConsole: true   # to change when finished
+  logToConsole: false   # to change when finished
   loadLibs    :
   - kube.js
 
 jobs:
+# -----------------
+- name : Kulet info
+  check:
+    node: isString
+    pod : isString
+    cnt : isString
+  exec : |
+    // Get ephemeral storage
+    $cache("eph")
+    .fn(k => {
+      if (isDef(k) && isDef(k.node)) {
+        if (isUnDef(global.kube)) global.kube = new Kube()
+        var res = jsonParse( global.kube.client.raw("/api/v1/nodes/k3d-k3s-default-server-0/proxy/stats/summary").toString() )
+        return res
+      }
+    })
+    .create()
+
+    var _d = $cache("eph").get({ node: args.node })
+    var _p = $from(_d.pods).equals("podRef.name", args.pod).at(0)
+    if (isDef(_p)) {
+      var _c = $from(_p.containers).equals("name", args.cnt).at(0)
+      delete _c.memory.time
+      delete _c.rootfs.time
+      delete _c.logs.time
+
+      var res = {
+        usageNanoCores   : _c.cpu.usageNanoCores,
+        usageCoreNanoSecs: _c.cpu.usageCoreNanoSeconds,
+        memory           : _c.memory,
+        storage          : {
+          rootfs: _c.rootfs,
+          logs  : _c.logs
+        }
+      }
+      return res
+    }
+
 # --------------------
 - name : Pod resources
   check:
     in:
-      ns         : isString.default(__)
-      raw        : toBoolean.isBoolean.default(false)
-      includeSA  : toBoolean.isBoolean.default(false)
-      includeNode: toBoolean.isBoolean.default(false)
+      ns          : isString.default(__)
+      raw         : toBoolean.isBoolean.default(false)
+      includeSA   : toBoolean.isBoolean.default(false)
+      includeNode : toBoolean.isBoolean.default(false)
+      includeStats: toBoolean.isBoolean.default(false)
   exec : |
     ow.loadObj()
     var data = new ow.obj.syncArray()
@@ -62,12 +105,11 @@ jobs:
     $kube().getNS().filter(r => isUnDef(args.ns) ? true : args.ns.split(",").map(s => s.trim()).indexOf(r.Metadata.Name) >= 0).forEach(rns => {
       var ns = rns.Metadata.Name
 
-      printErr(`Checking ${ns}...`)
       var pods = $kube().getFPO(ns).items
       if (isUnDef(pods)) return;
 
       // Check each pod
-      printErr(` checking #${pods.length} pods...`)
+      printErr(`Gathering data from K8S namespace '${ns}' with #${pods.length} pods...`)
       f.push($do(() => {
         pods.forEach(rpo => {
           // Check each container
@@ -85,8 +127,17 @@ jobs:
                 requestCPU: isUnDef(rc.resources) || isUnDef(rc.resources.requests) || $from(rc.resources.requests).equals("key", "cpu").none()    ? null : convValue($from(rc.resources.requests).equals("key", "cpu").at(0).value.amount    + $from(rc.resources.requests).equals("key", "cpu").at(0).value.format),
                 requestMEM: isUnDef(rc.resources) || isUnDef(rc.resources.requests) || $from(rc.resources.requests).equals("key", "memory").none() ? null : convValue($from(rc.resources.requests).equals("key", "memory").at(0).value.amount + $from(rc.resources.requests).equals("key", "memory").at(0).value.format, true)
               }
-              if (args.includeSA)   _d.svcAccount = rpo.spec.serviceAccountName || rpo.spec.serviceAccount
-              if (args.includeNode) _d.node       = rpo.spec.nodeName
+              if (args.includeSA)    _d.svcAccount = rpo.spec.serviceAccountName || rpo.spec.serviceAccount
+              if (args.includeNode)  _d.node       = rpo.spec.nodeName
+
+              if (args.includeStats) {
+                var _t = $job("Kulet info", { node: rpo.spec.nodeName, pod: _d.pod, cnt: _d.container })
+                delete _t.__id
+                delete _t.objId
+                delete _t.execid
+                _d = merge(_d, _t)
+              }
+
               data.add(_d) 
             } catch(e) {
                 printErr(`Error | ${ns} | ${rc.name} | ${e}`)
@@ -95,5 +146,7 @@ jobs:
         })
       }))
     })
+
+    if (isDef(global.kube)) global.kube.close()
 
     ow.oJob.output(data.toArray(), args)
