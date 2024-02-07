@@ -7,6 +7,7 @@ init:
     us-west-1     : US-West (California)
     us-west-2     : US-West (Oregon)
     ca-central-1  : Canada (Central)
+    ca-west-1     : Canada (Calgary)
     eu-west-1     : Europe (Ireland)
     eu-west-2     : Europe (London)
     eu-central-1  : Europe (Frankfurt)
