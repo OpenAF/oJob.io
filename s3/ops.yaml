@@ -192,19 +192,20 @@ jobs:
       if (io.fileInfo(args.local).isFile) throw "Path '" + args.local + "' not a folder."
 
       out.transfer = []
-      var _m = args.remote.substring(0, args.remote.lastIndexOf("/") + 1)
+      var _m = args.remote.substring(0, args.remote.lastIndexOf("/") + 1), _f = []
       global.s3.listObjects(args.bucket, _m, __, true).forEach(file => {
-        try {
+        _f.push($do(() => {
           if (file.isFile && ow.format.string.wildcardTest(file.filepath, args.remote)) {
             var f = file.filepath.replace(_m, "")
             if (f.indexOf("/") > 0) io.mkdir(args.local + "/" + _m)
             global.s3.getObject(args.bucket, file.canonicalPath, args.local + "/" + f)
             out.transfer.push({ local: args.local + "/" + f, remote: file.canonicalPath })
           }
-        } catch(e2) {
+        }).catch(e2 => {
           logErr("Get error: " + e2)
-        }
+        }))
       })
+      $doWait($doAll(_f))
 
       $set("out", out)
     } catch(e) {
@@ -295,17 +296,19 @@ jobs:
       if (io.fileInfo(_m).isFile) throw "Path '" + args.local + "' not a folder."
 
       out.transfer = []
+      var _f = []
       listFilesRecursive(_m).forEach(file => {
-        try {
+        _f.push($do(() => {
           if (file.isFile && ow.format.string.wildcardTest(file.filepath, args.local)) {
             var f = file.filepath.replace(_m, "")
             global.s3.putObject(args.bucket, args.remote + "/" + f, file.canonicalPath)
             out.transfer.push({ remote: args.remote + "/" + f, local: file.canonicalPath })
           }
-        } catch(e2) {
+        }).catch(e2 => {
           logErr("Put error: " + e2)
-        }
-      });
+        }))
+      })
+      $doWait($doAll(_f))
     } catch(e) {
       logErr("MPut error: " + e)
     }
