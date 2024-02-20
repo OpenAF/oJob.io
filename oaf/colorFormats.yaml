@@ -1,0 +1,109 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints examples of OpenAF's color formats to use
+  expects: 
+  - name     : op
+    desc     : 'Choose an operation between: list, all'
+    example  : 'list'
+    mandatory: false
+
+todo:
+- (optionOn   ): op
+  ((lowerCase)): true
+  ((todos    )):
+    list:
+    - Print samples
+    all :
+    - Print all samples
+  ((default  )):
+  - Print samples
+
+ojob:
+  opacks      :
+  - openaf: 20240220
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+        
+
+jobs:
+# -------------------
+- name : Sample print
+  check:
+    in:
+      theme: isMap
+  exec : |
+    _$(args.theme.format, "theme.format").isMap().$_()
+    _$(args.theme.name, "theme.name").isString().$_()
+
+    __colorFormat = merge(__colorFormat, args.theme.format)
+
+    $o("---", {__format:'md'})
+    $o("**Theme:** " + args.theme.name + "\n", {__format:'md'})
+    $o( ({number:123,string:'string',boolean:true,date:new Date(),default:__,array:[1,2,3],table:printTable([{id:1,str:'id1',b:true},{id:2,str:'id2',b:false},{id:3,str:'id3',b:true}],20,__,__,__,__,__,__,true).trim()}) )
+    $o("```\n__colorFormat=merge(__colorFormat," + stringify(__colorFormat,__,"") + ")\n```", {__format:'md'} )
+
+# --------------------
+- name : Print samples
+  exec : |
+    args.init.themes.forEach(t => $job("Sample print", { theme: t }))
+
+# ------------------------
+- name : Print all samples
+  exec : | 
+    args.init.themes.forEach(t => {
+      print("// Theme: " + t.name)
+      print("// __colorFormat=merge(__colorFormat," + stringify(t.format, __, "") + ")")
+      print("")
+    })
+
+init:
+  themes:
+  - name  : default
+    format: {}
+
+  - name  : mono
+    format:
+      key: INTENSITY_BOLD,
+      number: FG(240)
+      string: FG(245)
+      boolean: FG(15)
+      date: FG(245)
+      default: FG(0)
+      table:
+        lines: RESET
+        value: RESET
+        title: BOLD
+        bandRow: FAINT
+
+  - name  : blue
+    format:
+      key: INTENSITY_BOLD,FG(4)
+      number: FG(12)
+      string: FG(4)
+      boolean: FG(27)
+      date: FG(39)
+      default: FG(16)
+      table:
+        lines: RESET,FG(12)
+        value: RESET
+        title: BOLD,FG(4)
+        bandRow: BOLD
+      tree:
+        lines: FG(12)
+
+  - name  : yellow
+    format:
+      key: INTENSITY_BOLD,FG(229)
+      number: FG(3)
+      string: YELLOW, 
+      boolean: FG(216)
+      date: FG(11)
+      default: FG(226)
+      table:
+        lines: RESET,FG(11)
+        value: RESET
+        title: BOLD,FG(229)
+        bandRow: BOLD
+      tree:
+        lines: FG(11)
+
