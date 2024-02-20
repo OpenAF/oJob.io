@@ -111,6 +111,26 @@ init:
       tree:
         lines: FG(12)
 
+  - name  : jeans
+    format:
+      key: INTENSITY_BOLD,FG(255)
+      number: ITALIC,FG(69)
+      string: FG(39)
+      boolean: FG(27)
+      date: FG(39)
+      default: ITALIC,FG(20)
+      askPre: YELLOW,BOLD
+      askQuestion: BOLD
+      askChoose: BOLD,CYAN
+      askPos: BLUE
+      table:
+        lines: RESET,RED
+        value: RESET
+        title: BOLD
+        bandRow: FG(250),BG(17)
+      tree:
+        lines: RED
+
   - name  : yellow
     format:
       key: INTENSITY_BOLD,FG(229)
