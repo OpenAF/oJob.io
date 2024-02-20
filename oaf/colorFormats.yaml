@@ -75,6 +75,26 @@ init:
         title: BOLD
         bandRow: FAINT
 
+  - name  : mono2
+    format:
+      key: INTENSITY_BOLD,
+      number: ITALIC,FG(244)
+      string: FG(7)
+      boolean: ITALIC,FG(7)
+      date: FG(245)
+      default: FG(240)
+      askPre: YELLOW,BOLD
+      askQuestion: BOLD
+      askChoose: BOLD,CYAN
+      askPos: BLUE
+      table:
+        lines: RESET
+        value: RESET
+        title: BOLD
+        bandRow: BG(236)
+      tree:
+        lines: FG(250)
+
   - name  : blue
     format:
       key: INTENSITY_BOLD,FG(4)
