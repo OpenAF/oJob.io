@@ -3,18 +3,26 @@ help:
   text   : Prints examples of OpenAF's color formats to use
   expects: 
   - name     : op
-    desc     : 'Choose an operation between: list, all'
+    desc     : 'Choose an operation between: list, all, set, unset'
     example  : 'list'
+    mandatory: false
+  - name     : theme
+    desc     : 'Choose a theme to set'
+    example  : 'default'
     mandatory: false
 
 todo:
 - (optionOn   ): op
   ((lowerCase)): true
   ((todos    )):
-    list:
+    list :
     - Print samples
-    all :
+    all  :
     - Print all samples
+    set  :
+    - Set a theme
+    unset:
+    - Unset a theme
   ((default  )):
   - Print samples
 
@@ -26,6 +34,51 @@ ojob:
         
 
 jobs:
+# ------------------
+- name : Set a theme
+  check:
+    in:
+      theme: isString
+  exec : |
+      var _t = $from(args.init.themes).equals("name", args.theme)
+      if (_t.none()) throw "Theme not found"
+
+      _t = _t.at(0)
+
+      var _new = "// Theme: " + _t.name + "\n" + "__colorFormat=merge(__colorFormat," + stringify(_t.format, __, "") + ")\n"
+      var fprof = __gHDir() + "/" + OPENAFPROFILE
+
+      var ctn = io.fileExists(fprof) ? io.readFileString(fprof) : ""
+      var origCtn = ctn
+      if (ctn.match(/\/\/ Theme: /)) {
+        ctn = ctn.replace(/\/\/ Theme: .*\n__colorFormat=merge\(__colorFormat,.+\)\n/, _new)
+      } else {
+        ctn += "\n" + _new
+      }
+
+      if (ctn != origCtn) {
+        io.writeFileString(fprof, ctn)
+        print("Theme set to " + _t.name)
+      } else {
+        print("Theme already set to " + _t.name)
+      }
+
+# --------------------
+- name : Unset a theme
+  exec : |
+      var fprof = __gHDir() + "/" + OPENAFPROFILE
+      if (io.fileExists(fprof) == false) throw "No theme set"
+
+      var ctn = io.readFileString(fprof)
+      var origCtn = ctn
+      if (ctn.match(/\/\/ Theme: /)) {
+        ctn = ctn.replace(/\/\/ Theme: .*\n__colorFormat=merge\(__colorFormat,.+\)\n/, "")
+        io.writeFileString(fprof, ctn)
+        print("Theme unset")
+      } else {
+        print("No theme set")
+      }
+
 # -------------------
 - name : Sample print
   check:
@@ -45,12 +98,12 @@ jobs:
 # --------------------
 - name : Print samples
   exec : |
-    args.init.themes.forEach(t => $job("Sample print", { theme: t }))
+    $from(args.init.themes).sort("name").select(t => $job("Sample print", { theme: t }))
 
 # ------------------------
 - name : Print all samples
   exec : | 
-    args.init.themes.forEach(t => {
+    $from(args.init.themes).sort("name").select(t => {
       print("// Theme: " + t.name)
       print("// __colorFormat=merge(__colorFormat," + stringify(t.format, __, "") + ")")
       print("")
@@ -58,8 +111,39 @@ jobs:
 
 init:
   themes:
+  - name  : basic
+    format:
+      key: INTENSITY_BOLD,
+      number: GREEN
+      string: CYAN
+      boolean: RED
+      date: MAGENTA
+      default: YELLOW
+      table:
+        lines: RESET
+        value: RESET
+        title: BOLD
+        bandRow: BOLD
+      tree:
+        lines: ""
+        curved: false
+
   - name  : default
-    format: {}
+    format:
+      key: INTENSITY_BOLD,
+      number: GREEN
+      string: CYAN
+      boolean: RED
+      date: MAGENTA
+      default: YELLOW
+      table:
+        lines: RESET
+        value: RESET
+        title: BOLD
+        bandRow: BOLD
+      tree:
+        lines: ""
+        curved: true
 
   - name  : mono
     format:
@@ -74,6 +158,9 @@ init:
         value: RESET
         title: BOLD
         bandRow: FAINT
+      tree:
+        lines: RESET
+        curved: true
 
   - name  : mono2
     format:
@@ -83,10 +170,6 @@ init:
       boolean: ITALIC,FG(7)
       date: FG(245)
       default: FG(240)
-      askPre: YELLOW,BOLD
-      askQuestion: BOLD
-      askChoose: BOLD,CYAN
-      askPos: BLUE
       table:
         lines: RESET
         value: RESET
@@ -94,6 +177,24 @@ init:
         bandRow: BG(236)
       tree:
         lines: FG(250)
+        curved: true
+
+  - name  : redmono
+    format:
+      key: INTENSITY_BOLD,
+      number: ITALIC,FG(240)
+      string: FG(245)
+      boolean: ITALIC,FG(7)
+      date: FG(245)
+      default: FG(240)
+      table:
+        lines: RESET,FG(124)
+        value: RESET
+        title: BOLD
+        bandRow: BG(236)
+      tree:
+        lines: FG(124)
+        curved: true
 
   - name  : blue
     format:
@@ -110,26 +211,41 @@ init:
         bandRow: BOLD
       tree:
         lines: FG(12)
+        curved: true
 
   - name  : jeans
     format:
       key: INTENSITY_BOLD,FG(255)
       number: ITALIC,FG(69)
-      string: FG(39)
-      boolean: FG(27)
+      string: FG(33)
+      boolean: ITALIC,FG(27)
       date: FG(39)
       default: ITALIC,FG(20)
-      askPre: YELLOW,BOLD
-      askQuestion: BOLD
-      askChoose: BOLD,CYAN
-      askPos: BLUE
       table:
         lines: RESET,RED
         value: RESET
         title: BOLD
-        bandRow: FG(250),BG(17)
+        bandRow: FG(15),BG(26)
       tree:
-        lines: RED
+        lines : RED
+        curved: true
+
+  - name  : thin
+    format:
+      key: ITALIC
+      number: FG(14)
+      string: FG(25)
+      boolean: FG(249)
+      date: FG(55)
+      default: FG(244)
+      table:
+        lines: RESET,FG(240)
+        value: RESET
+        title: ITALIC
+        bandRow: BG(235)
+      tree:
+        lines : FG(240)
+        curved: true
 
   - name  : yellow
     format:
@@ -146,4 +262,3 @@ init:
         bandRow: BOLD
       tree:
         lines: FG(11)
-
