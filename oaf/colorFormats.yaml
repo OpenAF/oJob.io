@@ -232,6 +232,23 @@ init:
 
   - name  : thin
     format:
+      key: ""
+      number: FG(14)
+      string: FG(25)
+      boolean: FG(249)
+      date: FG(55)
+      default: FG(244)
+      table:
+        lines: RESET,FG(240)
+        value: RESET
+        title: ""
+        bandRow: BG(235)
+      tree:
+        lines : FG(240)
+        curved: true
+
+  - name  : thin-italic
+    format:
       key: ITALIC
       number: FG(14)
       string: FG(25)
