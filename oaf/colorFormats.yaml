@@ -53,7 +53,7 @@ jobs:
       if (ctn.match(/\/\/ Theme: /)) {
         ctn = ctn.replace(/\/\/ Theme: .*\n__colorFormat=merge\(__colorFormat,.+\)\n/, _new)
       } else {
-        ctn += "\n" + _new
+        ctn += _new
       }
 
       if (ctn != origCtn) {
@@ -233,10 +233,10 @@ init:
   - name  : thin
     format:
       key: ""
-      number: FG(14)
-      string: FG(25)
+      number: FG(29)
+      string: FG(67)
       boolean: FG(249)
-      date: FG(55)
+      date: FG(31)
       default: FG(244)
       table:
         lines: RESET,FG(240)
@@ -250,15 +250,32 @@ init:
   - name  : thin-italic
     format:
       key: ITALIC
-      number: FG(14)
-      string: FG(25)
+      number: FG(29)
+      string: FG(67)
       boolean: FG(249)
-      date: FG(55)
+      date: FG(31)
       default: FG(244)
       table:
         lines: RESET,FG(240)
         value: RESET
         title: ITALIC
+        bandRow: BG(235)
+      tree:
+        lines : FG(240)
+        curved: true
+
+  - name  : thin-bold
+    format:
+      key: BOLD
+      number: FG(29)
+      string: FG(67)
+      boolean: FG(249)
+      date: FG(31)
+      default: FG(244)
+      table:
+        lines: RESET,FG(240)
+        value: RESET
+        title: BOLD
         bandRow: BG(235)
       tree:
         lines : FG(240)
