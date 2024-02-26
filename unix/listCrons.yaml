@@ -1,0 +1,226 @@
+# Author: Nuno Aguiar
+help:
+  text   : Nuno Aguiar
+  expects: 
+  - name     : op
+    desc     : Select between gathering info from the local machine or from a remote one (op=local|ssh)
+    example  : ssh
+    mandatory: true
+  - name     : ssh
+    desc     : SSH connection data
+    example  : "(host: some.host, port: 22, login: someuser)"
+    mandatory: false
+  - name     : sudo
+    desc     : Boolean flag to indicate if sudo is needed
+    example  : "true"
+    mandatory: false
+
+todo:
+- (optionOn   ): op
+  ((lowerCase)): true
+  ((todos    )):
+    local:
+    - Get crontabs data
+    ssh:
+    - SSH Get crontabs data
+  ((default  )):
+  - Get crontabs data
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ------------------------
+- name : Get crontabs data
+  to   :
+  - Main crontab
+  - Periodic crontabs
+  - User crontabs
+  - Main At
+  - Main At jobs
+
+  - (output): args
+    ((path)): out
+
+# ----------------------------
+- name : SSH Get crontabs data
+  from : 
+  - Get ssh data
+  to   :
+  - SSH Main crontab
+  - SSH Periodic crontabs
+  - SSH User crontabs
+  - SSH Main At
+  - SSH Main At jobs
+
+  - (output): args
+    ((path)): out
+
+# -------------------
+- name : Get ssh data
+  exec : |
+    if (isDef(args.ssh)) {
+      if (args.ssh.trim().indexOf("{") >= 0) {
+        args.ssh = jsonParse(args.ssh, __, __, true)
+      } else if (args.ssh.trim().indexOf("(") >= 0) {
+        args.ssh = af.fromSLON(args.ssh)
+      }
+      if (isUnDef(args.ssh.pass)) args.ssh.pass = askEncrypt("ssh password: ")
+    }
+
+# ------------------
+- name : Parse lines
+  check:
+    in:
+      inkey : isString
+      outkey: isString.default(__)
+  exec : |
+    if (isUnDef(args.outkey)) args.outkey = args.inkey
+    var out = []
+
+    $$(args).get(args.inkey).split('\n').filter(l => l.length > 0).forEach(line => {
+      out.push(line)
+    })
+
+    $$(args).set(args.outkey, out)
+
+# -----------------------
+- name : Parse grep lines
+  check:
+    in:
+      inkey : isString
+      outkey: isString.default(__) 
+  exec : |
+    if (isUnDef(args.outkey)) args.outkey = args.inkey
+    var out = {}
+
+    $$(args).get(args.inkey).split('\n').filter(l => l.length > 0).forEach(line => {
+      var filename = line.substring(0, line.indexOf(':'))
+      var content  = line.substring(line.indexOf(':') + 1)
+      if (isUnDef(out[filename])) 
+        out[filename] = []
+      else
+        out[filename].push(content)
+    })
+
+    $$(args).set(args.outkey, out)
+
+# -----------------------
+- name : SSH Main crontab
+  lang : ssh
+  to   :
+  - name: Parse lines
+    args:
+      inkey : crontab
+      outkey: "out.crontab"
+  exec : &MAINCRONTAB |
+    crontab=$({{#if sudo}}sudo {{/if}}grep -v '^#' /etc/crontab | grep -v '^$') || ''
+
+    # return crontab
+
+# -------------------
+- name : Main crontab
+  lang : shell
+  to   :
+  - name: Parse lines
+    args:
+      inkey : crontab
+      outkey: "out.crontab"
+  exec : *MAINCRONTAB
+
+# ----------------------------
+- name : SSH Periodic crontabs
+  lang : ssh
+  to   :
+  - name: Parse grep lines
+    args: 
+      inkey : lines
+      outkey: "out.crond"
+  exec : &PERIODCRONTAB |
+    # Filter the /etc/cron.d/ directory and store the result in a variable
+    lines=$({{#if sudo}}sudo {{/if}}egrep -R -H -v '^(#|$)' /etc/cron.d) || ''
+
+    # return lines
+
+# ------------------------
+- name : Periodic crontabs
+  lang : shell
+  to   :
+  - name: Parse grep lines
+    args: 
+      inkey : lines
+      outkey: "out.crond"
+  exec : *PERIODCRONTAB
+
+# ------------------------
+- name : SSH User crontabs
+  lang : ssh
+  to   :
+  - name: Parse grep lines
+    args: 
+      inkey : lines
+      outkey: "out.cronUsers"
+  exec : &USERCRONTAB |
+    lines=$({{#if sudo}}sudo {{/if}}egrep -R -H -v '^(#|$)' /var/spool/cron) || ''
+
+    # return lines
+
+# --------------------
+- name : User crontabs
+  lang : shell
+  to   :
+  - name: Parse grep lines
+    args: 
+      inkey : lines
+      outkey: "out.cronUsers"
+  exec : *USERCRONTAB
+
+# ------------------
+- name : SSH Main At
+  lang : ssh
+  to   : 
+  - name: Parse lines
+    args:
+      inkey : lines
+      outkey: "out.at"
+  exec : &MAINAT |
+    lines=$({{#if sudo}}sudo {{/if}}egrep -R -H -v '^(#|$)' /var/spool/at) || ''
+
+    # return lines
+
+# --------------
+- name : Main At
+  lang : shell
+  to   : 
+  - name: Parse lines
+    args:
+      inkey : lines
+      outkey: "out.at"
+  exec : *MAINAT
+
+# -----------------------
+- name : SSH Main At jobs
+  lang : ssh
+  to   :
+  - name: Parse grep lines
+    args: 
+      inkey : lines
+      outkey: "out.atJobs"
+  exec : &MAINATJOBS |
+    lines=$({{#if sudo}}sudo {{/if}}egrep -R -H -v '^(#|$)' /var/spool/cron/atjobs) || ''
+
+    # return lines
+
+# -------------------
+- name : Main At jobs
+  lang : shell
+  to   :
+  - name: Parse grep lines
+    args: 
+      inkey : lines
+      outkey: "out.atJobs"
+  exec : *MAINATJOBS
