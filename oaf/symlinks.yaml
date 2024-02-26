@@ -24,6 +24,7 @@ todo:
   - BIN: ojob-sb
   - BIN: oafc
   - BIN: ojob
+  - BIN: oafp
   - BIN: opack
   - BIN: openaf
   - BIN: openaf-console
@@ -58,12 +59,12 @@ jobs:
   from: Get variables
   lang: shell
   exec: |
-    echo Removing $TARGET/$BIN...
-    rm $TARGET/$BIN 2> /dev/null
-    if [ "$UNINSTALL" = "false" ]; then
+     echo Removing $TARGET/$BIN...
+     rm $TARGET/$BIN 2> /dev/null
+     if [ "$UNINSTALL" = "false" ] && [ -e "$OPENAF_PATH/$BIN" ]; then
        echo Setup $TARGET/$BIN...
        echo '#!/bin/sh' > $TARGET/$BIN
        echo "" >> $TARGET/$BIN
        echo "/bin/sh $OPENAF_PATH/$BIN \"\$@\"" >> $TARGET/$BIN
        chmod a+x $TARGET/$BIN
-    fi
+     fi
