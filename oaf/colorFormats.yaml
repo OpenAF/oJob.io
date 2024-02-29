@@ -247,6 +247,23 @@ init:
         lines : FG(240)
         curved: true
 
+  - name  : thin-light
+    format:
+      key: ""
+      number: FG(29)
+      string: FG(67)
+      boolean: FG(249)
+      date: FG(31)
+      default: FG(244)
+      table:
+        lines: RESET,FG(240)
+        value: RESET
+        title: ""
+        bandRow: BG(254)
+      tree:
+        lines : FG(240)
+        curved: true
+
   - name  : thin-italic
     format:
       key: ITALIC
@@ -264,6 +281,23 @@ init:
         lines : FG(240)
         curved: true
 
+  - name  : thin-light-italic
+    format:
+      key: ITALIC
+      number: FG(29)
+      string: FG(67)
+      boolean: FG(249)
+      date: FG(31)
+      default: FG(244)
+      table:
+        lines: RESET,FG(240)
+        value: RESET
+        title: ITALIC
+        bandRow: BG(254)
+      tree:
+        lines : FG(240)
+        curved: true
+
   - name  : thin-bold
     format:
       key: BOLD
@@ -277,6 +311,23 @@ init:
         value: RESET
         title: BOLD
         bandRow: BG(235)
+      tree:
+        lines : FG(240)
+        curved: true
+
+  - name  : thin-light-bold
+    format:
+      key: BOLD
+      number: FG(29)
+      string: FG(67)
+      boolean: FG(249)
+      date: FG(31)
+      default: FG(244)
+      table:
+        lines: RESET,FG(240)
+        value: RESET
+        title: BOLD
+        bandRow: BG(254)
       tree:
         lines : FG(240)
         curved: true
