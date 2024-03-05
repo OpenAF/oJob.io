@@ -52,7 +52,7 @@ init:
     {{#each hourly}}
     | {{$ft '%04d' ($number time)}} | {{weatherDesc.0.value}} | {{tempC}}°C ({{tempF}}°F) | {{FeelsLikeC}}°C ({{FeelsLikeF}}°F) | {{windspeedKmph}} km/h ({{windspeedMiles}} miles/h) from the {{winddir16Point}} | {{humidity}}% | {{precipMM}}mm | {{visibility}} km ({{visibilityMiles}} miles) | {{pressure}} mbar | {{uvIndex}} |
     {{/each}}
-    ---
+
     {{/each}}
 
 jobs:
