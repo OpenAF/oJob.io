@@ -1,0 +1,59 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a sample oJob with repetable unix commands 
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Generate periodic jobs
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  oj: |
+    todo:
+    - Job A
+    - Job B
+
+    ojob:
+      # Keep running until Ctrl-C
+      daemon: true
+
+    jobs:
+    # -----------
+    - name: Job A
+      lang: shell
+      type: periodic
+      typeArgs:
+        # every second
+        cron: "*/1 * * * * *" 
+      exec: |
+        uptime > job_uptime.txt
+
+    # -----------
+    - name: Job B
+      lang: shell
+      type: periodic
+      typeArgs:
+        # every 5 seconds
+        cron: "*/5 * * * * *"
+      exec: |
+        df > job_df.txt
+
+
+
+jobs:
+# -----------------------------
+- name : Generate periodic jobs
+  check:
+    in:
+      something: isString.default(__)
+  exec : |
+    tprint(args.init.oj)
