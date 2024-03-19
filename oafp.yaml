@@ -7,8 +7,8 @@ todo:
 
 ojob:
   opacks      :
-  - openaf : 20231222
-  - oafproc: 20240127
+  - openaf : 20240318
+  #- oafproc: 20240127
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
 
