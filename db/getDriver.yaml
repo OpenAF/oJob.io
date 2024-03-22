@@ -37,11 +37,11 @@ init:
     - name    : opendistro
       type    : maven
       typeArgs:
-        groupId   : com.amazon.opendistroforelasticsearch.client
-        artifactId: opendistro-sql-jdbc
-      class   : com.amazon.opendistroforelasticsearch.jdbc.Driver
-      docs    : https://github.com/opendistro-for-elasticsearch/sql/tree/main/sql-jdbc
-      url     : jdbc:elasticsearch://{{url}}
+        groupId   : org.opensearch.driver
+        artifactId: opensearch-sql-jdbc
+      class   : org.opensearch.jdbc.Driver
+      docs    : https://github.com/opensearch-project/sql-jdbc?tab=readme-ov-file
+      url     : jdbc:opensearch://{{scheme://}}{{host}}{{port}}
 
     # Microsoft SQL Server
     - name    : sqlserver
