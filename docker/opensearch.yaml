@@ -29,6 +29,7 @@ init:
         - discovery.type=single-node
         - bootstrap.memory_lock=true
         - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+        - "OPENSEARCH_INITIAL_ADMIN_PASSWORD={{password}}"
         ulimits       :
           memlock:
             soft: -1
@@ -68,7 +69,7 @@ init:
         networks:
         - opensearch
       {{/each}}{{/if}}{{#if dashboards}}
-      # Default credentials: admin/admin
+      # Default credentials: admin/{{password}}
       dashboards:
         image         : opensearchproject/opensearch-dashboards:latest
         container_name: dashboards
@@ -93,7 +94,7 @@ include:
 
 ojob:
   opacks      :
-  - openaf: 20210721
+  - openaf: 20231222
   catch       : "logErr(exception);"
   logToConsole: false   # to change when finished
 
@@ -127,6 +128,8 @@ jobs:
       }
       data.nodesList = seed.map(r => "\"https://" + String(r) + ":9200\"").join(",")
     }
+
+    data.password = ow.format.string.genPass(__, ["lowercase","uppercase","numbers"])
 
     //sprint(data)
 
