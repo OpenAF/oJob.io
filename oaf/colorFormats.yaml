@@ -23,6 +23,8 @@ todo:
     - Set a theme
     unset:
     - Unset a theme
+    sample:
+    - Print sample
   ((default  )):
   - Print samples
 
@@ -94,6 +96,11 @@ jobs:
     $o("**Theme:** " + args.theme.name + "\n", {__format:'md'})
     $o( ({number:123,string:'string',boolean:true,date:new Date(),default:__,array:[1,2,3],table:printTable([{id:1,str:'id1',b:true},{id:2,str:'id2',b:false},{id:3,str:'id3',b:true}],20,__,__,__,__,__,__,true).trim()}) )
     $o("```\n__colorFormat=merge(__colorFormat," + stringify(__colorFormat,__,"") + ")\n```", {__format:'md'} )
+
+# -------------------
+- name : Print sample
+  exec : |
+    $o( ({number:123,string:'string',boolean:true,date:new Date(),default:__,array:[1,2,3],table:printTable([{id:1,str:'id1',b:true},{id:2,str:'id2',b:false},{id:3,str:'id3',b:true}],20,__,__,__,__,__,__,true).trim()}) )
 
 # --------------------
 - name : Print samples
@@ -242,6 +249,40 @@ init:
         lines: RESET,FG(240)
         value: RESET
         title: ""
+        bandRow: BG(235)
+      tree:
+        lines : FG(240)
+        curved: true
+
+  - name  : thin-intense
+    format:
+      key    : RESET
+      number : FG(41)
+      string : FG(81)
+      boolean: FG(249)
+      date   : FG(80)
+      default: FG(244)
+      table  :
+        lines  : RESET,FG(240)
+        value  : RESET
+        title  : RESET
+        bandRow: BG(235)
+      tree:
+        lines : FG(240)
+        curved: true
+
+  - name  : thin-intense-bold
+    format:
+      key    : BOLD
+      number : FG(41)
+      string : FG(81)
+      boolean: FG(249)
+      date   : FG(80)
+      default: FG(244)
+      table  :
+        lines  : RESET,FG(240)
+        value  : RESET
+        title  : BOLD
         bandRow: BG(235)
       tree:
         lines : FG(240)
