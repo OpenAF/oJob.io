@@ -1,3 +1,20 @@
+# Unix / Files
+- c: Unix
+  s: Files
+  d: Converting the Unix’s syslog into a json output
+  e: |-
+    cat syslog | oafp in=raw path="split(trim(@),'\n').map(&split(@, ' ').{ date: concat([0],concat(' ',[1])), time: [2], host: [3], process: [4], message: join(' ',[5:]) }, [])"
+- c: Unix
+  s: Files
+  d: Converting /etc/os-release to SQL insert statements
+  e: |-
+    oafp cmd="cat /etc/os-release" in=ini outkey=release path="[@]" sql="select '$HOSTNAME' \"HOST\", *" out=sql sqlnocreate=true
+- c: Unix
+  s: Files
+  d: Parses the /etc/passwd to a table order by uid and gid
+  e: |-
+    oafp cmd="cat /etc/passwd" in=csv inputcsv="(withHeader: false, withDelimiter: ':')" path="[].{user:f0,pass:f1,uid:to_number(f2),gid:to_number(f3),description:f4,home:f5,shell:f6}" out=json | oafp from="notStarts(user, '#').sort(uid, gid)" out=ctable
+# Unix / Generic
 - c: Unix
   s: Generic
   d: "Creates a data.ndjson file where each record is formatted from json files in /some/data"
@@ -25,9 +42,35 @@
     ip tcp_metrics | sed 's/^/target: /g' | sed 's/$/\n\n---\n/g' | sed 's/ \([a-z]*\) /\n\1: /g' | head -n -2 | oafp in=yaml path="[].{target:target,age:from_timeAbbr(replace(age,'[sec|\.]','','')),cwnd:cwnd,rtt:from_timeAbbr(rtt),rttvar:from_timeAbbr(rttvar),source:source}" sql="select * order by target" out=ctable
 - c: Unix
   s: Generic
-  d: Parse the ‘arp’ command output
+  d: Parse the 'arp' command output
   e: |-
     arp | oafp in=lines linesvisual=true linesjoin=true out=ctable
+- c: Unix
+  s: Generic
+  d: Loop over the current active network connections
+  e: |-
+    oafp cmd="netstat -tun | sed \"1d\"" in=lines linesvisual=true linesjoin=true linesvisualsepre="\\s+(\\?\!Address)" out=ctable loop=1
+- c: Unix
+  s: Generic
+  d: Converting the Unix's systemctl list-timers
+  e: |-
+    systemctl list-timers | head -n -3 | oafp in=lines linesvisual=true linesjoin=true out=ctable
+- c: Unix
+  s: Generic
+  d: Converting the Unix's systemctl list-units
+  e: |-
+    systemctl list-units | head -n -6 | oafp in=lines linesvisual=true linesjoin=true path="[].delete(@,'')" out=ctable
+- c: Unix
+  s: Generic
+  d: Converting the Unix's systemctl list-units into an overview table
+  e: |-
+    systemctl list-units | head -n -6 | oafp in=lines linesvisual=true linesjoin=true path="[].delete(@,'')" sql="select \"LOAD\", \"ACTIVE SUB\", count(1) as \"COUNT\" group by \"LOAD\", \"ACTIVE SUB\"" sqlfilter=advanced out=ctable
+- c: Unix
+  s: Generic 
+  d: Converting the Unix's df output
+  e: |-
+    df --output=target,fstype,size,used,avail,pcent | tail -n +2 | oafp in=lines linesjoin=true path="[].split_re(@, ' +').{filesystem:[0],type:[1],size:[2],used:[3],available:[4],use:[5]}" out=ctable
+# Unix / Debian/Ubuntu
 - c: Unix
   s: Debian/Ubuntu
   d: List all installed packages
