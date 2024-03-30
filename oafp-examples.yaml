@@ -1,0 +1,35 @@
+- c: Unix
+  s: Generic
+  d: "Creates a data.ndjson file where each record is formatted from json files in /some/data"
+  e: |-
+    find /some/data -name "*.json" -exec oafp {} output=json \; > data.ndjson
+- c: Unix
+  s: Generic
+  d: Parse /proc/cpuinfo into an array
+  e: |-
+    cat /proc/cpuinfo | sed "s/^$/---/mg" | ./oafp in=yaml path="[?not_null(@)]" out=ctree
+- c: Unix
+  s: Generic
+  d: Parse the result of the ls command
+  e: |-
+    ls -lad --time-style="+%Y-%m-%d %H:%M" * | oafp in=lines path="map(&split_re(@,'\\s+').{permissions:[0],id:[1],user:[2],group:[3],size:[4],date:[5],time:[6],file:[7]},[])" linesjoin=true out=ctable
+- c: Unix
+  s: Generic
+  d: Parse the result of the route command
+  e: |-
+    route | sed "1d" | oafp in=lines linesjoin=true linesvisual=true linesvisualsepre="\s+" out=ctable
+- c: Unix
+  s: Generic
+  d: Parse the 'ip tcp_metrics' command
+  e: |-
+    ip tcp_metrics | sed 's/^/target: /g' | sed 's/$/\n\n---\n/g' | sed 's/ \([a-z]*\) /\n\1: /g' | head -n -2 | oafp in=yaml path="[].{target:target,age:from_timeAbbr(replace(age,'[sec|\.]','','')),cwnd:cwnd,rtt:from_timeAbbr(rtt),rttvar:from_timeAbbr(rttvar),source:source}" sql="select * order by target" out=ctable
+- c: Unix
+  s: Generic
+  d: Parse the ‘arp’ command output
+  e: |-
+    arp | oafp in=lines linesvisual=true linesjoin=true out=ctable
+- c: Unix
+  s: Debian/Ubuntu
+  d: List all installed packages
+  e: |-
+    apt list --installed | sed "1d" | oafp in=lines linesjoin=true path="[].split(@,' ').{pack:split([0],'/')[0],version:[1],arch:[2]}" out=ctable
