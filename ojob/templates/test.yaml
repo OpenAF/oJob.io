@@ -1,0 +1,91 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a functionality test job
+  expects: 
+  - name     : title
+    desc     : Test title
+    example  : Test
+    mandatory: false
+
+todo:
+- Generate test job
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  - oJob-common: 20230331
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  tmpl: | 
+    todo:
+    # Tests
+    # =====
+
+    # -------------------------
+    - (test     ): {{title}}::Test 1
+      ((job    )): my test 1
+      ((asserts)):
+      - path : x
+        value: 1
+        msg  : "x should be 1"
+      - path : y
+        value: -1
+        msg  : "y should be -1"
+
+    # -------------------------
+    - (test     ): {{title}}::Test 2
+      ((func   )): |
+        var m = { x: 1, y: - 1}
+        return m
+      ((asserts)):
+      - path : x
+        value: 1
+        msg  : "x should be 1"
+      - path : y
+        value: -1
+        msg  : "y should be -1"
+
+    # Prepare report data
+    # ===================
+    - (todo): 
+      - (testGenJSON  ): test.results.json
+        ((includeLogs)): true
+      - (testGenMD    ): args
+        ((file       )): test.results.md
+        ((includeLogs)): true
+      - (testGenJUnit ): 
+        ((resultsFile)): test.results.xml
+
+    # Test jobs
+    # =========
+    jobs:
+    # ---------------
+    - name: my test 1
+      exec: |
+        args.x = 1
+        args.y = -1
+
+
+    # -------------
+    # -------------
+
+    include:
+    - oJobTest.yaml
+
+    ojob:
+      channels:
+        recordLog: true
+      logJobs : false
+
+jobs:
+# ------------------------
+- name : Generate test job
+  check:
+    in:
+      title: isString.default("Test")
+  exec : |
+    print($t( args.init.tmpl, {
+      title: args.title
+    } ))
