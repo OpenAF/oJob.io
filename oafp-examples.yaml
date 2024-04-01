@@ -1,11 +1,12 @@
-# Template:
-#  {{#each this}}
-#  {{{$sline ($acolor 'BOLD' ($concat '📖 ' c ' | ' s)) __ 'FAINT' __ 'openBottomRect'}}}
-#  {{{$sline ($acolor 'ITALIC' d) __ 'FAINT' __ 'doubleLine'}}}
-#
-#  {{{$acolor 'FAINT' e}}}
-#
-#  {{/each}}
+tmpl: |-
+  {{#each this}}
+  {{{$sline ($acolor 'BOLD' ($concat '📖 ' c ' | ' s)) __ 'FAINT' __ 'openBottomRect'}}}
+  {{{$sline ($acolor 'ITALIC' d) __ 'FAINT' __ 'doubleLine'}}}
+
+  {{{$acolor 'FAINT' e}}}
+
+  {{/each}}
+data:
 # Grid / Java
 - c: Grid
   s: Java
