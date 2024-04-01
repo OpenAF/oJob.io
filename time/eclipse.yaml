@@ -1,0 +1,64 @@
+# Author: Nuno Aguiar
+help:
+  text   : Returns the eclipse time for a given year
+  expects: 
+  - name     : year
+    desc     : The year to calculate the eclipse time
+    example  : 2024
+    mandatory: false
+  - name     : lat
+    desc     : The latitude of the observation point
+    example  : 38.0
+    mandatory: false
+  - name     : lon  
+    desc     : The longitude of the observation point
+    example  : -122.0
+    mandatory: false
+  - name     : alt  
+    desc     : The altitude of the observation point (in meters)
+    example  : 0
+    mandatory: false
+
+todo:
+- Get eclipse time
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : Get eclipse time
+  check:
+    in:
+      year: toNumber.isNumber.default(__)
+      lat : toNumber.isNumber.default(__)
+      lon : toNumber.isNumber.default(__)
+      alt : toNumber.isNumber.default(0)
+  exec : |
+    if (isUnDef(args.year)) args.year = new Date().getFullYear()
+    if (isUnDef(args.lat) && isUnDef(args.lon)) {
+      ow.loadNet()
+      var _i = ow.net.getPublicIP()
+      args.lat = _i.latitude
+      args.lon = _i.longitude
+    }
+
+    var _r = $rest().get("https://aa.usno.navy.mil/api/eclipses/solar/year?year=" + args.year)
+    if (isMap(_r)) {
+      _r = _r.eclipses_in_year
+      if (isDef(args.lat) && isDef(args.lon) && isDef(args.alt)) {
+        _r = _r.map(e => {
+          var _l = $rest().get("https://aa.usno.navy.mil/api/eclipses/solar/date?date=" + $ft("%d-%d-%d", e.year, e.month, e.day) + "&coords=" + $ft("%.2f", args.lat) + "," + $ft("%.2f", args.lon) + "&height=" + args.alt)
+          if (isMap(_l)) {
+            if (isDef(_l.properties)) e = merge(e, _l.properties)
+            if (isDef(_l.error) && isDef(_l.error.response) && isDef(_l.error.response.error)) e.description = _l.error.response.error
+          }
+          return e
+        })
+      }
+    }
+    ow.oJob.output(_r, args)
