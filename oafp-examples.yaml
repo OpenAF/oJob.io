@@ -1,121 +1,129 @@
+# Template:
+#  {{#each this}}
+#  {{{$sline ($acolor 'BOLD' ($concat '📖 ' c ' | ' s)) __ 'FAINT' __ 'openBottomRect'}}}
+#  {{{$sline ($acolor 'ITALIC' d) __ 'FAINT' __ 'doubleLine'}}}
+#
+#  {{{$acolor 'FAINT' e}}}
+#
+#  {{/each}}
 # Grid / Java
 - c: Grid
   s: Java
-  d: Parse a Java stacktrace
+  d: Parse a Java stacktrace into a looping grid.
   e: |-
     oafp /tmp/hsperfdata_user/12345 in=hsperf path=java out=grid grid="[[(title:Threads,type:chart,obj:'int threads.live:green:live threads.livePeak:red:peak threads.daemon:blue:daemon -min:0')|(title:Class Loaders,type:chart,obj:'int cls.loadedClasses:blue:loaded cls.unloadedClasses:red:unloaded')]|[(title:Heap,type:chart,obj:'bytes __mem.total:red:total __mem.used:blue:used -min:0')|(title:Metaspace,type:chart,obj:'bytes __mem.metaTotal:blue:total __mem.metaUsed:green:used -min:0')]]" loop=1
 # Generic / Text
 - c: Generic
   s: Text
-  d: Get a json with lyrics of a song 
+  d: Get a json with lyrics of a song.
   e: |-
     curl -s https://api.lyrics.ovh/v1/Coldplay/Viva%20La%20Vida | oafp path="substring(lyrics,index_of(lyrics, '\n'),length(lyrics))"
 # Generic / Excel
 - c: Generic
   s: Excel
-  d: Processes each json file in /some/data creating and updating the data.xlsx file with a sheet for each file
+  d: Processes each json file in /some/data creating and updating the data.xlsx file with a sheet for each file.
   e: |-
     find /some/data -name "*.json" | xargs -I '{}' /bin/sh -c 'oafp file={} output=xls xlsfile=data.xlsx xlsopen=false xlssheet=$(echo {} | sed "s/.*\/\(.*\)\.json/\1/g" )'
 - c: Generic
   s: Excel
-  d: Building an Excel file with the AWS IPv4 and IPv6 ranges (1)
+  d: Building an Excel file with the AWS IPv4 and IPv6 ranges (1).
   e: |-
     curl https://ip-ranges.amazonaws.com/ip-ranges.json > ip-ranges.json
 - c: Generic
   s: Excel
-  d: Building an Excel file with the AWS IPv4 and IPv6 ranges (2)
+  d: Building an Excel file with the AWS IPv4 and IPv6 ranges (2).
   e: |-
     oafp ip-ranges.json path=prefixes out=xls xlsfile=aws-ip-ranges.xlsx xlssheet=ipv4
 - c: Generic
   s: Excel
-  d: Building an Excel file with the AWS IPv4 and IPv6 ranges (3)
+  d: Building an Excel file with the AWS IPv4 and IPv6 ranges (3).
   e: |-
     oafp ip-ranges.json path=ipv6_prefixes out=xls xlsfile=aws-ip-ranges.xlsx xlssheet=ipv6
 # DB / H2
 - c: DB
   s: H2
-  d: Store the json result of a command into a H2 database table
+  d: Store the json result of a command into a H2 database table.
   e: |-
     oaf -c "\$o(listFilesRecursive('.'),{__format:'json'})" | oafp out=db dbjdbc="jdbc:h2:./data" dbuser=sa dbpass=sa dbtable=data
 - c: DB
   s: H2
-  d: Perform a SQL query over a H2 database
+  d: Perform a SQL query over a H2 database.
   e: |-
     echo "select * from \"data\"" | oafp in=db indbjdbc="jdbc:h2:./data" indbuser=sa indbpass=sa out=ctable
 # DB / SQLite
 - c: DB
   s: SQLite
-  d: Store the json result on a SQLite database table
+  d: Store the json result on a SQLite database table.
   e: |-
     ojob ojob.io/db/getDriver op=install db=sqlite
     oaf -c "\$o(listFilesRecursive('.'),{__format:'json'})" | oafp out=db dbjdbc="jdbc:sqlite:data.db" dbtable=data dblib=sqlite
 - c: DB
   s: SQLite
-  d: Perform a query over a database using JDBC
+  d: Perform a query over a database using JDBC.
   e: |-
     ojob ojob.io/db/getDriver op=install db=sqlite
     echo "select * from data" | oafp in=db indbjdbc="jdbc:sqlite:data.db" indbtable=data indblib=sqlite out=ctable
 # Generic / Docker
 - c: Generic
   s: Docker
-  d: Output a table with the list of running containers
+  d: Output a table with the list of running containers.
   e: |-
     oafp cmd="docker ps --format json" input=ndjson ndjsonjoin=true path="[].{id:ID,name:Names,state:State,image:Image,networks:Networks,ports:Ports,Status:Status}" sql="select * order by networks,state,name" output=ctable
 - c: Generic
   s: Docker
-  d: Output a table with the docker stats broken down for each value
+  d: Output a table with the docker stats broken down for each value.
   e: |-
     oafp cmd="docker stats --no-stream" in=lines linesvisual=true linesjoin=true out=ctree path="[].{containerId:\"CONTAINER ID\",pids:PIDS,name:\"NAME\",cpuPerc:\"CPU %\",memory:\"MEM USAGE / LIMIT\",memPerc:\"MEM %\",netIO:\"NET I/O\",blockIO:\"BLOCK I/O\"}|[].{containerId:containerId,pids:pids,name:name,cpuPerc:replace(cpuPerc,'%','',''),memUsage:from_bytesAbbr(split(memory,' / ')[0]),memLimit:from_bytesAbbr(split(memory,' / ')[1]),memPerc:replace(memPerc,'%','',''),netIn:from_bytesAbbr(split(netIO,' / ')[0]),netOut:from_bytesAbbr(split(netIO,' / ')[1]),blockIn:from_bytesAbbr(split(blockIO,' / ')[0]),blockOut:from_bytesAbbr(split(blockIO,' / ')[1])}" out=ctable
 # Unix / Files
 - c: Unix
   s: Files
-  d: Converting the Unix's syslog into a json output
+  d: Converting the Unix's syslog into a json output.
   e: |-
     cat syslog | oafp in=raw path="split(trim(@),'\n').map(&split(@, ' ').{ date: concat([0],concat(' ',[1])), time: [2], host: [3], process: [4], message: join(' ',[5:]) }, [])"
 - c: Unix
   s: Files
-  d: Converting /etc/os-release to SQL insert statements
+  d: Converting the Linux's /etc/os-release to SQL insert statements.
   e: |-
     oafp cmd="cat /etc/os-release" in=ini outkey=release path="[@]" sql="select '$HOSTNAME' \"HOST\", *" out=sql sqlnocreate=true
 - c: Unix
   s: Files
-  d: Parses the /etc/passwd to a table order by uid and gid
+  d: Parses the Linux /etc/passwd to a table order by uid and gid.
   e: |-
     oafp cmd="cat /etc/passwd" in=csv inputcsv="(withHeader: false, withDelimiter: ':')" path="[].{user:f0,pass:f1,uid:to_number(f2),gid:to_number(f3),description:f4,home:f5,shell:f6}" out=json | oafp from="notStarts(user, '#').sort(uid, gid)" out=ctable
 # Unix / Generic
 - c: Unix
   s: Generic
-  d: "Creates a data.ndjson file where each record is formatted from json files in /some/data"
+  d: "Creates, in unix, a data.ndjson file where each record is formatted from json files in /some/data"
   e: |-
     find /some/data -name "*.json" -exec oafp {} output=json \; > data.ndjson
 - c: Unix
   s: Generic
-  d: Parse /proc/cpuinfo into an array
+  d: Parses the Linux /proc/cpuinfo into an array
   e: |-
     cat /proc/cpuinfo | sed "s/^$/---/mg" | ./oafp in=yaml path="[?not_null(@)]" out=ctree
 - c: Unix
   s: Generic
-  d: Parse the result of the ls command
+  d: Parses the result of the Unix ls command
   e: |-
     ls -lad --time-style="+%Y-%m-%d %H:%M" * | oafp in=lines path="map(&split_re(@,'\\s+').{permissions:[0],id:[1],user:[2],group:[3],size:[4],date:[5],time:[6],file:[7]},[])" linesjoin=true out=ctable
 - c: Unix
   s: Generic
-  d: Parse the result of the route command
+  d: Parse the result of the Linux route command
   e: |-
     route | sed "1d" | oafp in=lines linesjoin=true linesvisual=true linesvisualsepre="\s+" out=ctable
 - c: Unix
   s: Generic
-  d: Parse the 'ip tcp_metrics' command
+  d: Parse the Linux 'ip tcp_metrics' command
   e: |-
     ip tcp_metrics | sed 's/^/target: /g' | sed 's/$/\n\n---\n/g' | sed 's/ \([a-z]*\) /\n\1: /g' | head -n -2 | oafp in=yaml path="[].{target:target,age:from_timeAbbr(replace(age,'[sec|\.]','','')),cwnd:cwnd,rtt:from_timeAbbr(rtt),rttvar:from_timeAbbr(rttvar),source:source}" sql="select * order by target" out=ctable
 - c: Unix
   s: Generic
-  d: Parse the 'arp' command output
+  d: Parse the Linux 'arp' command output
   e: |-
     arp | oafp in=lines linesvisual=true linesjoin=true out=ctable
 - c: Unix
   s: Generic
-  d: Loop over the current active network connections
+  d: Loop over the current Linux active network connections
   e: |-
     oafp cmd="netstat -tun | sed \"1d\"" in=lines linesvisual=true linesjoin=true linesvisualsepre="\\s+(\\?\!Address)" out=ctable loop=1
 - c: Unix
@@ -141,6 +149,6 @@
 # Unix / Debian/Ubuntu
 - c: Unix
   s: Debian/Ubuntu
-  d: List all installed packages
+  d: List all installed packages in a Debian/Ubuntu system
   e: |-
     apt list --installed | sed "1d" | oafp in=lines linesjoin=true path="[].split(@,' ').{pack:split([0],'/')[0],version:[1],arch:[2]}" out=ctable
