@@ -1,3 +1,5 @@
+# oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml out=template path=data templatepath=tmpl sql="select * where d like '%something%'"
+#
 tmpl: |-
   {{#each this}}
   {{{$sline ($acolor 'BOLD' ($concat '📖 ' c ' | ' s)) __ 'FAINT' __ 'openBottomRect'}}}
@@ -153,3 +155,27 @@ data:
   d: List all installed packages in a Debian/Ubuntu system
   e: |-
     apt list --installed | sed "1d" | oafp in=lines linesjoin=true path="[].split(@,' ').{pack:split([0],'/')[0],version:[1],arch:[2]}" out=ctable
+# Unix / UBI
+- c: Unix
+  s: UBI
+  d: List all installed packages in an UBI system
+  e: |-
+    microdnf repoquery --setopt=cachedir=/tmp --installed | oafp in=lines linesjoin=true path="[].replace(@,'(.+)\.(\w+)\.(\w+)\$','','\$1|\$2|\$3').split(@,'|').{package:[0],dist:[1],arch:[2]}" out=ctable
+# Unix / Alpine
+- c: Unix
+  s: Alpine
+  d: List all installed packages in an Alpine system
+  e: |-
+    apk list -I | oafp in=lines linesjoin=true path="[].replace(@,'(.+) (.+) {(.+)} \((.+)\) \[(.+)\]','','\$1|\$2|\$3|\$4').split(@,'|').{package:[0],arch:[1],source:[2],license:[3]}" out=ctable
+# Unix / RedHat
+- c: Unix
+  s: RedHat
+  d: List all installed packages in a RedHat system or rpm based system (use rpm --querytags to list all fields available)
+  e: |-
+    rpm -qa --qf "%{NAME}|%{VERSION}|%{PACKAGER}|%{VENDOR}|%{ARCH}\n" | oafp in=lines linesjoin=true path="[].split(@,'|').{package:[0],version:[1],packager:[2],vendor:[3],arch:[4]}" from="sort(package)" out=ctable
+# Unix / OpenSUSE
+- c: Unix
+  s: OpenSuse
+  d: List all installed packages in an OpenSuse system or zypper based system
+  e: |-
+    zypper se -is | egrep "^i" | oafp in=lines linesjoin=true path="[].split(@,'|').{name:[1],version:[2],arch:[3],repo:[4]}" out=ctable
