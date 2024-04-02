@@ -77,6 +77,12 @@ data:
   d: Output a table with the docker stats broken down for each value.
   e: |-
     oafp cmd="docker stats --no-stream" in=lines linesvisual=true linesjoin=true out=ctree path="[].{containerId:\"CONTAINER ID\",pids:PIDS,name:\"NAME\",cpuPerc:\"CPU %\",memory:\"MEM USAGE / LIMIT\",memPerc:\"MEM %\",netIO:\"NET I/O\",blockIO:\"BLOCK I/O\"}|[].{containerId:containerId,pids:pids,name:name,cpuPerc:replace(cpuPerc,'%','',''),memUsage:from_bytesAbbr(split(memory,' / ')[0]),memLimit:from_bytesAbbr(split(memory,' / ')[1]),memPerc:replace(memPerc,'%','',''),netIn:from_bytesAbbr(split(netIO,' / ')[0]),netOut:from_bytesAbbr(split(netIO,' / ')[1]),blockIn:from_bytesAbbr(split(blockIO,' / ')[0]),blockOut:from_bytesAbbr(split(blockIO,' / ')[1])}" out=ctable
+# Mac / Brew
+- c: Mac
+  s: Brew
+  d: List all the packages and corresponding versions installed in a Mac by brew.
+  e: |-
+    brew list --versions | oafp in=lines linesjoin=true path="[].split(@,' ').{package:[0],version:[1]}|sort_by(@,&package)" out=ctable
 # Unix / Files
 - c: Unix
   s: Files
@@ -100,52 +106,52 @@ data:
   e: |-
     find /some/data -name "*.json" -exec oafp {} output=json \; > data.ndjson
 - c: Unix
-  s: Generic
+  s: Compute
   d: Parses the Linux /proc/cpuinfo into an array
   e: |-
     cat /proc/cpuinfo | sed "s/^$/---/mg" | ./oafp in=yaml path="[?not_null(@)]" out=ctree
 - c: Unix
-  s: Generic
+  s: Storage
   d: Parses the result of the Unix ls command
   e: |-
     ls -lad --time-style="+%Y-%m-%d %H:%M" * | oafp in=lines path="map(&split_re(@,'\\s+').{permissions:[0],id:[1],user:[2],group:[3],size:[4],date:[5],time:[6],file:[7]},[])" linesjoin=true out=ctable
 - c: Unix
-  s: Generic
+  s: Network
   d: Parse the result of the Linux route command
   e: |-
     route | sed "1d" | oafp in=lines linesjoin=true linesvisual=true linesvisualsepre="\s+" out=ctable
 - c: Unix
-  s: Generic
+  s: Network
   d: Parse the Linux 'ip tcp_metrics' command
   e: |-
     ip tcp_metrics | sed 's/^/target: /g' | sed 's/$/\n\n---\n/g' | sed 's/ \([a-z]*\) /\n\1: /g' | head -n -2 | oafp in=yaml path="[].{target:target,age:from_timeAbbr(replace(age,'[sec|\.]','','')),cwnd:cwnd,rtt:from_timeAbbr(rtt),rttvar:from_timeAbbr(rttvar),source:source}" sql="select * order by target" out=ctable
 - c: Unix
-  s: Generic
+  s: Network
   d: Parse the Linux 'arp' command output
   e: |-
     arp | oafp in=lines linesvisual=true linesjoin=true out=ctable
 - c: Unix
-  s: Generic
+  s: Network
   d: Loop over the current Linux active network connections
   e: |-
     oafp cmd="netstat -tun | sed \"1d\"" in=lines linesvisual=true linesjoin=true linesvisualsepre="\\s+(\\?\!Address)" out=ctable loop=1
 - c: Unix
-  s: Generic
+  s: SystemCtl
   d: Converting the Unix's systemctl list-timers
   e: |-
     systemctl list-timers | head -n -3 | oafp in=lines linesvisual=true linesjoin=true out=ctable
 - c: Unix
-  s: Generic
+  s: SystemCtl
   d: Converting the Unix's systemctl list-units
   e: |-
     systemctl list-units | head -n -6 | oafp in=lines linesvisual=true linesjoin=true path="[].delete(@,'')" out=ctable
 - c: Unix
-  s: Generic
+  s: SystemCtl
   d: Converting the Unix's systemctl list-units into an overview table
   e: |-
     systemctl list-units | head -n -6 | oafp in=lines linesvisual=true linesjoin=true path="[].delete(@,'')" sql="select \"LOAD\", \"ACTIVE SUB\", count(1) as \"COUNT\" group by \"LOAD\", \"ACTIVE SUB\"" sqlfilter=advanced out=ctable
 - c: Unix
-  s: Generic 
+  s: Storage 
   d: Converting the Unix's df output
   e: |-
     df --output=target,fstype,size,used,avail,pcent | tail -n +2 | oafp in=lines linesjoin=true path="[].split_re(@, ' +').{filesystem:[0],type:[1],size:[2],used:[3],available:[4],use:[5]}" out=ctable
@@ -179,3 +185,175 @@ data:
   d: List all installed packages in an OpenSuse system or zypper based system
   e: |-
     zypper se -is | egrep "^i" | oafp in=lines linesjoin=true path="[].split(@,'|').{name:[1],version:[2],arch:[3],repo:[4]}" out=ctable
+# Generic / ElasticSearch
+- c: Generic
+  s: ElasticSearch
+  d: Get an overview of an ElasticSearch/OpenSearch cluster health
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_cat/health?format=json" $ES_EXTRA | oafp out=ctable
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch indices overview
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_cat/indices?format=json&bytes=b" $ES_EXTRA | oafp sql="select * order by index" out=ctable
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch cluster nodes overview
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_cat/nodes?format=json" $ES_EXTRA | oafp sql="select * order by ip" out=ctable
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch cluster per host data allocation
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_cat/allocation?format=json&bytes=b" $ES_EXTRA | oafp sql="select * order by host" out=ctable
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch cluster settings flat
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_cluster/settings?include_defaults=true&flat_settings=true" $ES_EXTRA | oafp out=ctree
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch cluster settings non-flatted
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_cluster/settings?include_defaults=true" $ES_EXTRA | oafp out=ctree
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch cluster stats per node
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/_nodes/stats/indices/search" $ES_EXTRA | oafp out=ctree
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch settings for a specific index
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/kibana_sample_data_flights/_settings" $ES_EXTRA | oafp out=ctree
+- c: Generic
+  s: ElasticSearch
+  d: Get an ElasticSearch/OpenSearch count per index
+  e: |-
+    export ES_URL=http://elastic.search:9200
+    export ES_EXTRA="--insecure"
+    curl -s "$ES_URL/kibana_sample_data_flights/_count" $ES_EXTRA | oafp
+- c: JSON Schemas
+  s: Lists
+  d: Get a list of JSON schemas from Schema Store catalog
+  e: |-
+    oafp cmd="curl https://raw.githubusercontent.com/SchemaStore/schemastore/master/src/api/json/catalog.json" path="schemas[].{name:name,description:description,files:to_string(fileMatch)}" out=ctable
+- c: Kubernetes
+  s: Kubectl
+  d: List of Kubernetes pods per namespace and kind using kubectl
+  e: |-
+    oafp cmd="kubectl get pods -A -o json" path="items[].{ns:metadata.namespace,kind:metadata.ownerReferences[].kind,name:metadata.name,status:status.phase,restarts:sum(status.containerStatuses[].restartCount),node:spec.nodeName,age:timeago(status.startTime)}" sql="select * order by status,name" output=ctable
+- c: Kubernetes
+  s: Kubectl
+  d: List of Kubernetes CPU, memory and storage stats per node using kubectl
+  e: |-
+    oafp cmd="kubectl get nodes -o json" path="items[].{node:metadata.name,totalCPU:status.capacity.cpu,allocCPU:status.allocatable.cpu,totalMem:to_bytesAbbr(from_bytesAbbr(status.capacity.memory)),allocMem:to_bytesAbbr(from_bytesAbbr(status.allocatable.memory)),totalStorage:to_bytesAbbr(from_bytesAbbr(status.capacity.\"ephemeral-storage\")),allocStorage:to_bytesAbbr(to_number(status.allocatable.\"ephemeral-storage\")),conditions:join(\`, \`,status.conditions[].reason)}" output=ctable
+- c: Kubernetes
+  s: Kubectl
+  d: Build an output table with Kubernetes pods with namespace, pod name, container name and corresponding resources using kubectl
+  e: |-
+    kubectl get pods -A -o json | oafp path="items[].amerge({ ns: metadata.namespace, pod: metadata.name }, spec.containers[].{ container: name, resources: to_slon(resources) })[]" sql="select ns, pod, container, resources order by ns, pod, container" out=ctable
+- c: Kubernetes
+  s: Kubectl
+  d: Build an output table with Kubernetes pods with node, namespace, pod name, container name and corresponding resources using kubectl
+  e: |-
+    kubectl get pods -A -o json | oafp path="items[].amerge({ node: spec.nodeName, ns: metadata.namespace, pod: metadata.name }, spec.containers[].{ container: name, resources: to_slon(resources) })[]" sql="select node, ns, pod, container, resources order by node, ns, pod, container" out=ctable
+- c: AI
+  s: Ollama
+  d: Setting up access to Ollama and ask for data to an AI LLM model
+  e: |-
+    export OAFP_MODEL="(type: ollama, model: 'mistral', url: 'https://models.local', timeout: 900000)"
+    echo "Output a JSON array with 15 cities where each entry has the 'city' name, the estimated population and the corresponding 'country'" | oafp input=llm output=json > data.json
+    oafp data.json output=ctable sql="select * order by population desc"
+- c: AI
+  s: OpenAI
+  d: Setting up the OpenAI LLM model and gather the data into a data.json file
+  e: |-
+    export OAFP_MODEL="(type: openai, model: gpt-3.5-turbo, key: ..., timeout: 900000)"
+    echo "list all United Nations secretaries with their corresponding 'name', their mandate 'begin date', their mandate 'end date' and their corresponding secretary 'numeral'" | oafp input=llm output=json > data.json
+- c: OpenAF
+  s: oPacks
+  d: "Listing all currently accessible OpenAF's oPacks"
+  e: |-
+    oaf -c "sprint(getOPackRemoteDB())" | oafp maptoarray=true opath="[].{name:name,description:description,version:version}" from="sort(name)" out=ctable
+- c: OpenAF
+  s: OS
+  d: Current OS information visible to OpenAF
+  e: |-
+    oafp -v path=os
+- c: OpenAF
+  s: Network
+  d: List all network addresses returned from the current DNS server for a hostname using OpenAF
+  e: |-
+    oaf -c "sprint(ow.loadNet().getDNS('yahoo.com'))" | oafp from="sort(Address)" out=ctable
+- c: OpenAF
+  s: TLS
+  d: List the TLS certificates of a target host with a sorted alternative names using OpenAF
+  e: |-
+    oaf -c "sprint(ow.loadNet().getTLSCertificates('yahoo.com',443))" | oafp path="[].{issuer:issuerDN,subject:subjectDN,notBefore:notBefore,notAfter:notAfter,alternatives:join(' | ',sort(map(&[1],nvl(alternatives,\`[]\`))))}" out=ctree
+- c: OpenAF
+  s: Channels
+  d: "Copy the json result of a command into an etcd database using OpenAF's channels"
+  e: |-
+    oaf -c "\$o(io.listFiles('.').files,{__format:'json'})" | oafp out=ch ch="(type: etcd3, options: (host: localhost, port: 2379), lib: 'etcd3.js')" chkey=canonicalPath
+- c: OpenAF
+  s: Channels
+  d: "Getting all data stored in an etcd database using OpenAF's channels"
+  e: |-
+    echo "" | oafp in=ch inch="(type: etcd3, options: (host: localhost, port: 2379), lib: 'etcd3.js')" out=ctable
+- c: OpenAF
+  s: Channels
+  d: "Store the json results of a command into a H2 MVStore file using OpenAF's channels"
+  e: |-
+    oaf -c "\$o(listFilesRecursive('.'),{__format:'json'})" | oafp out=ch ch="(type: mvs, options: (file: data.db))" chkey=canonicalPath
+- c: OpenAF
+  s: Channels
+  d: "Retrieve all keys stores in a H2 MVStore file using OpenAF's channels"
+  e: |-
+    echo "" | oafp in=ch inch="(type: mvs, options: (file: data.db))" out=ctable
+- c: OpenAF
+  s: Channels
+  d: "Perform a query to a metric & label, with a start and end time, to a Prometheus server using OpenAF's channels"
+  e: |-
+    oafp in=ch inch="(type:prometheus,options:(urlQuery:'http://prometheus.local'))" inchall=true data="(start:'2024-03-22T19:00:00.000Z',end:'2024-03-22T19:05:00.000Z',step:60,query:go_memstats_alloc_bytes_total{job=\"prometheus\"})" path="[].values[].{date:to_date(mul([0],to_number('1000'))),value:[1]}" out=ctable
+- c: Windows
+  s: Network
+  d: "Output a table with the list of network interfaces using Windows' PowerShell"
+  e: |-
+    Get-NetIPAddress | ConvertTo-Json | .\oafp.bat path="[].{ipAddress:IPAddress,prefixLen:PrefixLength,interface:InterfaceAlias}" sql=select\ *\ order\ by\ interface out=ctable
+- c: Windows
+  s: Network
+  d: "Output a table with the current route table using Windows' PowerShell"
+  e: |-
+    Get-NetRoute | ConvertTo-Json | .\oafp.bat path="[].{destination:DestinationPrefix,gateway:NextHop,interface:InterfaceAlias,metric:InterfaceMetric}" sql=select\ *\ order\ by\ interface,destination out=ctable
+- c: Windows
+  s: Storage
+  d: "Output a table with the attached disk information using Windows' PowerShell"
+  e: |-
+    Get-Disk | ConvertTo-Csv -NoTypeInformation | .\oafp.bat in=csv path="[].{id:trim(UniqueId),name:FriendlyName,isBoot:IsBoot,location:Location,size:to_bytesAbbr(to_number(Size)),allocSize:to_bytesAbbr(to_number(AllocatedSize)),sectorSize:LogicalSectorSize,phySectorSize:PhysicalSectorSize,numPartitions:NumberOfPartitions,partitioning:PartitionStyle,health:HealthStatus,bus:BusType,manufacturer:Manufacturer,model:Model,firmwareVersion:FirmwareVersion,serialNumber:SerialNumber}" out=ctable
+- c: Windows
+  s: PnP
+  d: "Output a table with USB/PnP devices using Windows' PowerShell"
+  e: |-
+    Get-PnpDevice -PresentOnly | ConvertTo-Csv -NoTypeInformation | .\oafp.bat in=csv path="[].{class:PNPClass,service:Service,name:FriendlyName,id:InstanceId,description:Description,deviceId:DeviceID,status:Status,present:Present}" sql=select\ *\ order\ by\ class,service out=ctable
+- c: Unix
+  s: Compute
+  d: "Output a chart with the current Unix load using uptime"
+  e: |-
+    oafp cmd="uptime" in=raw path="replace(trim(@), '.+ ([\d\.]+), ([\d\.]+), ([\d\.]+)\$', '', '\$1|\$2|\$3').split(@,'|')" out=chart chart="dec2 [0]:green:load -min:0" loop=1 loopcls=true
