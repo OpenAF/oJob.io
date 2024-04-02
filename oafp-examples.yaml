@@ -1,4 +1,5 @@
 # oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml out=template path=data templatepath=tmpl sql="select * where d like '%something%'"
+# oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml path="data[].{category:c,subCategory:s,description:d}" from="sort(category,subCategory,description)" out=ctable
 #
 tmpl: |-
   {{#each this}}
@@ -67,16 +68,26 @@ data:
     ojob ojob.io/db/getDriver op=install db=sqlite
     echo "select * from data" | oafp in=db indbjdbc="jdbc:sqlite:data.db" indbtable=data indblib=sqlite out=ctable
 # Generic / Docker
-- c: Generic
-  s: Docker
+- c: Docker
+  s: Containers
   d: Output a table with the list of running containers.
   e: |-
     oafp cmd="docker ps --format json" input=ndjson ndjsonjoin=true path="[].{id:ID,name:Names,state:State,image:Image,networks:Networks,ports:Ports,Status:Status}" sql="select * order by networks,state,name" output=ctable
-- c: Generic
-  s: Docker
+- c: Docker
+  s: Stats
   d: Output a table with the docker stats broken down for each value.
   e: |-
     oafp cmd="docker stats --no-stream" in=lines linesvisual=true linesjoin=true out=ctree path="[].{containerId:\"CONTAINER ID\",pids:PIDS,name:\"NAME\",cpuPerc:\"CPU %\",memory:\"MEM USAGE / LIMIT\",memPerc:\"MEM %\",netIO:\"NET I/O\",blockIO:\"BLOCK I/O\"}|[].{containerId:containerId,pids:pids,name:name,cpuPerc:replace(cpuPerc,'%','',''),memUsage:from_bytesAbbr(split(memory,' / ')[0]),memLimit:from_bytesAbbr(split(memory,' / ')[1]),memPerc:replace(memPerc,'%','',''),netIn:from_bytesAbbr(split(netIO,' / ')[0]),netOut:from_bytesAbbr(split(netIO,' / ')[1]),blockIn:from_bytesAbbr(split(blockIO,' / ')[0]),blockOut:from_bytesAbbr(split(blockIO,' / ')[1])}" out=ctable
+- c: Docker
+  s: Storage
+  d: Output a table with the docker volumes info.
+  e: |-
+    docker volume ls --format json | oafp in=ndjson ndjsonjoin=true out=ctable
+- c: Docker
+  s: Network
+  d: Output a table with the docker networks info.
+  e: |-
+    docker network ls --format json | oafp in=ndjson ndjsonjoin=true out=ctable
 # Mac / Brew
 - c: Mac
   s: Brew
@@ -186,64 +197,64 @@ data:
   e: |-
     zypper se -is | egrep "^i" | oafp in=lines linesjoin=true path="[].split(@,'|').{name:[1],version:[2],arch:[3],repo:[4]}" out=ctable
 # Generic / ElasticSearch
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Cluster
   d: Get an overview of an ElasticSearch/OpenSearch cluster health
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_cat/health?format=json" $ES_EXTRA | oafp out=ctable
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Indices
   d: Get an ElasticSearch/OpenSearch indices overview
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_cat/indices?format=json&bytes=b" $ES_EXTRA | oafp sql="select * order by index" out=ctable
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Cluster
   d: Get an ElasticSearch/OpenSearch cluster nodes overview
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_cat/nodes?format=json" $ES_EXTRA | oafp sql="select * order by ip" out=ctable
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Cluster
   d: Get an ElasticSearch/OpenSearch cluster per host data allocation
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_cat/allocation?format=json&bytes=b" $ES_EXTRA | oafp sql="select * order by host" out=ctable
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Cluster
   d: Get an ElasticSearch/OpenSearch cluster settings flat
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_cluster/settings?include_defaults=true&flat_settings=true" $ES_EXTRA | oafp out=ctree
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Cluster
   d: Get an ElasticSearch/OpenSearch cluster settings non-flatted
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_cluster/settings?include_defaults=true" $ES_EXTRA | oafp out=ctree
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Cluster
   d: Get an ElasticSearch/OpenSearch cluster stats per node
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/_nodes/stats/indices/search" $ES_EXTRA | oafp out=ctree
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Indices
   d: Get an ElasticSearch/OpenSearch settings for a specific index
   e: |-
     export ES_URL=http://elastic.search:9200
     export ES_EXTRA="--insecure"
     curl -s "$ES_URL/kibana_sample_data_flights/_settings" $ES_EXTRA | oafp out=ctree
-- c: Generic
-  s: ElasticSearch
+- c: ElasticSearch
+  s: Indices
   d: Get an ElasticSearch/OpenSearch count per index
   e: |-
     export ES_URL=http://elastic.search:9200
@@ -352,8 +363,55 @@ data:
   d: "Output a table with USB/PnP devices using Windows' PowerShell"
   e: |-
     Get-PnpDevice -PresentOnly | ConvertTo-Csv -NoTypeInformation | .\oafp.bat in=csv path="[].{class:PNPClass,service:Service,name:FriendlyName,id:InstanceId,description:Description,deviceId:DeviceID,status:Status,present:Present}" sql=select\ *\ order\ by\ class,service out=ctable
-- c: Unix
-  s: Compute
+- c: Grid
+  s: Unix
   d: "Output a chart with the current Unix load using uptime"
   e: |-
     oafp cmd="uptime" in=raw path="replace(trim(@), '.+ ([\d\.]+), ([\d\.]+), ([\d\.]+)\$', '', '\$1|\$2|\$3').split(@,'|')" out=chart chart="dec2 [0]:green:load -min:0" loop=1 loopcls=true
+- c: APIs
+  s: Network
+  d: Generating a simple map of the current public IP address
+  e: |-
+    curl -s https://ifconfig.co/json | oafp flatmap=true out=map
+- c: APIs
+  s: Network
+  d: Converting the Cloudflare DNS trace info
+  e: |-
+    curl -s https://1.1.1.1/cdn-cgi/trace | oafp in=ini out=ctree
+- c: APIs
+  s: Network
+  d: Converting the Google DNS DoH query result
+  e: |-
+    oafp path=Answer from="sort(data)" out=ctable url="https://8.8.8.8/resolve?name=yahoo.com&type=a"
+- c: OpenAF
+  s: oafp
+  d: "List the OpenAF's oafp examples by category, sub-category and description"
+  e: |-
+    oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml path="data[].{category:c,subCategory:s,description:d}" from="sort(category,subCategory,description)" out=ctable
+- c: OpenAF
+  s: oafp
+  d: "Filter the OpenAF's oafp examples list by a specific word in the description"
+  e: |-
+    oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml out=template path=data templatepath=tmpl sql="select * where d like '%something%'"
+- c: AI
+  s: Summarize
+  d: "Use an AI LLM model to summarize the weather information provided in a JSON format"
+  e: |-
+    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo-0125', key: '...', timeout: 900000)"
+    oafp url="https://wttr.in?format=j2" llmcontext="current and forecast weather" llmprompt="produce a summary of the current and forecasted weather" out=md
+- c: AI
+  s: Prompt
+  d: Example of generating data from an AI LLM prompt
+  e: |-
+    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo-0125', key: '...', timeout: 900000)"
+    oafp in=llm data="produce a list of 25 species of 'flowers' with their english and latin name and the continent where it can be found" out=json > data.json
+- c: Generic
+  s: RSS
+  d: Example of generating a HTML list of titles, links and publication dates from a RSS feed
+  e: |-
+    oafp url="https://blog.google/rss" path="rss.channel.item" sql="select title, link, pubDate" output=html
+- c: Mac
+  s: Info
+  d: Parses the current Mac OS overview information
+  e: |-
+    system_profiler SPSoftwareDataType -json | oafp path="SPSoftwareDataType[0]" out=ctree
