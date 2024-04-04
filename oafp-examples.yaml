@@ -415,3 +415,52 @@ data:
   d: Parses the current Mac OS overview information
   e: |-
     system_profiler SPSoftwareDataType -json | oafp path="SPSoftwareDataType[0]" out=ctree
+- c: AWS
+  s: EC2
+  d: Given all AWS EC2 instances in an account produces a table with name, type, vpc and private ip sorted by vpc
+  e: |-
+    aws ec2 describe-instances | ./oafp path="Reservations[].Instances[].{name:join('',Tags[?Key=='Name'].Value),type:InstanceType,vpc:VpcId,ip:PrivateIpAddress} | sort_by(@, &vpc)" output=ctable
+- c: AWS
+  s: EKS
+  d: "Builds an excel spreadsheet with all persistent volumes associated with an AWS EKS 'XYZ' with the corresponding Kubernetes namespace, pvc and pv names"
+  e: |-
+    # sudo yum install -y fontconfig
+    aws ec2 describe-volumes | oafp path="Volumes[?Tags[?Key=='kubernetes.io/cluster/XYZ']|[0].Value=='owned'].{VolumeId:VolumeId,Name:Tags[?Key=='Name']|[0].Value,KubeNS:Tags[?Key=='kubernetes.io/created-for/pvc/namespace']|[0].Value,KubePVC:Tags[?Key=='kubernetes.io/created-for/pvc/name']|[0].Value,KubePV:Tags[?Key=='kubernetes.io/created-for/pv/name']|[0].Value,AZ:AvailabilityZone,Size:Size,Type:VolumeType,CreateTime:CreateTime,State:State,AttachTime:join(',',nvl(Attachments[].AttachTime,from_slon('[]'))[]),InstanceId:join(',',nvl(Attachments[].InstanceId,from_slon('[]'))[])}" from="sort(KubeNS,KubePVC)" out=xls xlsfile=xyz_pvs.xlsx
+- c: GitHub
+  s: Releases
+  d: "Builds a table of GitHub project releases"
+  e: |-
+    curl -s https://api.github.com/repos/openaf/openaf/releases | oafp sql="select name, tag_name, published_at order by published_at" output=ctable
+- c: GitHub
+  s: Releases
+  d: "Parses the latest GitHub project release markdown notes"
+  e: |-
+    curl -s https://api.github.com/repos/openaf/openaf/releases | oafp path="[0].body" output=md
+- c: OpenAF
+  s: Channels
+  d: "Store and retrieve data from a RocksDB database"
+  e: |-
+    # Install rocksdb opack: 'opack install rocksdb'
+    #
+    # Storing data
+    oafp cmd="oaf -c \"sprint(listFilesRecursive('/usr/bin'))\"" out=ch ch="(type: rocksdb, lib: rocksdb.js, options: (path: db))" chkey=canonicalPath
+    # Retrieve data
+    echo "" | oafp in=ch inch="(type: rocksdb, lib: rocksdb.js, options: (path: db))" out=pjson
+- c: OpenAF
+  s: Channels
+  d: "Store and retrieve data from a Redis database"
+  e: |-
+    # Install rocksdb opack: 'opack install redis'
+    #
+    # Storing data
+    oafp cmd="oaf -c \"sprint(listFilesRecursive('/usr/bin'))\"" out=ch ch="(type: redis, lib: redis.js, options: (host: '127.0.0.1', port: 6379))" chkey=canonicalPath
+    # Retrieve data
+    echo "" | oafp in=ch inch="(type: redis, lib: redis.js, options: (host: '127.0.0.1', port: 6379))" out=pjson
+- c: Generic
+  s: Excel
+  d: "Store and retrieve data from an Excel spreadsheet"
+  e: |-
+    # Storing data
+    oafp cmd="oaf -c \"sprint(listFilesRecursive('/usr/bin'))\"" out=xls xlsfile=data.xlsx
+    # Retrieve data
+    oafp in=xls file=data.xlsx xlscol=A xlsrow=1 out=pjson
