@@ -3,7 +3,7 @@ help:
   text   : Prints examples of OpenAF's color formats to use
   expects: 
   - name     : op
-    desc     : 'Choose an operation between: list, all, set, unset'
+    desc     : 'Choose an operation between: list, all, set, unset and sample'
     example  : 'list'
     mandatory: false
   - name     : theme
