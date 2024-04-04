@@ -474,4 +474,16 @@ data:
   d: "Displays a continuous updating grid with a line chart with the number of CPU throtlles and bursts recorded in the Linux cgroup cpu stats of a container running in Kubernetes and the source cpu.stats data"
   e: |-
     oafp cmd="cat /sys/fs/cgroup/cpu.stat | sed 's/ /: /g'" in=yaml out=grid grid="[[(title:cpu.stat,type:tree)|(title:chart,type:chart,obj:'int nr_throttled:red:throttled nr_bursts:blue:bursts -min:0 -vsize:10')]]" loop=1
- 
+- c: AWS
+  s: Lambda
+  d: Prepares a table of AWS Lambda functions with their corresponding main details
+  e: |-
+    aws lambda list-functions | oafp path="Functions[].{Name:FunctionName,Runtime:Runtime,Arch:join(',',Architectures),Role:Role,MemorySize:MemorySize,EphStore:EphemeralStorage.Size,CodeSize:CodeSize,LastModified:LastModified}" from="sort(Name)" out=ctable
+- c: AI 
+  s: Conversation
+  d: Send multiple requests to an OpenAI model keeping the conversation between interactions and setting the temperature parameter
+  e: |-
+    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo-0125', key: ..., timeout: 900000, temperature: 0)"
+    echo "List all countries in the european union" | oafp in=llm out=ctree llmconversation=cvst.json
+    echo "Add the corresponding country capital" | oafp in=llm out=ctree llmconversation=cvst.json
+    rm cvst.json
