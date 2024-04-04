@@ -464,3 +464,14 @@ data:
     oafp cmd="oaf -c \"sprint(listFilesRecursive('/usr/bin'))\"" out=xls xlsfile=data.xlsx
     # Retrieve data
     oafp in=xls file=data.xlsx xlscol=A xlsrow=1 out=pjson
+- c: Kubernetes
+  s: Containers
+  d: "Parse the Linux cgroup cpu stats on a container running in Kubernetes"
+  e: |-
+    cat /sys/fs/cgroup/cpu.stat | sed 's/ /: /g' | oafp in=yaml out=ctree
+- c: Grid
+  s: Kubernetes
+  d: "Displays a continuous updating grid with a line chart with the number of CPU throtlles and bursts recorded in the Linux cgroup cpu stats of a container running in Kubernetes and the source cpu.stats data"
+  e: |-
+    oafp cmd="cat /sys/fs/cgroup/cpu.stat | sed 's/ /: /g'" in=yaml out=grid grid="[[(title:cpu.stat,type:tree)|(title:chart,type:chart,obj:'int nr_throttled:red:throttled nr_bursts:blue:bursts -min:0 -vsize:10')]]" loop=1
+ 
