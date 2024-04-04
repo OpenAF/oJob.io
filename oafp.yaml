@@ -30,17 +30,17 @@ jobs:
       params.input = "pm"
     }
 
-    if (io.fileExists(getOPackPath("oafproc") + "/oafp.js")) {
-      if (isUnDef(global.oafp)) {
-        __expr = "____ojob=true"
-        global.params = { ____ojob: true }
+    if (isUnDef(global.oafp)) {
+      __expr = "____ojob=true"
+      global.params = { ____ojob: true }
+      if (isDef(getOPackPath("oafproc"))) {
         loadLib(getOPackPath("oafproc") + "/oafp.js")
+      } else {
+        loadLib(getOpenAFJar() + "::js/oafp.js")
       }
-      var k = Object.keys(params)[0]
-      if (params[k] == "") delete params[k]
-      global.oafp(params)
-      ow.oJob.output($get(id), args)
-      $unset(id)
-    } else {
-      throw "oafp.js not found in " + getOPackPath("oafproc") + "/oafp.js"
     }
+    var k = Object.keys(params)[0]
+    if (params[k] == "") delete params[k]
+    global.oafp(params)
+    ow.oJob.output($get(id), args)
+    $unset(id)
