@@ -363,7 +363,7 @@ data:
   d: "Output a table with USB/PnP devices using Windows' PowerShell"
   e: |-
     Get-PnpDevice -PresentOnly | ConvertTo-Csv -NoTypeInformation | .\oafp.bat in=csv path="[].{class:PNPClass,service:Service,name:FriendlyName,id:InstanceId,description:Description,deviceId:DeviceID,status:Status,present:Present}" sql=select\ *\ order\ by\ class,service out=ctable
-- c: Grid
+- c: Chart
   s: Unix
   d: "Output a chart with the current Unix load using uptime"
   e: |-
@@ -387,12 +387,12 @@ data:
   s: oafp
   d: "List the OpenAF's oafp examples by category, sub-category and description"
   e: |-
-    oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml path="data[].{category:c,subCategory:s,description:d}" from="sort(category,subCategory,description)" out=ctable
+    oafp url="https://ojob.io/oafp-examples.yaml" in=yaml path="data[].{category:c,subCategory:s,description:d}" from="sort(category,subCategory,description)" out=ctable
 - c: OpenAF
   s: oafp
   d: "Filter the OpenAF's oafp examples list by a specific word in the description"
   e: |-
-    oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml out=template path=data templatepath=tmpl sql="select * where d like '%something%'"
+    oafp url="https://ojob.io/oafp-examples.yaml" in=yaml out=template path=data templatepath=tmpl sql="select * where d like '%something%'"
 - c: AI
   s: Summarize
   d: "Use an AI LLM model to summarize the weather information provided in a JSON format"
@@ -497,3 +497,8 @@ data:
     $_SH --statistics Minimum --metric-name Duration | oafp path="Datapoints[].{ts:Timestamp,min:Minimum}" out=ndjson >> data.ndjson
     $_SH --statistics Maximum --metric-name Duration | oafp path="Datapoints[].{ts:Timestamp,max:Maximum}" out=ndjson >> data.ndjson
     oafp data.ndjson ndjsonjoin=true opath="[].{ts:ts,cnt:nvl(cnt,\`0\`),min:nvl(min,\`0\`),avg:nvl(avg,\`0\`),max:nvl(max,\`0\`)}" out=json | oafp isql="select \"ts\",max(\"cnt\") \"cnt\",max(\"min\") \"min\",max(\"avg\") \"avg\",max(\"max\") \"max\" group by \"ts\" order by \"ts\"" opath="[].{ts:ts,cnt:cnt,min:from_ms(min,'(abrev:true,pad:true)'),avg:from_ms(avg,'(abrev:true,pad:true)'),max:from_ms(max,'(abrev:true,pad:true)')}" out=ctable
+- c: Generic
+  s: Arrays
+  d: Converting an array of strings into an array of maps
+  e: |-
+    oafp -v path="java.params[].insert(from_json('{}'), 'param', @).insert(@, 'len', length(param))"
