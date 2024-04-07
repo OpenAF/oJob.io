@@ -367,7 +367,7 @@ data:
   s: Unix
   d: "Output a chart with the current Unix load using uptime"
   e: |-
-    oafp cmd="uptime" in=raw path="replace(trim(@), '.+ ([\d\.]+), ([\d\.]+), ([\d\.]+)\$', '', '\$1|\$2|\$3').split(@,'|')" out=chart chart="dec2 [0]:green:load -min:0" loop=1 loopcls=true
+    oafp cmd="uptime" in=raw path="replace(trim(@), '.+ ([\d\.]+),? ([\d\.]+),? ([\d\.]+)\$', '', '\$1|\$2|\$3').split(@,'|')" out=chart chart="dec2 [0]:green:load -min:0" loop=1 loopcls=true
 - c: APIs
   s: Network
   d: Generating a simple map of the current public IP address
@@ -502,3 +502,22 @@ data:
   d: Converting an array of strings into an array of maps
   e: |-
     oafp -v path="java.params[].insert(from_json('{}'), 'param', @).insert(@, 'len', length(param))"
+- c: Grid
+  s: Mac
+  d: Shows a grid with the Mac network metrics and 4 charts for in, out packets and in, out bytes
+  e: |-
+    # opack install mac
+    sudo powermetrics --help > /dev/null
+    oafp libs=Mac cmd="sudo powermetrics --format=plist --show-initial-usage -n 0 --samplers network" in=plist path=network out=grid grid="[[(title:data,path:@,xsnap:2)]|[(title:in packets,type:chart,obj:'int ipackets:blue:in')|(title:out packets,type:chart,obj:'int opackets:red:out')]|[(title:in bytes,type:chart,obj:'int ibytes:blue:in')|(title:out bytes,type:chart,obj:'int obytes:red:out')]]" loop=1
+- c: Grid
+  s: Mac
+  d: Shows a grid with the Mac storage metrics and 4 charts for read, write IOPS and read, write bytes per second
+  e: |-
+    # opack install mac
+    sudo powermetrics --help > /dev/null
+    oafp libs=Mac cmd="sudo powermetrics --format=plist --show-initial-usage -n 0 --samplers disk" in=plist path=disk out=grid grid="[[(title:data,path:@,xsnap:2)]|[(title:read iops,type:chart,obj:'dec3 rops_per_s:blue:read_iops')|(title:write iops,type:chart,obj:'dec3 wops_per_s:red:write_iops')]|[(title:read bytes per sec,type:chart,obj:'bytes rbytes_per_s:blue:read_bytes_per_sec')|(title:write bytes per sec,type:chart,obj:'bytes wbytes_per_s:red:write_bytes_per_sec')]]" loop=1
+- c: Generic
+  s: RSS
+  d: Builds an HTML file with the current linked news titles, publication date and source from Google News.
+  e: |-
+    oafp url="https://news.google.com/rss" path="rss.channel.item[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),date:pubDate,source:source._}" from="sort(-date)" out=mdtable | oafp in=md out=html
