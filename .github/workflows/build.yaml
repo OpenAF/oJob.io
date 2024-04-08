@@ -149,7 +149,7 @@ jobs:
             
           todo:
           - (if    ): |
-              io.fileExists('output/oafp.yaml') && io.fileExists('output/oaf/versions')
+              io.fileExists("output/oafp.yaml") && io.fileExists("output/oaf/versions.yaml")
             ((then)):
             - Copy build result
             ((else)):
