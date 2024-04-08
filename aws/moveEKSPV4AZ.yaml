@@ -1,0 +1,180 @@
+# Author: Nuno Aguiar
+help:
+  text   : Moves an AWS EKS PV from one AZ to another.
+  expects: 
+  - name     : pvc
+    desc     : The persistent volume clain name
+    example  : some-name
+    mandatory: true
+  - name     : ns
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: false
+  - name     : targetaz
+    desc     : The complete region and target az
+    example  : eu-west-1c
+    mandatory: true 
+
+todo:
+- Get current PVC and PV
+- Copy PV
+- Changing PVC and PV
+- Print instructions
+
+ojob:
+  opacks      :
+  - openaf: 20240318
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------------
+- name : Print instructions
+  check:
+    in:
+      pvc     : isString
+      ns      : isString.default("default")
+      targetaz: isString
+  to   :
+  - (printmd): |
+      # Instructions
+
+      **Don't delete the target volume beyond step 2 (after deleting the previous PVC)!**
+
+      1. Scale down the deployment:
+
+      ```
+
+      kubectl scale [type of deploy] [name of deploy] -n {{ns}} --replicas=0
+      
+      ```
+
+      2. Delete the previous PVC and wait a couple of seconds before proceeding to the next step:
+
+      ```
+      
+      kubectl delete pvc -n {{ns}} {{pvc}}
+      
+      ```
+
+      > WARNING: This will delete the associated PV data!!!
+
+      3. Create the new PVC/PV using the created file:
+
+      ```
+     
+      kubectl apply -f changed.yaml
+     
+      ```
+
+      > This might fail if the previous PVC/PV are still be deleted. Wait a couple of seconds and try again.
+
+      4. Scale up the deployment:
+
+      ```
+      
+      kubectl scale [type of deploy] [name of deploy] -n {{ns}} --replicas=[original value]
+      
+      ```
+
+# --------------------------
+- name : Changing PVC and PV
+  #deps : Copy PV
+  check:
+    in:
+      targetaz: isString
+  exec : |
+    var origPVC = $get("pvc"), origPV = $get("pv")
+    log("Saving original PVC and PV to original.yaml...")
+    io.writeFileString("original.yaml", af.toYAML(origPV) + "\n---\n\n" + af.toYAML(origPVC))
+
+    Object.keys(origPV.metadata).filter(r => r != "name").forEach(r => delete origPV.metadata[r] )
+    delete origPV.status
+    delete origPV.spec.claimRef.resourceVersion
+    delete origPV.spec.claimRef.uid
+
+    origPV.spec.csi.volumeHandle = $get("targetVolume")
+    $from(origPV.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions).equals("key", "topology.ebs.csi.aws.com/zone").at(0).values[0] = args.targetaz
+
+    Object.keys(origPVC.metadata).filter(r => r != "name" && r != "namespace").forEach(r => delete origPVC.metadata[r] )
+    delete origPVC.status
+
+    io.writeFileString("changed.yaml", af.toYAML(origPV) + "\n---\n\n" + af.toYAML(origPVC))
+    log("Saving new PVC and PV to changed.yaml...")
+
+# --------------
+- name : Copy PV
+  deps : Get current PVC and PV
+  check:
+    in:
+      targetaz: isString
+  exec : |
+    var pv = $get("pv"), _r
+    // ---------------------------
+    // Creating snapshot on source
+    log(`Creating source snapshot of ${pv.spec.csi.volumeHandle}...`)
+    _r = $sh(`aws ec2 create-snapshot --volume-id ${pv.spec.csi.volumeHandle} --description "move ${pv.spec.csi.volumeHandle}"`).getJson(0)
+    if (_r.exitcode == 0) {
+      var sourceSnapshot = _r.stdout.SnapshotId
+      $set("sourceSnapshot", sourceSnapshot)
+      logWarn(`In case you need to destroy the source snapshot: aws ec2 delete-snapshot --snapshot-id ${sourceSnapshot}`)
+      while(_r.State != "completed") {
+        _r = $sh(`aws ec2 describe-snapshots --snapshot-ids ${sourceSnapshot}`).getJson(0).stdout.Snapshots[0]
+      } 
+      log(`Source snapshot ${sourceSnapshot} created.`)
+      
+      // -----------------------------
+      // Creating volume from snapshot
+      log(`Creating volume from snapshot ${sourceSnapshot}`)
+      _r = $sh(`aws ec2 create-volume --availability-zone ${args.targetaz} --snapshot-id ${sourceSnapshot} --volume-type gp3`).getJson(0)
+      if (_r.exitcode == 0) {
+        var targetVolume = _r.stdout.VolumeId
+        $set("targetVolume", targetVolume)
+        logWarn(`In case you need to destroy the target volume: aws ec2 delete-volume --volume-id ${targetVolume}`)
+        while(_r.State != "available") {
+          _r = $sh(`aws ec2 describe-volumes --volume-ids ${targetVolume}`).getJson(0).stdout.Volumes[0]
+        } 
+        log(`Target volume ${targetVolume} created.`)
+
+        // Deleting source snapshot
+        _r = $sh(`aws ec2 delete-snapshot --snapshot-id ${sourceSnapshot}`).getJson(0)
+        if (_r.exitcode == 0) {
+          log(`Snapshot ${sourceSnapshot} deleted.`)
+        } else {
+          throw `Problem deleting snapshot ${sourceSnapshot}: ${_r.stderr}`
+        }
+      } else {
+        throw `Problem creating target volume fpr snapshot ${sourceSnapshot}: ${_r.stderr}`
+      }
+
+    } else {
+      throw `Problem creating source snapshot for volume ${pv.spec.csi.volumeHandle}: ${_r.stderr}`
+    }
+
+# -----------------------------
+- name : Get current PVC and PV 
+  check:
+    in:
+      pvc     : isString
+      ns      : isString.default("default")
+      targetaz: isString
+  exec : |
+    log(`Get PVCs from namespace ${args.ns}...`)
+    var _pvs = $sh(`kubectl get pvc -n ${args.ns} -o json`).getJson(0)
+    var pvs = _pvs.stdout
+
+    if (isMap(pvs) && isArray(pvs.items)) {
+      var pvc = $from(pvs.items).equals("metadata.name", args.pvc).at(0)
+      if (isUnDef(pvc)) throw `PV ${args.pvc} in namespace ${args.ns} not found.` 
+      
+      if (pvc.status.phase != "Bound")  throw `PV ${args.pvc} in namespace ${args.ns} wrong state: ${af.toSLON(pvc.status)}`
+      $set("pvc", pvc)
+
+      log(`Get PV ${pvc.spec.volumeName}...`)
+      var pv = $sh(`kubectl get pv ${pvc.spec.volumeName} -o json`).getJson(0)
+      $set("pv", pv.stdout)
+      $set("sourceRegion", $from(pv.stdout.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions).equals("key", "topology.ebs.csi.aws.com/zone").at(0).values[0])
+    } else {
+      throw("No PVs could be retrieved. (" + _pvs.stderr + ")")
+    }
