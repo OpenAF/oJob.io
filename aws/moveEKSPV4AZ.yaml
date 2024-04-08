@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Moves an AWS EKS PV from one AZ to another.
+  text   : Moves an AWS EKS PV from one AZ to another (DEPLOY MUST HAVE REPLICAS=0)
   expects: 
   - name     : pvc
     desc     : The persistent volume clain name
@@ -13,17 +13,29 @@ help:
   - name     : targetaz
     desc     : The complete region and target az
     example  : eu-west-1c
-    mandatory: true 
+    mandatory: true
+  - name     : auto
+    desc     : Automatically perform destructive actions such as deleting PV/PVCs
+    example  : "true"
+    mandatory: false
+  - name     : deletepv
+    desc     : Boolean flag that if true and if auto=true will try to delete the original EBS volume in the end
+    example  : "true"
+    mandatory: false 
 
 todo:
 - Get current PVC and PV
 - Copy PV
 - Changing PVC and PV
-- Print instructions
+- (if    ): "toBoolean({{auto}})"
+  ((then)):
+  - Delete and apply new PVC/PV
+  ((else)):
+  - Print instructions
 
 ojob:
   opacks      :
-  - openaf: 20240318
+  - openaf: 20231222
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
         
@@ -36,26 +48,19 @@ jobs:
       pvc     : isString
       ns      : isString.default("default")
       targetaz: isString
+      deletepv: toBoolean.isBoolean.default(false)
   to   :
   - (printmd): |
-      # Instructions
-
-      **Don't delete the target volume beyond step 2 (after deleting the previous PVC)!**
-
       1. Scale down the deployment:
 
       ```
-
-      kubectl scale [type of deploy] [name of deploy] -n {{ns}} --replicas=0
-      
+      kubectl scale [type of deploy] [name of deploy] --replicas=0 -n {{ns}} 
       ```
 
-      2. Delete the previous PVC and wait a couple of seconds before proceeding to the next step:
+      2. Delete the previous PVC:
 
       ```
-      
       kubectl delete pvc -n {{ns}} {{pvc}}
-      
       ```
 
       > WARNING: This will delete the associated PV data!!!
@@ -63,24 +68,51 @@ jobs:
       3. Create the new PVC/PV using the created file:
 
       ```
-     
       kubectl apply -f changed.yaml
-     
       ```
 
-      > This might fail if the previous PVC/PV are still be deleted. Wait a couple of seconds and try again.
-
-      4. Scale up the deployment:
+      4. Scale up the deployment
 
       ```
-      
-      kubectl scale [type of deploy] [name of deploy] -n {{ns}} --replicas=[original value]
-      
+      kubectl scale [type of deploy] [name of deploy] --replicas=[original value] -n {{ns}}
       ```
+
+# ----------------------------------
+- name : Delete and apply new PVC/PV
+  deps : Changing PVC and PV
+  check:
+    in:
+      pvc     : isString
+      ns      : isString.default("default")
+      targetaz: isString
+  exec : |
+    var _r
+    log("Deleting previous PVC/PV...")
+    _r = $sh(`kubectl delete -n ${args.ns} -f original.yaml`).getJson(0)
+    if (_r.exitcode != 0) throw `Could not delete PVC ${args.pvc} in namespace ${args.ns}`
+
+    log("Waiting...")
+    sleep(5000, true)
+
+    log("Creating new PVC/PV...")
+    _r = $sh(`kubectl apply -f changed.yaml`).getJson(0)
+    while (_r.exitcode != 0) {
+      log("Waiting...")
+      sleep(5000, true)
+      log("Trying to create again...")
+      _r = $sh(`kubectl apply -f changed.yaml`).getJson(0)
+    }
+
+    // Delete original PV
+    if (args.deletepv) {
+      var pv = $get("pv")
+      _r = $sh(`aws ec2 delete-volume --volume-id ${pv.spec.csi.volumeHandle}`).get(0)
+      if (_r.exitcode != 0) throw `Could not delete volume ${pv.spec.csi.volumeHandle}: ${_r.stderr}`
+    }
 
 # --------------------------
 - name : Changing PVC and PV
-  #deps : Copy PV
+  deps : Copy PV
   check:
     in:
       targetaz: isString
@@ -127,7 +159,12 @@ jobs:
       // -----------------------------
       // Creating volume from snapshot
       log(`Creating volume from snapshot ${sourceSnapshot}`)
-      _r = $sh(`aws ec2 create-volume --availability-zone ${args.targetaz} --snapshot-id ${sourceSnapshot} --volume-type gp3`).getJson(0)
+      _r = $sh(`aws ec2 describe-volumes --volume-ids ${pv.spec.csi.volumeHandle}`).getJson(0)
+      if (_r.exitcode != 0) throw `Can obtain details about volume ${pv.spec.csi.volumeHandle}`
+
+      var _tags = $t("ResourceType=volume,Tags=[{{#each this}}{Key={{Key}},Value={{Value}}\\}{{#unless @last}},{{/unless}}{{/each}}]", _r.stdout.Volumes[0].Tags).replace(/\\}/g, "}")
+
+      _r = $sh(`aws ec2 create-volume --availability-zone ${args.targetaz} --snapshot-id ${sourceSnapshot} --volume-type gp3 --tag-specifications '${_tags}'`).getJson(0)
       if (_r.exitcode == 0) {
         var targetVolume = _r.stdout.VolumeId
         $set("targetVolume", targetVolume)
