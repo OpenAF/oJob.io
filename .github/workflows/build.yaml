@@ -148,7 +148,12 @@ jobs:
           - s3.yaml
             
           todo:
-          - Copy build result
+          - (if    ): |
+              io.fileExists('output/oafp.yaml') && io.fileExists('output/oaf/versions')
+            ((then)):
+            - Copy build result
+            ((else)):
+            - (fail): -1
           
           jobs:
           - name: Copy build result
