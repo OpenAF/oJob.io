@@ -521,3 +521,10 @@ data:
   d: Builds an HTML file with the current linked news titles, publication date and source from Google News.
   e: |-
     oafp url="https://news.google.com/rss" path="rss.channel.item[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),date:pubDate,source:source._}" from="sort(-date)" out=mdtable | oafp in=md out=html
+- c: Mac
+  s: Safari
+  d: Get a list of all Mac OS Safari bookmarks into a CSV file.
+  e: |-
+    # opack install mac
+    oafp ~/Library/Safari/Bookmarks.plist libs=Mac path="Children[].map(&{category:get('cat'),title:URIDictionary.title,url:URLString},setp(@,'Title','cat').nvl(Children,from_json('[]')))[][]" out=csv > bookmarks.csv
+    
