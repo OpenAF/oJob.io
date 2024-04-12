@@ -14,6 +14,8 @@ help:
     desc     : Add extra optional information
     example  : "John Doe,Room 1234,555-1234,555-5678,John.Doe@example.com"
     mandatory: false
+  - name     : gecosopt
+    desc     : "Gecos option to use if 'gecos' is defined (default: --gecos)"
   - name     : debian
     desc     : Uses different syntax for debian based systems
     example  : "true"
@@ -74,12 +76,13 @@ jobs:
       user  : isString
       group : isString.default(__)
       gecos : isString.default(__)
+      gecosopt: isString.default("--gecos")
   lang    : shell
   exec    : |
     {{#if debian}}
-    {{#if sudo}}sudo {{/if}}adduser {{#if group}} --ingroup {{group}}{{/if}}{{#if gecos}} --gecos '{{{gecos}}}'{{/if}} --disabled-password {{user}}
+    {{#if sudo}}sudo {{/if}}adduser {{#if group}} --ingroup {{group}}{{/if}}{{#if gecos}} {{gecosopt}} '{{{gecos}}}'{{/if}} --disabled-password {{user}}
     {{else}}
-    {{#if sudo}}sudo {{/if}}adduser {{user}}{{#if group}} -g {{group}}{{/if}}{{#if gecos}} --gecos '{{{gecos}}}'{{/if}}
+    {{#if sudo}}sudo {{/if}}adduser {{user}}{{#if group}} -g {{group}}{{/if}}{{#if gecos}} {{gecosopt}} '{{{gecos}}}'{{/if}}
     {{/if}}
     {{#if sudo}}sudo {{/if}}mkdir /home/{{user}}/.ssh
     {{#if sudo}}sudo {{/if}}chmod 700 /home/{{user}}/.ssh
