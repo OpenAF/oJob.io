@@ -67,14 +67,26 @@ init:
     host: europe-west9-5tkroniexa-od.a.run.app
     region: Paris
   - name: europe-west12
-    host: europe-west12-5tkroniexa-od.a.run.app
+    host: europe-west12-5tkroniexa-og.a.run.app
     region: Turin
   - name: europe-southwest1
     host: europe-southwest1-5tkroniexa-no.a.run.app
     region: Madrid
+  - name: europe-west10
+    host: europe-west10-5tkroniexa-oe.a.run.app
+    region: Berlin
   - name: me-west1
     host: me-west1-5tkroniexa-zf.a.run.app
     region: Tel Aviv
+  - name: me-central1
+    region: Doha
+    host: me-central1-5tkroniexa-ww.a.run.app
+  - name: me-central2
+    region: Dammam
+    host: me-central2-5tkroniexa-wx.a.run.app
+  - name: africa-sounth1
+    host: africa-south1-5tkroniexa-bq.a.run.app
+    region: Johannesburg
   - name: northamerica-northeast1
     host: northamerica-northeast1-5tkroniexa-nn.a.run.app
     region: Montréal
@@ -98,7 +110,7 @@ init:
     region: North Virginia
   - name: us-east5
     host: us-east5-5tkroniexa-ul.a.run.app
-    region: Ohio
+    region: Columbus
   - name: us-south1
     host: us-south1-5tkroniexa-vp.a.run.app
     region: Dallas
