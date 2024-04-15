@@ -542,3 +542,8 @@ data:
   d: "On an Unix/Linux system supporting 'ps' output formats %cpu and %mem, will output a chart with the percentage of cpu and memory usage of a provided pid (e.g. 12345)"
   e: |-
     oafp cmd="ps -p 12345 -o %cpu,%mem" in=lines linesvisual=true linesvisualsepre="\\s+" out=chart chart="int '\"%CPU\"':red:cpu '\"%MEM\"':blue:mem -min:0 -max:100" loop=1 loopcls=true
+- c: Generic
+  s: Hex
+  d: Outputs an hexadecimal representation of the characters of the file provided allowing to adjust how many per line/row.
+  e: |-
+    oafp some.file in=rawhex inrawhexline=15 out=ctable
