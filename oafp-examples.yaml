@@ -547,3 +547,13 @@ data:
   d: Outputs an hexadecimal representation of the characters of the file provided allowing to adjust how many per line/row.
   e: |-
     oafp some.file in=rawhex inrawhexline=15 out=ctable
+- c: Unix
+  s: Activity
+  d: "Uses the Linux command 'last' output to build a table with user, tty, from and period of activity"
+  e: |-
+    oafp cmd="last" in=lines linesjoin=true path="[:-3]|[?contains(@,'no logout')==\`false\`&&contains(@,'system boot')==\`false\`].split_re(@,' \\s+').{user:[0],tty:[1],from:[2],period:join(' ',[3:])}" out=ctable
+- c: Mac
+  s: Activity
+  d: "Uses the Mac terminal command 'last' output to build an activity table with user, tty, from, login-time and logout-time"
+  e: |-
+    oafp cmd="last --libxo json" path="\"last-information\".last" out=ctable
