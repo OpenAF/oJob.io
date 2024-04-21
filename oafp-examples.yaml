@@ -314,6 +314,11 @@ data:
   e: |-
     DOMAIN=yahoo.com && oaf -c "sprint(ow.loadNet().getDNS('$DOMAIN'))" | oafp from="sort(Address)" out=ctable
 - c: OpenAF
+  s: Network
+  d: List all MX (mail servers) network addresses from the current DNS server for a hostname using OpenAF
+  e: |-
+    DOMAIN=gmail.com && TYPE=MX && oaf -c "sprint(ow.loadNet().getDNS('$DOMAIN','$TYPE'))" | oafp from="sort(Address)" out=ctable
+- c: OpenAF
   s: TLS
   d: List the TLS certificates of a target host with a sorted alternative names using OpenAF
   e: |-
@@ -382,7 +387,7 @@ data:
   s: Network
   d: Converting the Google DNS DoH query result
   e: |-
-    oafp path=Answer from="sort(data)" out=ctable url="https://8.8.8.8/resolve?name=yahoo.com&type=a"
+    DOMAIN=yahoo.com && oafp path=Answer from="sort(data)" out=ctable url="https://8.8.8.8/resolve?name=$DOMAIN&type=a"
 - c: OpenAF
   s: oafp
   d: "List the OpenAF's oafp examples by category, sub-category and description"
@@ -557,3 +562,8 @@ data:
   d: "Uses the Mac terminal command 'last' output to build an activity table with user, tty, from, login-time and logout-time"
   e: |-
     oafp cmd="last --libxo json" path="\"last-information\".last" out=ctable
+- c: OpenAF
+  s: OS
+  d: Using OpenAF parse the current environment variables
+  e: |-
+    oaf -c "sprint(getEnvs())" | oafp sortmapkeys=true out=ctree
