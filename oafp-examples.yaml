@@ -567,3 +567,13 @@ data:
   d: Using OpenAF parse the current environment variables
   e: |-
     oaf -c "sprint(getEnvs())" | oafp sortmapkeys=true out=ctree
+- c: APIs
+  s: iTunes
+  d: "Search the Apple's iTunes database for a specific term"
+  e: |-
+    TRM="Mozart" && oafp url="https://itunes.apple.com/search?term=$TRM" out=ctree
+- c: APIs
+  s: Public Holidays
+  d: "Return the public holidays for a given country on a given year"
+  e: |-
+    COUNTRY=US && YEAR=2024 && oafp url="https://date.nager.at/api/v2/publicholidays/$YEAR/$COUNTRY" path="[].{date:date,localName:localName,name:name}" out=ctable
