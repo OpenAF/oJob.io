@@ -15,7 +15,7 @@ data:
   s: Java
   d: Parse a Java stacktrace into a looping grid.
   e: |-
-    oafp /tmp/hsperfdata_user/12345 in=hsperf path=java out=grid grid="[[(title:Threads,type:chart,obj:'int threads.live:green:live threads.livePeak:red:peak threads.daemon:blue:daemon -min:0')|(title:Class Loaders,type:chart,obj:'int cls.loadedClasses:blue:loaded cls.unloadedClasses:red:unloaded')]|[(title:Heap,type:chart,obj:'bytes __mem.total:red:total __mem.used:blue:used -min:0')|(title:Metaspace,type:chart,obj:'bytes __mem.metaTotal:blue:total __mem.metaUsed:green:used -min:0')]]" loop=1
+    HSPERF=/tmp/hsperfdata_user/12345 && oafp $HSPERF in=hsperf path=java out=grid grid="[[(title:Threads,type:chart,obj:'int threads.live:green:live threads.livePeak:red:peak threads.daemon:blue:daemon -min:0')|(title:Class Loaders,type:chart,obj:'int cls.loadedClasses:blue:loaded cls.unloadedClasses:red:unloaded')]|[(title:Heap,type:chart,obj:'bytes __mem.total:red:total __mem.used:blue:used -min:0')|(title:Metaspace,type:chart,obj:'bytes __mem.metaTotal:blue:total __mem.metaUsed:green:used -min:0')]]" loop=1
 # Generic / Text
 - c: Generic
   s: Text
@@ -312,12 +312,12 @@ data:
   s: Network
   d: List all network addresses returned from the current DNS server for a hostname using OpenAF
   e: |-
-    oaf -c "sprint(ow.loadNet().getDNS('yahoo.com'))" | oafp from="sort(Address)" out=ctable
+    DOMAIN=yahoo.com && oaf -c "sprint(ow.loadNet().getDNS('$DOMAIN'))" | oafp from="sort(Address)" out=ctable
 - c: OpenAF
   s: TLS
   d: List the TLS certificates of a target host with a sorted alternative names using OpenAF
   e: |-
-    oaf -c "sprint(ow.loadNet().getTLSCertificates('yahoo.com',443))" | oafp path="[].{issuer:issuerDN,subject:subjectDN,notBefore:notBefore,notAfter:notAfter,alternatives:join(' | ',sort(map(&[1],nvl(alternatives,\`[]\`))))}" out=ctree
+    DOMAIN=yahoo.com && oaf -c "sprint(ow.loadNet().getTLSCertificates('$DOMAIN',443))" | oafp path="[].{issuer:issuerDN,subject:subjectDN,notBefore:notBefore,notAfter:notAfter,alternatives:join(' | ',sort(map(&[1],nvl(alternatives,\`[]\`))))}" out=ctree
 - c: OpenAF
   s: Channels
   d: "Copy the json result of a command into an etcd database using OpenAF's channels"
@@ -397,13 +397,13 @@ data:
   s: Summarize
   d: "Use an AI LLM model to summarize the weather information provided in a JSON format"
   e: |-
-    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo-0125', key: '...', timeout: 900000)"
+    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo', key: '...', timeout: 900000)"
     oafp url="https://wttr.in?format=j2" llmcontext="current and forecast weather" llmprompt="produce a summary of the current and forecasted weather" out=md
 - c: AI
   s: Prompt
   d: Example of generating data from an AI LLM prompt
   e: |-
-    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo-0125', key: '...', timeout: 900000)"
+    export OAFP_MODEL="(type: openai, model: 'gpt-3.5-turbo', key: '...', timeout: 900000)"
     oafp in=llm data="produce a list of 25 species of 'flowers' with their english and latin name and the continent where it can be found" out=json > data.json
 - c: Generic
   s: RSS
