@@ -582,3 +582,25 @@ data:
   d: Converts a Linux's named log, for client queries, into a CSV
   e: |-
     cat named.log | oafp in=lines linesjoin=true path="[?contains(@,' client ')==\`true\`].split(@,' ').{datetime:to_datef(concat([0],concat(' ',[1])),'dd-MMM-yyyy HH:mm:ss.SSS'),session:[3],sourceIP:replace([4],'(.+)#(\d+)','','\$1'),sourcePort:replace([4],'(.+)#(\d+)','','\$2'),target:replace([5],'\((.+)\):','','\$1'),query:join(' ',[6:])}" out=csv
+- c: APIs
+  s: Space
+  d: How many people are in space and in which craft currently in space
+  e: |-
+    curl -s http://api.open-notify.org/astros.json | oafp path="people" sql="select \"craft\", count(1) \"people\" group by \"craft\"" output=ctable
+- c: APIs
+  s: NASA
+  d: Markdown table of near Earth objects by name, magnitude, if is potentially hazardous asteroids and corresponding distance
+  e: |-
+    curl -s "https://api.nasa.gov/neo/rest/v1/feed?API_KEY=DEMO_KEY" | oafp path="near_earth_objects" maptoarray=true output=json | oafp path="[0][].{name:name,magnitude:absolute_magnitude_h,hazardous:is_potentially_hazardous_asteroid,distance:close_approach_data[0].miss_distance.kilometers}" sql="select * order by distance" output=mdtable
+- c: AI
+  s: Mistral
+  d: List all available LLM models at mistral.ai
+  e: |-
+    # export OAFP_MODEL="(type: openai, model: 'llama3', url: 'https://api.mistral.ai', key: '...', timeout: 900000, temperature: 0)"
+    oafp in=llmmodels data="()" path="sort([].id)"
+- c: AI
+  s: TogetherAI
+  d: List all available LLM models at together.ai with their corresponding type and price components order by the more expensive, for input and output
+  e: |-
+    # export OAFP_MODEL="(type: openai, model: 'meta-llama/Meta-Llama-3-70B0, url: 'https://api.together.xyz', key: '...', timeout: 9000000, temperature: 0)"
+    oafp in=llmmodels data="()" path="[].{id:id,name:display_name,type:type,ctxLen:context_length,priceHour:pricing.hourly,priceIn:pricing.input,priceOut:pricing.output,priceBase:pricing.base,priceFineTune:pricing.finetune}" sql="select * order by priceIn desc,priceOut desc" out=ctable
