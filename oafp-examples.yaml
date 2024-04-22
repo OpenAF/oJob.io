@@ -269,7 +269,7 @@ data:
   s: Kubectl
   d: List of Kubernetes pods per namespace and kind using kubectl
   e: |-
-    oafp cmd="kubectl get pods -A -o json" path="items[].{ns:metadata.namespace,kind:metadata.ownerReferences[].kind,name:metadata.name,status:status.phase,restarts:sum(status.containerStatuses[].restartCount),node:spec.nodeName,age:timeago(status.startTime)}" sql="select * order by status,name" output=ctable
+    oafp cmd="kubectl get pods -A -o json" path="items[].{ns:metadata.namespace,kind:metadata.ownerReferences[].kind,name:metadata.name,status:status.phase,restarts:sum(nvl(status.containerStatuses[].restartCount,from_slon('[0]'))),node:spec.nodeName,age:timeago(nvl(status.startTime,now(\`0\`)))}" sql="select * order by status,name" output=ctable
 - c: Kubernetes
   s: Kubectl
   d: List of Kubernetes CPU, memory and storage stats per node using kubectl
@@ -604,3 +604,8 @@ data:
   e: |-
     # export OAFP_MODEL="(type: openai, model: 'meta-llama/Meta-Llama-3-70B0, url: 'https://api.together.xyz', key: '...', timeout: 9000000, temperature: 0)"
     oafp in=llmmodels data="()" path="[].{id:id,name:display_name,type:type,ctxLen:context_length,priceHour:pricing.hourly,priceIn:pricing.input,priceOut:pricing.output,priceBase:pricing.base,priceFineTune:pricing.finetune}" sql="select * order by priceIn desc,priceOut desc" out=ctable
+- c: OpenVPN
+  s: List
+  d: "When using the container nmaguiar/openvpn it's possible to convert the list of all clients order by expiration/end date"
+  e: |-
+    oafp cmd="docker exec openvpn ovpn_listclients" in=csv path="[].{name:name,begin:to_datef(begin,'MMM dd HH:mm:ss yyyy z'),end:to_datef(end,'MMM dd HH:mm:ss yyyy z'),status:status}" out=ctable sql="select * order by end desc"
