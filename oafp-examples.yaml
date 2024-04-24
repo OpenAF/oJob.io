@@ -609,3 +609,8 @@ data:
   d: "When using the container nmaguiar/openvpn it's possible to convert the list of all clients order by expiration/end date"
   e: |-
     oafp cmd="docker exec openvpn ovpn_listclients" in=csv path="[].{name:name,begin:to_datef(begin,'MMM dd HH:mm:ss yyyy z'),end:to_datef(end,'MMM dd HH:mm:ss yyyy z'),status:status}" out=ctable sql="select * order by end desc"
+- c: OpenAF
+  s: oJob
+  d: List all current ojob.io ojobs available in a table
+  e: |-
+    oafp url="https://ojob.io/index.json" path="init.l.map(&replace(@,'https://(.+)\.yaml','','\$1'),[])[].{ojob:@}" out=ctable
