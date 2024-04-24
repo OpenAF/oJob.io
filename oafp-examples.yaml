@@ -523,9 +523,9 @@ data:
     oafp libs=Mac cmd="sudo powermetrics --format=plist --show-initial-usage -n 0 --samplers disk" in=plist path=disk out=grid grid="[[(title:data,path:@,xsnap:2)]|[(title:read iops,type:chart,obj:'dec3 rops_per_s:blue:read_iops')|(title:write iops,type:chart,obj:'dec3 wops_per_s:red:write_iops')]|[(title:read bytes per sec,type:chart,obj:'bytes rbytes_per_s:blue:read_bytes_per_sec')|(title:write bytes per sec,type:chart,obj:'bytes wbytes_per_s:red:write_bytes_per_sec')]]" loop=1
 - c: Generic
   s: RSS
-  d: Builds an HTML file with the current linked news titles, publication date and source from Google News.
+  d: Builds an HTML file with the current linked news titles, publication date and source from Google News RSS.
   e: |-
-    oafp url="https://news.google.com/rss" path="rss.channel.item[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),date:pubDate,source:source._}" from="sort(-date)" out=mdtable | oafp in=md out=html
+    RSS="https://news.google.com/rss" && oafp url="$RSS" path="rss.channel.item[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),date:pubDate,source:source._}" from="sort(-date)" out=mdtable | oafp in=md out=html
 - c: Mac
   s: Safari
   d: Get a list of all Mac OS Safari bookmarks into a CSV file.
@@ -609,8 +609,8 @@ data:
   d: "When using the container nmaguiar/openvpn it's possible to convert the list of all clients order by expiration/end date"
   e: |-
     oafp cmd="docker exec openvpn ovpn_listclients" in=csv path="[].{name:name,begin:to_datef(begin,'MMM dd HH:mm:ss yyyy z'),end:to_datef(end,'MMM dd HH:mm:ss yyyy z'),status:status}" out=ctable sql="select * order by end desc"
-- c: OpenAF
-  s: oJob
-  d: List all current ojob.io ojobs available in a table
+- c: Generic 
+  s: RSS
+  d: "Parses the Slashdot's RSS feed news into a quick clickable HTML page in a browser"
   e: |-
-    oafp url="https://ojob.io/index.json" path="init.l.map(&replace(@,'https://(.+)\.yaml','','\$1'),[])[].{ojob:@}" out=ctable
+    RSS="http://rss.slashdot.org/Slashdot/slashdot" && oafp url="$RSS" path="RDF.item[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),department:department,date:date}" from="sort(-date)" out=mdtable | oafp in=md out=html
