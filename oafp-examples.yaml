@@ -614,3 +614,25 @@ data:
   d: "Parses the Slashdot's RSS feed news into a quick clickable HTML page in a browser"
   e: |-
     RSS="http://rss.slashdot.org/Slashdot/slashdot" && oafp url="$RSS" path="RDF.item[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),department:department,date:date}" from="sort(-date)" out=mdtable | oafp in=md out=html
+- c: Unix
+  s: Envs
+  d: Converts the Linux envs command result into a table of environment variables and corresponding values
+  e: |-
+    env | oafp in=ini path="map(&{key:@,value:to_string(get(@))},sort(keys(@)))" out=ctable
+- c: Diff
+  s: Envs
+  d: Given two JSON files with environment variables performs a diff and returns a colored result with the corresponding differences
+  e: |-
+    env | oafp in=ini out=json > data1.json
+    # change one or more environment variables
+    env | oafp in=ini out=json > data2.json
+    oafp in=oafp data="[(file: data1.json)|(file: data2.json)]" diff="(a:'[0]',b:'[1]')" color=true
+- c: Diff
+  s: Path
+  d: Given two JSON files with the parsed PATH environment variable performs a diff and returns a colored result with the corresponding differences
+  e: |-
+    env | oafp in=ini path="PATH.split(@,':')" out=json > data1.json
+    # export PATH=$PATH:/some/new/path
+    env | oafp in=ini path="PATH.split(@,':')" out=json > data2.json
+    oafp in=oafp data="[(file: data1.json)|(file: data2.json)]" diff="(a:'sort([0])',b:'sort([1])')" color=true
+ 
