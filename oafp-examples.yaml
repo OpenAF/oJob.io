@@ -635,4 +635,19 @@ data:
     # export PATH=$PATH:/some/new/path
     env | oafp in=ini path="PATH.split(@,':')" out=json > data2.json
     oafp in=oafp data="[(file: data1.json)|(file: data2.json)]" diff="(a:'sort([0])',b:'sort([1])')" color=true
- 
+- c: AI
+  s: Groq
+  d: Calculation
+  e: |-
+    export OAFP_MODEL="(type: openai, model: 'llama3-70b-8192', key: '...', url: 'https://api.groq.com/openai', timeout: 900000, temperature: 0)"
+    oafp in=llm data="how much does light take to travel from Tokyo to Osaka in ms; return a 'time_in_ms' and a 'reasoning'"
+- c: AI
+  s: Classification
+  d: Given a list of news titles with corresponding dates and sources add a category and sub-category field to each
+  e: |-
+    export OAFP_MODEL="(type: ollama, model: 'llama3', url: 'http://ollama.local', timeout: 900000, temperature: 0)"
+    # get 10 news titles
+    RSS="https://news.google.com/rss" && oafp url="$RSS" path="rss.channel.item[].{title:title,date:pubDate,source:source._}" from="sort(-date)" out=json sql="select * limit 5" > news.json
+    # add category and sub-category
+    oafp news.json llmcontext="list a news titles with date and source" llmprompt="keeping the provided title, date and source add a category and sub-category fields to the provided list" out=json > newsCategorized.json
+    oafp newsCategorized.json getlist=true out=ctable
