@@ -29,6 +29,7 @@ todo:
   - BIN: openaf
   - BIN: openaf-console
   - BIN: openaf-sb
+  - BIN: pyoaf
 
 ojob:
   opacks      :
