@@ -120,7 +120,7 @@ data:
   s: Compute
   d: Parses the Linux /proc/cpuinfo into an array
   e: |-
-    cat /proc/cpuinfo | sed "s/^$/---/mg" | ./oafp in=yaml path="[?not_null(@)]" out=ctree
+    cat /proc/cpuinfo | sed "s/^$/---/mg" | oafp in=yaml path="[?not_null(@)]|[?type(processor)=='number']" out=ctree
 - c: Unix
   s: Storage
   d: Parses the result of the Unix ls command
@@ -424,7 +424,7 @@ data:
   s: EC2
   d: Given all AWS EC2 instances in an account produces a table with name, type, vpc and private ip sorted by vpc
   e: |-
-    aws ec2 describe-instances | ./oafp path="Reservations[].Instances[].{name:join('',Tags[?Key=='Name'].Value),type:InstanceType,vpc:VpcId,ip:PrivateIpAddress} | sort_by(@, &vpc)" output=ctable
+    aws ec2 describe-instances | oafp path="Reservations[].Instances[].{name:join('',Tags[?Key=='Name'].Value),type:InstanceType,vpc:VpcId,ip:PrivateIpAddress} | sort_by(@, &vpc)" output=ctable
 - c: AWS
   s: EKS
   d: "Builds an excel spreadsheet with all persistent volumes associated with an AWS EKS 'XYZ' with the corresponding Kubernetes namespace, pvc and pv names"
