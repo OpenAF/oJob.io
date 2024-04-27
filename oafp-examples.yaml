@@ -651,3 +651,8 @@ data:
     # add category and sub-category
     oafp news.json llmcontext="list a news titles with date and source" llmprompt="keeping the provided title, date and source add a category and sub-category fields to the provided list" out=json > newsCategorized.json
     oafp newsCategorized.json getlist=true out=ctable
+- c: Mac
+  s: Info
+  d: Parses the current Mac OS hardware information
+  e: |-
+    system_profiler SPHardwareDataType -json | oafp path="SPHardwareDataType[0]" out=ctree
