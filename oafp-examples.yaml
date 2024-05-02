@@ -656,3 +656,8 @@ data:
   d: Parses the current Mac OS hardware information
   e: |-
     system_profiler SPHardwareDataType -json | oafp path="SPHardwareDataType[0]" out=ctree
+- c: OpenAF
+  s: oJob.io
+  d: Parses ojob.io/news results into a clickable news title HMTL page.
+  e: |-
+    ojob ojob.io/news/awsnews __format=json | oafp path="[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),date:date}" from="sort(-date)" out=mdtable | oafp in=md out=html
