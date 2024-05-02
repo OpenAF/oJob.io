@@ -661,3 +661,8 @@ data:
   d: Parses ojob.io/news results into a clickable news title HMTL page.
   e: |-
     ojob ojob.io/news/awsnews __format=json | oafp path="[].{title:replace(t(@,'[{{title}}]({{link}})'),'\|','g','\\|'),date:date}" from="sort(-date)" out=mdtable | oafp in=md out=html
+- c: OpenAF
+  s: oJob.io
+  d: "Retrieves the list of oJob.io's jobs and filters which start by 'ojob.io/news' to display them in a rectangle"
+  e: |-
+    oafp url="https://ojob.io/index.json" path="sort(init.l)[].replace(@,'^https://(.+)\.(yaml|json)$','','\$1')|[?starts_with(@, 'ojob.io/news')]" out=map
