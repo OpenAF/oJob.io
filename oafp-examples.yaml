@@ -602,7 +602,7 @@ data:
   s: TogetherAI
   d: List all available LLM models at together.ai with their corresponding type and price components order by the more expensive, for input and output
   e: |-
-    # export OAFP_MODEL="(type: openai, model: 'meta-llama/Meta-Llama-3-70B0, url: 'https://api.together.xyz', key: '...', timeout: 9000000, temperature: 0)"
+    # export OAFP_MODEL="(type: openai, model: 'meta-llama/Meta-Llama-3-70B', url: 'https://api.together.xyz', key: '...', timeout: 9000000, temperature: 0)"
     oafp in=llmmodels data="()" path="[].{id:id,name:display_name,type:type,ctxLen:context_length,priceHour:pricing.hourly,priceIn:pricing.input,priceOut:pricing.output,priceBase:pricing.base,priceFineTune:pricing.finetune}" sql="select * order by priceIn desc,priceOut desc" out=ctable
 - c: OpenVPN
   s: List
