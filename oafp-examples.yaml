@@ -676,3 +676,13 @@ data:
   d: "Given an Unix process will output a table with process's components memory address, size in bytes, permissions and owner"
   e: |-
     pmap 12345 | sed '1d;$d' | oafp in=lines linesjoin=true path="[].split_re(@, '\\s+').{address:[0],size:from_bytesAbbr([1]),perm:[2],owner:join('',[3:])}" out=ctable
+- c: Generic
+  s: HTML
+  d: "Generate a HTML with table of emoticons/emojis by category, group, name, unicode and html code."
+  e: |-
+    oafp url="https://emojihub.yurace.pro/api/all" path="[].{category:category,group:group,name:name,len:length(unicode),unicode:join('<br>',unicode),htmlCode:replace(join('<br>', htmlCode),'&','g','&amp;'),emoji:join('', htmlCode)}" out=mdtable | oafp in=md out=html
+- c: Generic
+  s: Text
+  d: Search a word in the English dictionary returning phonetic, meanings, synonyms, antonyms, etc.
+  e: |-
+    WORD="google" && oafp url="https://api.dictionaryapi.dev/api/v2/entries/en/$WORD"
