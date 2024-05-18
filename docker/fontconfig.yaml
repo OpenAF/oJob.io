@@ -1,0 +1,70 @@
+# Author: Nuno Aguiar
+help:
+  text   : Tries to install the fontconfig package and additional fonts if necessary
+  expects: 
+  - name     : sudo
+    desc     : Boolean flag to indicate if sudo is available (defaults to true)
+    example  : "true"
+    mandatory: false
+
+todo:
+- Identifies the OS
+- Installs the fontconfig package
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+include:
+- ojob.io/unix/getLinuxDistro
+
+jobs:
+# ------------------------
+- name : Identifies the OS
+  from : Get Linux Distro
+  exec : |
+    global.OS = (args.OS.length > 0) ? args.OS : args.OS_LIKE
+
+# --------------------------------------
+- name : Installs the fontconfig package
+  check:
+    in:
+      sudo: toBoolean.isBoolean.default(true)
+  exec : |
+    var sudo = args.sudo ? "sudo " : ""
+
+    switch (global.OS) {
+      case "debian":
+        print("Installing fontconfig package")
+        $sh(sudo + "apt-get install -y fontconfig").exec()
+        break
+      case "redhat":
+        print("Installing fontconfig package")
+        if ($sh("command -v microdnf").get(0).exitcode == 0) {
+          print("Using microdnf...")
+          $sh(sudo + "microdnf install -y fontconfig").exec()
+        } else {
+          $sh(sudo + "yum install -y fontconfig").exec()
+        }
+        break
+      case "ubuntu":
+        print("Installing fontconfig package")
+        $sh(sudo + "apt-get install -y fontconfig").exec()
+        break
+      case "alpine":
+        print("Installing fontconfig package")
+        $sh(sudo + "apk add fontconfig")
+        .sh(sudo + "apk add msttcorefonts-installer")
+        .sh(sudo + "update-ms-fonts")
+        .sh(sudo + "fc-cache -f")
+        .exec()
+        break
+      case "amazon":
+        print("Installing fontconfig package")
+        $sh(sudo + "yum install -y fontconfig").exec()
+        break
+      default:
+        print("OS not supported")
+    }
