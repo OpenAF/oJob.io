@@ -1,7 +1,7 @@
 # Author: Nuno Aguiar
 help:
   text   : Moves an AWS EKS PV from one AZ to another (DEPLOY MUST HAVE REPLICAS=0)
-  expects: 
+  expects:
   - name     : pvc
     desc     : The persistent volume clain name
     example  : some-name
@@ -21,7 +21,7 @@ help:
   - name     : deletepv
     desc     : Boolean flag that if true and if auto=true will try to delete the original EBS volume in the end
     example  : "true"
-    mandatory: false 
+    mandatory: false
 
 todo:
 - Get current PVC and PV
@@ -38,7 +38,7 @@ ojob:
   - openaf: 20231222
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
-        
+
 
 jobs:
 # -------------------------
@@ -54,7 +54,7 @@ jobs:
       1. Scale down the deployment:
 
       ```
-      kubectl scale [type of deploy] [name of deploy] --replicas=0 -n {{ns}} 
+      kubectl scale [type of deploy] [name of deploy] --replicas=0 -n {{ns}}
       ```
 
       2. Delete the previous PVC:
@@ -85,28 +85,29 @@ jobs:
       pvc     : isString
       ns      : isString.default("default")
       targetaz: isString
+      deletepv: toBoolean.isBoolean.default(false)
   exec : |
     var _r
     log("Deleting previous PVC/PV...")
-    _r = $sh(`kubectl delete -n ${args.ns} -f original.yaml`).getJson(0)
+    _r = $sh(`kubectl delete -n ${args.ns} -f original.yaml`).prefix("kubectl").getJson(0)
     if (_r.exitcode != 0) throw `Could not delete PVC ${args.pvc} in namespace ${args.ns}`
 
     log("Waiting...")
     sleep(5000, true)
 
     log("Creating new PVC/PV...")
-    _r = $sh(`kubectl apply -f changed.yaml`).getJson(0)
+    _r = $sh(`kubectl apply -f changed.yaml -n ${args.ns}`).prefix("kubectl").getJson(0)
     while (_r.exitcode != 0) {
       log("Waiting...")
       sleep(5000, true)
       log("Trying to create again...")
-      _r = $sh(`kubectl apply -f changed.yaml`).getJson(0)
+      _r = $sh(`kubectl apply -f changed.yaml -n ${args.ns}`).prefix("kubectl").getJson(0)
     }
 
     // Delete original PV
     if (args.deletepv) {
       var pv = $get("pv")
-      _r = $sh(`aws ec2 delete-volume --volume-id ${pv.spec.csi.volumeHandle}`).get(0)
+      _r = $sh(`aws ec2 delete-volume --volume-id ${pv.spec.csi.volumeHandle}`).prefix("kubectl").get(0)
       if (_r.exitcode != 0) throw `Could not delete volume ${pv.spec.csi.volumeHandle}: ${_r.stderr}`
     }
 
@@ -153,9 +154,9 @@ jobs:
       logWarn(`In case you need to destroy the source snapshot: aws ec2 delete-snapshot --snapshot-id ${sourceSnapshot}`)
       while(_r.State != "completed") {
         _r = $sh(`aws ec2 describe-snapshots --snapshot-ids ${sourceSnapshot}`).getJson(0).stdout.Snapshots[0]
-      } 
+      }
       log(`Source snapshot ${sourceSnapshot} created.`)
-      
+
       // -----------------------------
       // Creating volume from snapshot
       log(`Creating volume from snapshot ${sourceSnapshot}`)
@@ -171,7 +172,7 @@ jobs:
         logWarn(`In case you need to destroy the target volume: aws ec2 delete-volume --volume-id ${targetVolume}`)
         while(_r.State != "available") {
           _r = $sh(`aws ec2 describe-volumes --volume-ids ${targetVolume}`).getJson(0).stdout.Volumes[0]
-        } 
+        }
         log(`Target volume ${targetVolume} created.`)
 
         // Deleting source snapshot
@@ -190,7 +191,7 @@ jobs:
     }
 
 # -----------------------------
-- name : Get current PVC and PV 
+- name : Get current PVC and PV
   check:
     in:
       pvc     : isString
@@ -203,8 +204,8 @@ jobs:
 
     if (isMap(pvs) && isArray(pvs.items)) {
       var pvc = $from(pvs.items).equals("metadata.name", args.pvc).at(0)
-      if (isUnDef(pvc)) throw `PV ${args.pvc} in namespace ${args.ns} not found.` 
-      
+      if (isUnDef(pvc)) throw `PV ${args.pvc} in namespace ${args.ns} not found.`
+
       if (pvc.status.phase != "Bound")  throw `PV ${args.pvc} in namespace ${args.ns} wrong state: ${af.toSLON(pvc.status)}`
       $set("pvc", pvc)
 
