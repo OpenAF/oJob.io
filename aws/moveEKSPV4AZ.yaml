@@ -25,6 +25,7 @@ help:
 
 todo:
 - Get current PVC and PV
+- Verify uses
 - Copy PV
 - Changing PVC and PV
 - (if    ): "toBoolean({{auto}})"
@@ -76,6 +77,29 @@ jobs:
       ```
       kubectl scale [type of deploy] [name of deploy] --replicas=[original value] -n {{ns}}
       ```
+
+# ------------------
+- name : Verify uses
+  deps : Get current PVC and PV
+  check:
+    in:
+      pvc     : isString
+      ns      : isString.default("default")
+      targetaz: isString
+      deletepv: toBoolean.isBoolean.default(false)
+  exec : |
+    var _r
+    log("Getting PVC uses from all pods...")
+    _r = $sh(`kubectl get pods -A -o json`).getJson(0)
+    if (_r.exitcode != 0) throw 'Could not get PVC uses from all pods...'
+
+    var claims = $path(_r.stdout, "items[].spec.volumes[].persistentVolumeClaim")
+    if ($from(claims).equals("claimName", "grafana").any()) {
+      logErr("Found PVC being used by at least by one pod! Did you forgot to scale down a pod deployment using the '" + args.pvc + "' PVC?")
+      exit(-1)
+    } else {
+      log("No PVC uses found.")
+    }
 
 # ----------------------------------
 - name : Delete and apply new PVC/PV
