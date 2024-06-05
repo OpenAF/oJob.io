@@ -2,9 +2,9 @@
 help:
   text   : Generates a docker-compose for Redis
   expects: 
-  - name     : path
-    desc     : Path to persist data
-    example  : /my/path
+  - name     : volume
+    desc     : Volume to persist data
+    example  : redisdata
     mandatory: false
   - name     : save
     desc     : If defined will persist data every 'save' seconds
@@ -21,8 +21,6 @@ include:
 
 init:
   dc  : &DC |
-    version : '3'
-
     networks:
       redis:
         driver: bridge
@@ -35,14 +33,16 @@ init:
         {{#if save}}command       : redis-server --save {{save}} 1
         {{/if}}ports         :
         - "6379:6379"
+        {{#if volume}}
         volumes :
-        - {{$$ path 'redisdata'}}:/data
+        - {{volume}}:/data
+        {{/if}}
         networks:
         - redis
-    {{#if path}}
+    {{#if volume}}
     
     volumes:
-      redisdata:
+      {{volume}}:
         driver: local
     {{/if}}
 
