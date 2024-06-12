@@ -1,0 +1,92 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates the necessary OAF_JARGS value to start the OpenAF environment with the necessary parameters for using plugin-Ignite
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Retrieve current parameters
+- Retrieve current Java version
+- Generating the OAF_JARGS value
+
+ojob:
+  async       : true
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+init:
+  v11:
+  - "--add-exports=java.base/jdk.internal.misc=ALL-UNNAMED"
+  - "--add-exports=java.base/sun.nio.ch=ALL-UNNAMED"
+  - "--add-exports=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED"
+  - "--add-exports=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED"
+  - "--add-exports=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED"
+  - "--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED"
+  - "--illegal-access=permit"
+  v17:
+  - "--add-opens=java.base/jdk.internal.access=ALL-UNNAMED"
+  - "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED"
+  - "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"
+  - "--add-opens=java.base/sun.util.calendar=ALL-UNNAMED"
+  - "--add-opens=java.management/com.sun.jmx.mbeanserver=ALL-UNNAMED"
+  - "--add-opens=jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED"
+  - "--add-opens=java.base/sun.reflect.generics.reflectiveObjects=ALL-UNNAMED"
+  - "--add-opens=jdk.management/com.sun.management.internal=ALL-UNNAMED"
+  - "--add-opens=java.base/java.io=ALL-UNNAMED"
+  - "--add-opens=java.base/java.nio=ALL-UNNAMED"
+  - "--add-opens=java.base/java.net=ALL-UNNAMED"
+  - "--add-opens=java.base/java.util=ALL-UNNAMED"
+  - "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED"
+  - "--add-opens=java.base/java.util.concurrent.locks=ALL-UNNAMED"
+  - "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED"
+  - "--add-opens=java.base/java.lang=ALL-UNNAMED"
+  - "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED"
+  - "--add-opens=java.base/java.math=ALL-UNNAMED"
+  - "--add-opens=java.sql/java.sql=ALL-UNNAMED"
+  - "--add-opens=java.base/java.lang.reflect=ALL-UNNAMED"
+  - "--add-opens=java.base/java.time=ALL-UNNAMED"
+  - "--add-opens=java.base/java.text=ALL-UNNAMED"
+  - "--add-opens=java.management/sun.management=ALL-UNNAMED"
+  - "--add-opens java.desktop/java.awt.font=ALL-UNNAMED"
+
+jobs:
+# ----------------------------------
+- name : Retrieve current parameters
+  exec : |
+    $set("currentParams", { params: af.fromJavaArray( java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()) })
+
+# ------------------------------------
+- name : Retrieve current Java version
+  exec : |
+    $set("javaVersion", { version: ow.format.getJavaVersion() })
+
+# -------------------------------------
+- name : Generating the OAF_JARGS value
+  deps :
+  - Retrieve current parameters
+  - Retrieve current Java version
+  exec : |
+    var cmd = ow.format.isWindows() ? "set" : "export"
+    var existing = getEnv("OAF_JARGS")
+    if (isUnDef(existing)) existing = ""
+
+    if ($get("javaVersion").version.startsWith("1.")) {
+      // Java 1.8
+      print(`${cmd} OAF_JARGS="${existing}"`)
+    } else {
+      // If Java 11 or higher
+      var majorVersion = $get("javaVersion").version.replace(/(\d+)\..+/, "$1")
+      if (majorVersion >= 11 && majorVersion < 17) {
+        var nparams = $from(args.init.v11).except($get("currentParams").params).select()
+        print(`${cmd} OAF_JARGS="${nparams.join(" ")}"`)
+      } else {
+        // Java 17 or higher
+        var nparams = $from(args.init.v17).except($get("currentParams").params).select()
+        print(`${cmd} OAF_JARGS="${nparams.join(" ")}"`)
+      }
+    }
