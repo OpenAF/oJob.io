@@ -1,0 +1,58 @@
+# Author: Nuno Aguiar
+help:
+  text   : Tries to compreenshively backup all K8S objects 
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+todo:
+- Backup K8S objects
+
+ojob:
+  opacks      :
+  - openaf: 20240318
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  owraps      :
+  - Obj
+
+init:
+  resources:
+  - all
+  - configmaps
+  - secrets
+  - pvc
+  - pv
+  - serviceaccounts
+  - roles
+  - rolebindings
+  - clusterroles
+  - clusterrolebindings
+  - crds
+  - namespaces
+  - resourcequotas
+  - limitranges
+  - ingress
+  - networkpolicies
+
+jobs:
+# -------------------------
+- name : Backup K8S objects
+  exec : |
+    var _d = new ow.obj.syncArray()
+    parallel4Array(args.init.resources, resource => {
+      printErr("Retrieving " + resource + "...")
+      var data = $sh("kubectl get " + resource + " -A -o json").getJson(0)
+      if (data.exitcode == 0) {
+        if (isArray(data.stdout.items))
+          _d.addAll(data.stdout.items)
+        else
+          _d.add(data.stdout)
+      } else {
+        printErr("Problem retrieving " + resource + ": " + data.stdout + "\n" + data.stderr)
+      }
+    })
+    
+    ow.oJob.output(_d.toArray(), args)
