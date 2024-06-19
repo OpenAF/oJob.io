@@ -745,3 +745,35 @@ data:
   d: Given a Prometheus database will query for a specific metric (go_memstats_alloc_bytes), during a defined period, every 5 seconds (step) will produce a static chart with the corresponding metric values.
   e: |-
     URL="http://localhost:9090" && METRIC="go_memstats_alloc_bytes" && TYPE="bytes" && LABELS="job=\"prometheus\"" && START="2024-06-18T20:00:00Z" && END="2024-06-18T20:15:00Z" && STEP=5 && echo "{query:'max($METRIC{$LABELS})',start:'$START',end:'$END',step:$STEP}" | oafp in=ch inch="(type:prometheus,options:(urlQuery:'$URL'))" inchall=true out=json | oafp path="[].set(@, 'main').map(&{metric:'$METRIC',job:get('main').metric.job,timestamp:to_date(mul([0],\`1000\`)),value:to_number([1])}, values) | []" out=schart schart="$TYPE '[].value':green:$METRIC -min:0"
+- c: Generic
+  s: Base64
+  d: Encode/decode data (or text-like files) to/from gzip base64 representation for easier packing and transport.
+  e: |-
+    # encode a data file to a gzip base64 representation
+    oafp data.json out=gb64json > data.gb64
+    # decode a gzip base64 representation back into a data file
+    oafp data.gb64 in=gb64json out=json > data.json
+- c: Generic
+  s: Avro
+  d: Reads an Avro data file as input
+  e: |-
+    # opack install avro
+    oafp data.avro libs=avro out=ctable
+- c: Generic
+  s: Avro
+  d: Write an Avro data file as an output
+  e: |-
+    # opack install avro
+    oafp data.json libs=avro out=avro avrofile=data.avro
+- c: Generic
+  s: Avro
+  d: "Given an Avro data file outputs it's corresponding statistics"
+  e: |-
+    # opack install avro
+    oafp libs=avro data.avro inavrostats=true
+- c: Generic
+  s: Avro
+  d: "Given an Avro data file outputs the correspoding schema"
+  e: |-
+    # opack install avro
+    oafp libs=avro data.avro inavroschema=true
