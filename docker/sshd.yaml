@@ -10,6 +10,10 @@ help:
     desc     : A password to assigned to the created user.
     example  : abc123
     mandatory: false
+  - name     : key
+    desc     : A SSH key to use for the created user.
+    example  : "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDQ7..."
+    mandatory: false
   - name     : port
     desc     : In which port the sshd will be exposed.
     example  : 12345
@@ -45,28 +49,40 @@ jobs:
       user     : isString.default(__)
       pass     : isString.default(__)
       port     : isString.default(__)
+      key      : isString.default(__)
       bg       : toBoolean.isBoolean.default(false)
       allowRoot: toBoolean.isBoolean.default(false)
   exec : |
     ow.loadNet()
     if (isUnDef(args.user)) args.user = ow.format.string.genPass(8, ["lowercase"])
-    if (isUnDef(args.pass)) args.pass = ow.format.string.genPass(64, ["lowercase","uppercase","numbers"])
+    if (isUnDef(args.pass)) args.pass = ow.format.string.genPass(128, ["lowercase","uppercase","numbers"])
 
     if (isUnDef(args.port)) args.port = findRandomOpenPort()
 
     args.host = ow.net.getIP2Host(ow.net.getPublicIP().ip)
-    args.cmd  = "ssh -p " + args.port + " user@" + args.host
+    args.cmd  = "ssh -p " + args.port + " " + args.user + "@" + args.host
+
+    var keystr = ""
+    if (isDef(args.key)) {
+      keystr  = "sudo mkdir /home/" + args.user + "/.ssh"
+      keystr += " && sudo /bin/sh -c 'echo \\\"" + args.key + "\\\" > /home/" + args.user + "/.ssh/authorized_keys'"
+      keystr += " && sudo chmod 600 /home/" + args.user + "/.ssh/authorized_keys"
+      keystr += " && sudo chmod 700 /home/" + args.user + "/.ssh"
+      keystr += " && sudo chown -R " + args.user + ":" + args.user + " /home/" + args.user + "/.ssh"
+      keystr += " && sudo sed -i \\\"s/#PubkeyAuthentication yes/PubkeyAuthentication yes/g\\\" /etc/ssh/sshd_config"
+    }
 
     var subcmds = [
       "sudo apk update",
       "sudo apk add openssh openssh-server tinyproxy net-tools",
       "sudo adduser -D " + args.user,
+      keystr,
       "echo \\\"" + args.user + ":" + args.pass + "\\\" | sudo chpasswd",
       "sudo ssh-keygen -A",
       "sudo sed -i \\\"s/AllowTcpForwarding no/AllowTcpForwarding yes/g\\\" /etc/ssh/sshd_config",
       "sudo sed -i \\\"s/GatewayPorts no/GatewayPorts yes/g\\\" /etc/ssh/sshd_config",
       (args.allowRoot ? "sudo sh -c 'echo \\\"" + args.user + " ALL=(ALL) NOPASSWD: ALL\\\" > /etc/sudoers.d/user'" : "echo"),
-      "sudo /usr/sbin/sshd",
+      "sudo /usr/sbin/sshd -E /tmp/log",
       "echo",
       "echo READY!",
       "tail -f /dev/null"
@@ -92,6 +108,7 @@ jobs:
     ow.oJob.output({
       user: args.user,
       pass: args.pass,
+      key : args.key,
       port: args.port,
       host: args.host,
       cmd : args.cmd
