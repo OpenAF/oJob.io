@@ -80,6 +80,9 @@ jobs:
 
     // If there is a manifest try to use it
     if (isArray(args.manif) && args.manif.length > 0) {
+      if (io.fileExists(args.output) && io.listFiles(args.output).files.length > 0) {
+        throw "Output folder already exists and is not empty"
+      }
       io.mkdir(args.output)
 
       args.manif[0].Layers.forEach((l, i) => {
