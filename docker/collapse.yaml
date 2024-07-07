@@ -15,7 +15,7 @@ help:
     example  : container.json
     mandatory: true
   - name     : usetar
-    desc     : If true, the tar unix tool will be used to set unix permissions and ownerships
+    desc     : If true, forces the tar unix tool will be used to set unix permissions and ownerships (default is auto-detect)
     example  : "true"
     mandatory: false
 
@@ -69,20 +69,19 @@ jobs:
         })
       }
 
-      tars.add({ idx: i, tar: _f })
+      tars.add({ idx: i, tar: _f, isEmpty: io.listFiles(folder.filepath).files.length == 0 })
     })
 
     // Generate sha256 hash for each layer folder tar
     var _d = io.createTempDir("image")
 
-    var hashList = [], emptyList = [], prevHash = __
+    var hashList = [], emptyList = tars.toArray().filter(r => r.isEmpty).map(r => r.idx), prevHash = __
     $from( tars.toArray() )
     .sort("idx")
     .select(tar => {
       var _h = sha256(io.readFileStream(tar.tar))
-      log("Creating layer " + _h + "...")
+      log("Creating layer #" + tar.idx + " " + _h + "...")
       io.mv(tar.tar, _d + "/" + _h + ".tar")
-      if (io.listFilesTAR(_d + "/" + _h + ".tar").length == 0) emptyList.push(_h)
 
       // Create new folder named with hash
       io.mkdir(_d + "/" + _h)
@@ -103,15 +102,22 @@ jobs:
     
     // Change image json file with { architecture, config, container, container_config, created, docker_version, history, os, rootfs: { type, diff_ids (change each array entry with sha256 of layer)}
     log("Creating image json file...")
+    if (!io.fileExists(args.json)) throw "File not found: " + args.json
     var _json = io.readFileJSON(args.json)
     _json.rootfs.diff_ids = hashList.map(h => "sha256:" + h)
-    if (isDef(_json.history) && _json.history.length != hashList.length) {
-      _json.history = hashList.map((h, i) => { return { 
-        created    : (new Date()).toISOString(), 
-        created_by : "Layer " + i, 
-        comment    : "buildkit.dockerfile.v0",
-        empty_layer: emptyList.indexOf(h) >= 0
-       } })
+
+    // fill out empty history
+    log("Empty layers    : #" + $from(_json.history).equals("empty_layer", true).count())
+    log("Non empty layers: #" + _json.rootfs.diff_ids.length)
+    if (isDef(_json.history) && $from(_json.history).notEquals("empty_layer", true).count() < _json.rootfs.diff_ids.length) {
+      for(var ne = $from(_json.history).notEquals("empty_layer", true).count(); ne < _json.rootfs.diff_ids.length; ne++) {
+        logWarn("Generating history for layer " + ne + "...")
+        _json.history.push({ 
+          created    : (new Date()).toISOString(), 
+          created_by : "", 
+          comment    : "buildkit.dockerfile.v0"
+        })
+      }
     }
 
     var _sjson = stringify(_json, __, "")
