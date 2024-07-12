@@ -1,0 +1,69 @@
+# Author: Nuno Aguiar
+help:
+  text   : Expands a docker container archive file, layer by layer, to list its contents
+  expects:
+  - name     : image
+    desc     : The .tar or .tar.gz docker container image archive
+    example  : image.tar
+    mandatory: true
+
+todo:
+- View container layers
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+
+jobs:
+# -----------------------------
+- name : Get container manifest
+  check:
+    in:
+      image : isString
+  exec : |
+    var os = af.newOutputStream()
+    io.readFileTARStream(args.image, "manifest.json", args.image.endsWith(".gz") || args.image.endsWith(".tgz"), s => ioStreamCopy(os, s))
+    args.manif = jsonParse(os.toString())
+    os.close()
+
+# -------------------------
+- name : Get container info
+  check:
+    in:
+      image : isString
+  exec : |
+    args.info = {}
+    if (isArray(args.manif)) {
+      var os = af.newOutputStream()
+      io.readFileTARStream(args.image, args.manif[0].Config, args.image.endsWith(".gz") || args.image.endsWith(".tgz"), s => ioStreamCopy(os, s))
+      args.info = jsonParse(os.toString())
+      os.close()
+    }
+
+# ----------------------------
+- name : View container layers
+  from :
+  - Get container manifest
+  - Get container info
+  check:
+    in:
+      image : isString
+  exec : |
+    var dataList = new Set()
+    if (isArray(args.manif) && args.manif.length > 0) {
+      args.manif[0].Layers.forEach((l, i) => {
+        var _f = io.createTempFile("layer", ".tar")
+        var os = io.writeFileStream(_f)
+        io.readFileTARStream(args.image, l, args.image.endsWith(".gz") || args.image.endsWith(".tgz"), s => ioStreamCopy(os, s))
+        printErr("Writing temporary layer " + l.replace(/\/layer\.tar$/, "") + "...")
+        os.close()
+
+        args.lst = io.listFilesTAR(_f)
+        args.lst.forEach(f => dataList.add(merge(f, { layerFile: l, layer: i })) )
+      })
+    }
+
+    $o({ info: args.info, layers: Array.from(dataList) }, args)
