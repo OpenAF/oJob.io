@@ -151,6 +151,25 @@ init:
       tree:
         lines: ""
         curved: true
+      md:
+        codeBlock:
+          line: YELLOW,BOLD
+          text: NEGATIVE_ON,ITALIC
+          theme: openCurvedSpace
+        heads:
+          h1: WHITE,BOLD,UNDERLINE
+          h2: BOLD,UNDERLINE
+          h3: BOLD
+          h4: UNDERLINE
+        line: FAINT
+        link:
+          text: UNDERLINE
+          url: FAINT
+        bullets: BOLD
+        list: BOLD
+        note:
+          line: FAINT
+          theme: simpleLine
 
   - name  : mono
     format:
@@ -168,6 +187,25 @@ init:
       tree:
         lines: RESET
         curved: true
+      md:
+        codeBlock:
+          line: BOLD
+          text: FAINT,ITALIC
+          theme: openCurvedSpace
+        heads:
+          h1: WHITE,BOLD,UNDERLINE
+          h2: BOLD,UNDERLINE
+          h3: BOLD
+          h4: UNDERLINE
+        line: FAINT
+        link:
+          text: UNDERLINE
+          url: FAINT
+        bullets: BOLD
+        list: BOLD
+        note:
+          line: FAINT
+          theme: simpleLine
 
   - name  : mono2
     format:
@@ -185,6 +223,25 @@ init:
       tree:
         lines: FG(250)
         curved: true
+      md:
+        codeBlock:
+          line: BOLD
+          text: BG(236),ITALIC
+          theme: openCurvedSpace
+        heads:
+          h1: WHITE,BOLD,UNDERLINE
+          h2: BOLD,UNDERLINE
+          h3: BOLD
+          h4: UNDERLINE
+        line: FAINT
+        link:
+          text: UNDERLINE
+          url: FAINT
+        bullets: BOLD
+        list: BOLD
+        note:
+          line: FAINT
+          theme: simpleLine
 
   - name  : redmono
     format:
@@ -202,6 +259,25 @@ init:
       tree:
         lines: FG(124)
         curved: true
+      md:
+        codeBlock:
+          line: RED
+          text: BG(236),ITALIC
+          theme: openCurvedSpace
+        heads:
+          h1: WHITE,BOLD,UNDERLINE
+          h2: BOLD,UNDERLINE
+          h3: BOLD
+          h4: UNDERLINE
+        line: FAINT,RED
+        link:
+          text: UNDERLINE
+          url: FAINT
+        bullets: BOLD
+        list: BOLD
+        note:
+          line: RED,FAINT
+          theme: simpleLine
 
   - name  : blue
     format:
@@ -219,6 +295,25 @@ init:
       tree:
         lines: FG(12)
         curved: true
+      md:
+        codeBlock:
+          line: INTENSITY_BOLD,FG(4)
+          text: FG(4),ITALIC
+          theme: openCurvedSpace
+        heads:
+          h1: WHITE,BOLD,UNDERLINE
+          h2: BOLD,UNDERLINE
+          h3: BOLD
+          h4: UNDERLINE
+        line: FAINT
+        link:
+          text: UNDERLINE
+          url: FAINT
+        bullets: BOLD
+        list: BOLD
+        note:
+          line: FG(12)
+          theme: simpleLine
 
   - name  : jeans
     format:
@@ -236,6 +331,25 @@ init:
       tree:
         lines : RED
         curved: true
+      md:
+        codeBlock:
+          line: RED
+          text: FG(15),BG(26),ITALIC
+          theme: openCurvedSpace
+        heads:
+          h1: WHITE,BOLD,UNDERLINE
+          h2: BOLD,UNDERLINE
+          h3: BOLD
+          h4: UNDERLINE
+        line: RED
+        link:
+          text: UNDERLINE
+          url: FAINT
+        bullets: BOLD
+        list: BOLD
+        note:
+          line: FAINT
+          theme: simpleLine
 
   - name  : thin
     format:
@@ -253,6 +367,9 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          text: BG(236),ITALIC
 
   - name  : thin-intense
     format:
@@ -270,6 +387,9 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          text: BG(236),ITALIC
 
   - name  : thin-intense-bold
     format:
@@ -287,6 +407,9 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          text: BG(236),ITALIC
 
   - name  : thin-light
     format:
@@ -321,6 +444,9 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          text: BG(236),ITALIC
 
   - name  : thin-light-italic
     format:
@@ -355,6 +481,9 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          text: BG(236),ITALIC
 
   - name  : thin-light-bold
     format:
