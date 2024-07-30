@@ -242,6 +242,16 @@ init:
       docs    : https://github.com/jprante/jdbc-driver-csv
       url     : jdbc:xbib:csv:{{folder}}
 
+    # DuckDB
+    - name    : duckdb
+      type    : maven
+      typeArgs:
+        groupId   : org.duckdb
+        artifactId: duckdb_jdbc
+      class   : org.duckdb.DuckDBDriver
+      docs    : https://github.com/duckdb/duckdb-java
+      url     : jdbc:duckdb:{{file}}
+
 todo:
 - Get Drivers
 
