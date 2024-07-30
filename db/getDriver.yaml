@@ -116,10 +116,10 @@ init:
     - name    : mysql
       type    : maven
       typeArgs:
-        groupId   : mysql
-        artifactId: mysql-connector-java
+        groupId   : com.mysql
+        artifactId: mysql-connector-j
       class   : com.mysql.cj.jdbc.Driver
-      docs    : https://dev.mysql.com/doc/connector-j/8.0/en/connector-j-reference-jdbc-url-format.html
+      docs    : https://dev.mysql.com/doc/connector-j/en/connector-j-reference-jdbc-url-format.html
       url     : jdbc:mysql://{{host}}:{{port}}/{{database}}
 
     # MariaDB
@@ -321,7 +321,7 @@ jobs:
       if (!prevEqual) pack.version = ow.format.fromDate(new Date(), "yyyyMMdd");
       pack.repository = {};
       pack.dependencies = { openaf: ">=" + getVersion() };
-      pack.scripts.postinstall = `log("To use it just:\n\n\tloadLib(\"${target}.js\");\n\tvar db = new DB(\"${db.url}\", ...)\n")`
+      pack.scripts.postinstall = `log("Check ${db.docs}. To use it just: loadLib(\\\"${target}.js\\\"); var db = new DB(\\\"${db.url}\\\", ...) ");`
       io.writeFileYAML(target + "/.package.yaml", pack);
 
       if (!args.dir) {
