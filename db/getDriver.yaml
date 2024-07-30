@@ -3,7 +3,7 @@ help:
   text   : Builds and optionally install an oPack with a specific JDBC driver  
   expects: 
   - name   : op
-    desc   : The operation to be performed (e.g. list; install; build)
+    desc   : The operation to be performed (e.g. list; install; build; builddir)
     example: list
   - name   : db
     desc   : The db to install or build (use op=list to check the possible values)
@@ -257,19 +257,18 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20211229
-  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
-  logToConsole: false   # to change when finished
+  - openaf: 20240318
+  catch       : &CATCH printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
         
 
 jobs:
-# -----------------
-- name: Build oPack
-  exec: |
+# ------------------
+- name : Build oPack
+  exec : |
     _$(args.db, "db")
-    .isString()
     .oneOf(args.init.data.drivers.map(r => r.name), "Please choose on of the listed dbs (use op=list)")
-    .$_();
+    .$_()
 
     var db = $from(args.init.data.drivers).equals("name", args.db).at(0);
     if (isDef(db)) {
@@ -304,20 +303,31 @@ jobs:
       log("Generating opack...");
       ow.loadFormat();
 
+      var prev = io.fileExists(target + "/.package.yaml"), filesHash, prevEqual = false
+      if (prev) {
+        filesHash = io.readFileYAML(target + "/.package.yaml").filesHash
+      }
       $sh(ow.format.getJavaHome() + "/bin/java -jar " + getOpenAFJar() + " --opack -e \"genpack " + target + "\"").prefix("genpack").get(0);
       var pack = io.readFileYAML(target + "/.package.yaml");
+      if (prev) {
+        prevEqual = compare(filesHash, pack.filesHash)
+        if (prevEqual) logWarn("No changes in the files. Not updating the version.")
+      }
       pack.author = "ojob.io/db/jdbc";
       pack.keywords = [ "DB", "JDBC", db.name ];
       pack.description = "Wrapper for JDBC drivers of " + db.name;
       pack.name = "jdbc-" + db.name;
       pack.license = "Check the LICENSES.txt file";
-      pack.version = ow.format.fromDate(new Date(), "yyyyMMdd");
+      if (!prevEqual) pack.version = ow.format.fromDate(new Date(), "yyyyMMdd");
       pack.repository = {};
       pack.dependencies = { openaf: ">=" + getVersion() };
+      pack.scripts.postinstall = `log("To use it just:\n\n\tloadLib(\"${target}.js\");\n\tvar db = new DB(\"${db.url}\", ...)\n")`
       io.writeFileYAML(target + "/.package.yaml", pack);
 
-      $sh(ow.format.getJavaHome() + "/bin/java -jar " + getOpenAFJar() + " --opack -e \"pack " + target + "\"").prefix("pack").get(0)
-      io.rm(target);
+      if (!args.dir) {
+        $sh(ow.format.getJavaHome() + "/bin/java -jar " + getOpenAFJar() + " --opack -e \"pack " + target + "\"").prefix("pack").get(0)
+        io.rm(target)
+      }
 
       if (args.install) {
         var f = io.listFilenames(".").filter(r => r.indexOf(target) >= 0);
@@ -331,17 +341,20 @@ jobs:
     }
 
 
-# -----------------
-- name: Get Drivers
-  exec: |
-    args.op = _$(args.op, "op").isString().default("help");
+# ------------------
+- name : Get Drivers
+  check:
+    in: 
+      op: oneOf(["list", "install", "build", "builddir"])
+  exec : |
     var res = {};
 
     switch(args.op.trim().toLowerCase()) {
-    case "build"  : $job("Build oPack", args); break;
-    case "install": $job("Build oPack", merge({ install: true }, args)); break;
-    case "list"   : res = $from(args.init.data.drivers).sort("name").select(r => ({ db: r.name })); break;
-    default       : res = { Help: args.init.help }
+    case "build"   : $job("Build oPack", args); break
+    case "builddir": $job("Build oPack", merge({ dir: true }, args)); break
+    case "install" : $job("Build oPack", merge({ install: true }, args)); break
+    case "list"    : res = $from(args.init.data.drivers).sort("name").select(r => ({ db: r.name })); break
+    default        : break
     }
 
     ow.oJob.output(res, args);
