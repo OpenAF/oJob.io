@@ -320,7 +320,7 @@ jobs:
       pack.license = "Check the LICENSES.txt file";
       if (!prevEqual) pack.version = ow.format.fromDate(new Date(), "yyyyMMdd");
       pack.repository = {};
-      pack.dependencies = { openaf: ">=" + getVersion() };
+      pack.dependencies = { openaf: ">=20240318" };
       pack.scripts.postinstall = `log("Check ${db.docs}. To use it just: loadLib(\\\"${target}.js\\\"); var db = new DB(\\\"${db.url}\\\", ...) ");`
       io.writeFileYAML(target + "/.package.yaml", pack);
 
