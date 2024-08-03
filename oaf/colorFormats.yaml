@@ -427,6 +427,10 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          line: YELLOW
+          text: BG(230),ITALIC
 
   - name  : thin-italic
     format:
@@ -464,6 +468,10 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          line: YELLOW
+          text: BG(230),ITALIC
 
   - name  : thin-bold
     format:
@@ -501,6 +509,10 @@ init:
       tree:
         lines : FG(240)
         curved: true
+      md:
+        codeBlock:
+          line: YELLOW
+          text: BG(230),ITALIC
 
   - name  : yellow
     format:
