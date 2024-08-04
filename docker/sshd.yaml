@@ -18,6 +18,10 @@ help:
     desc     : In which port the sshd will be exposed.
     example  : 12345
     mandatory: false
+  - name     : ports
+    desc     : A list of ports to be exposed.
+    example  : "12345:12345, 12222:33333"
+    mandatory: false
   - name     : bg
     desc     : Boolean indicating if the sshd docker should be launched in background as a daemon
     example  : "true"
@@ -50,6 +54,7 @@ jobs:
       pass     : isString.default(__)
       port     : isString.default(__)
       key      : isString.default(__)
+      ports    : isString.default(__)
       bg       : toBoolean.isBoolean.default(false)
       allowRoot: toBoolean.isBoolean.default(false)
   exec : |
@@ -70,7 +75,9 @@ jobs:
       keystr += " && sudo chmod 700 /home/" + args.user + "/.ssh"
       keystr += " && sudo chown -R " + args.user + ":" + args.user + " /home/" + args.user + "/.ssh"
       keystr += " && sudo sed -i \\\"s/#PubkeyAuthentication yes/PubkeyAuthentication yes/g\\\" /etc/ssh/sshd_config"
-    }
+    } else {
+      keystr = "echo ''"
+    } 
 
     var subcmds = [
       "sudo apk update",
@@ -97,6 +104,16 @@ jobs:
       "-p", args.port + ":22"
     ]
 
+    if (isString(args.ports)) {
+      var ports = args.ports.split(",")
+      for (var i in ports) {
+        var p = ports[i].split(":")
+        if (p.length >= 2) {
+          cmds.push("-p", p[0] + ":" + p[1] + (p.length > 2 ? ":" + p[2] : ""))
+        }
+      }
+    }
+
     if (args.bg) cmds.push("-d")
 
     cmds = cmds.concat([
@@ -110,6 +127,7 @@ jobs:
       pass: args.pass,
       key : args.key,
       port: args.port,
+      ports: args.ports,
       host: args.host,
       cmd : args.cmd
     }, args)
