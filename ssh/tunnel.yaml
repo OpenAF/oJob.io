@@ -1,0 +1,147 @@
+# Author: Nuno Aguiar
+help:
+  text   : Establishes a SSH tunnel to a remote server.
+  expects: 
+  - name     : host
+    desc     : The SSH host to connect to
+    example  : a.target.com
+    mandatory: true
+  - name     : user
+    desc     : The SSH user to connect as
+    example  : root
+    mandatory: true
+  - name     : port
+    desc     : The SSH port to connect to
+    example  : 22
+    mandatory: false
+  - name     : key
+    desc     : The SSH key to use
+    example  : /path/to/key.pem
+    mandatory: false
+  - name     : pass
+    desc     : The SSH password (or key password) to use
+    example  : mypass
+    mandatory: false
+  - name     : insecure
+    desc     : If true, will not check the server's host key
+    example  : "true"
+    mandatory: false
+  - name     : localPorts
+    desc     : The local ports to forward comma-separated
+    example  : "8080:80,8081:81"
+    mandatory: false
+  - name     : remotePorts
+    desc     : The remote ports to forward comma-separated
+    example  : "80:80,81:81"
+    mandatory: false
+  - name     : timeout
+    desc     : The connection timeout
+    example  : 10000
+    mandatory: false
+  - name     : wait
+    desc     : The wait time between checks
+    example  : 2500
+    mandatory: false
+  - name     : askpass
+    desc     : If true, will ask for the password
+    example  : "true"
+    mandatory: false
+
+todo:
+- Tunnel
+
+ojob:
+  opacks      :
+  - openaf: 20240804
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Tunnel
+  check:
+    in:
+      host       : isString
+      user       : isString
+      pass       : isString.default(__)
+      key        : isString.default(__)
+      port       : isNumber.default(22)
+      insecure   : toBoolean.isBoolean.default(false)
+      localPorts : isString.default(__)
+      remotePorts: isString.default(__)
+      timeout    : isNumber.default(__)
+      wait       : isNumber.default(2500)
+      askpass    : toBoolean.isBoolean.default(false)
+  exec : |
+    plugin("SSH")
+
+    if (args.askpass) {
+      args.pass = askEncrypt("Enter the SSH password: ")
+    }
+
+    var ssh, _re = /(?:(\[[^\]]+\]|[^:]+)?:)?([^:]+)(?::(\[[^\]]+\]|[^:]+))?(?::([^:]+))?/
+    do {
+      ssh = new SSH(args.host, args.port, args.user, args.pass, args.key, __, args.timeout, args.insecure)
+      if (isDef(args.localPorts)) {
+        args.localPorts.split(",").map(i => i.trim()).forEach(l => {
+          var _l = l.match(_re), i1 = "127.0.0.1", p1, i2 = "0.0.0.0", p2
+          if (isNumber(_l[1]) && isString(_l[2]) && isNumber(_l[3])) {
+            p1 = _l[1]
+            i2 = _l[2]
+            p2 = _l[3]
+          } else if (isString(_l[1]) && isNumber(_l[2]) && isString(_l[3]) && isNumber(_l[4])) {
+            i1 = _l[1]
+            p1 = _l[2]
+            i2 = _l[3]
+            p2 = _l[4]
+          } else if (isNumber(_l[1]) && isNumber(_l[2])) {
+            p1 = _l[1]
+            p2 = _l[2]
+          } else if (isString(_l[1]) && isNumber(_l[2])) {
+            i1 = _l[1]
+            p1 = _l[2]
+          } else {
+            printErr("Invalid local ports: " + l)
+            return
+          }
+          print(`Tunnel ${isDef(i1) ? i1 + ":" : ""}${p1} -> ${isDef(i2) ? i2 + ":" : ""}${p2}`)
+          ssh.tunnelLocalBind(i1, p1, i2, p2)
+        })
+      } 
+      if (isDef(args.remotePorts)) {
+        args.remotePorts.split(",").map(i => i.trim()).forEach(l => {
+          var _l = l.match(_re), i1 = "127.0.0.1", p1, i2 = "0.0.0.0", p2
+          if (isNumber(_l[1]) && isString(_l[2]) && isNumber(_l[3])) {
+            p1 = _l[1]
+            i2 = _l[2]
+            p2 = _l[3]
+          } else if (isString(_l[1]) && isNumber(_l[2]) && isString(_l[3]) && isNumber(_l[4])) {
+            i1 = _l[1]
+            p1 = _l[2]
+            i2 = _l[3]
+            p2 = _l[4]
+          } else if (isNumber(_l[1]) && isNumber(_l[2])) {
+            p1 = _l[1]
+            p2 = _l[2]
+          } else if (isString(_l[1]) && isNumber(_l[2])) {
+            i1 = _l[1]
+            p1 = _l[2]
+          } else {
+            printErr("Invalid remote ports: " + l)
+            return
+          }
+          print(`Tunnel ${isDef(i1) ? i1 + ":" : ""}${p1} <- ${isDef(i2) ? i2 + ":" : ""}${p2}`)
+          ssh.tunnelRemoteBind(i1, p1, i2, p2)
+        })
+      }
+
+      do {
+        sleep(args.wait, true)
+        ssh.sendKeepAlive()
+      } while(ssh.isConnected())
+
+      ssh.close()
+    } while(1)
+
+
