@@ -1,0 +1,46 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a SSH key pair
+  expects: 
+  - name     : cmdargs
+    desc     : The command arguments to pass to the ssh-keygen command
+    example  : "-t rsa -b 2048 -f mykey"
+    mandatory: false
+  - name     : pass
+    desc     : The password to use for the key pair
+    example  : "myPass"
+    mandatory: false
+
+todo:
+- Generate SSH key pair
+
+ojob:
+  opacks      :
+  - openaf: 20240318
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------------------
+- name : Generate SSH key pair
+  check:
+    in:
+      cmdargs: isString.default("")
+      pass   : isString.default("")
+  exec : |
+    var _res = $sh([
+      "docker", 
+      "run", 
+      "--rm", 
+      "-i", 
+      "openaf/oaf:nightly", 
+      "-c", 
+      'sprint($sh("sudo apk add openssh > /dev/null && ssh-keygen -q -N \\\"' + args.pass + '\\\" -f /tmp/key ' + args.cmdargs + ' > /dev/null && echo && echo `cat -A /tmp/key.pub && echo -+-+-+- && cat -A /tmp/key`\").get(0))'
+    ]).getJson(0)
+    
+    _res = _res.stdout.stdout.split("-+-+-+-")
+    args.pubkey = _res[0].trim()
+    args.privkey = _res[1].replace(/\$ ?/g, "\n").trim()
+
+    ow.oJob.output({ pubkey: args.pubkey, privkey: args.privkey }, args)
