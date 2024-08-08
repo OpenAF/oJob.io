@@ -1,0 +1,63 @@
+# Author: Nuno Aguiar
+help:
+  text   : Build skopeo for Amazon Linux
+  expects: 
+  - name     : tag
+    desc     : Instead of the latest Amazon Linux use a specific tag
+    example  : "2"
+    mandatory: false
+  - name     : path
+    desc     : Path to the skopeo binary
+    example  : "/usr/bin/skopeo"
+    mandatory: false
+
+todo:
+- Check for docker
+- Build skopeo on a container
+
+include:
+- ojob.io/docker/_common
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+init:
+  cmds:
+  - dnf update -y
+  - dnf install -y device-mapper-devel git glib2-devel glibc-devel gpgme-devel libassuan-devel libgpg-error-devel libseccomp-devel pkgconfig golang
+  - git clone https://github.com/containers/skopeo.git
+  - cd skopeo
+  - go install github.com/cpuguy83/go-md2man/v2@latest
+  - mv $(go env GOPATH)/bin/go-md2man /usr/local/bin/
+  - make
+  - make install
+  - bin/skopeo --version
+  - cp bin/skopeo /build/skopeo
+
+jobs:
+# ----------------------------------
+- name : Build skopeo on a container
+  check:
+    in:
+      tag : isString.default("latest")
+      path: isString.default(".")
+  exec : |
+    $sh([
+      "docker",
+      "run",
+      "--rm",
+      "-it",
+      "-v",
+      io.fileInfo(args.path).canonicalPath + ":/build",
+      "amazonlinux:" + args.tag,
+      "/bin/sh",
+      "-c",
+      args.init.cmds.join(" && ")
+    ])
+    .prefix("build")
+    .exec()
+
+    ow.oJob.output(io.fileInfo(args.path + "/skopeo"), args)
