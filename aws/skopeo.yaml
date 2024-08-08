@@ -60,4 +60,5 @@ jobs:
     .prefix("build")
     .exec()
 
+    if (!ow.format.isWindows()) $sh("chmod a+rx " + args.path + "/skopeo").exec()
     ow.oJob.output(io.fileInfo(args.path + "/skopeo"), args)
