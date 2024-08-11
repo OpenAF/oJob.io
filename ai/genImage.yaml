@@ -1,0 +1,40 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a prompt for a image generation model outputs the generated images. OpenAF's sBuckets or system variable (MODEL).
+  expects: 
+  - name     : prompt
+    desc     : The text prompt to ask to the LLM model
+    example  : Image of a cat sleeping on a balcony with a sunset in the background
+    mandatory: true
+  - name     : output
+    desc     : The output path prefix to use to generated images
+    example  : img-
+    mandatory: true
+
+todo:
+- Generate image
+
+ojob:
+  opacks      :
+  - openaf: 20240502
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------
+- name : Generate image
+  from :
+  - (secget  ): MODEL
+    ((secEnv)): true
+    ((secOut)): model
+  check:
+    in:
+      prompt : isString
+      output : isString.default("image")
+  exec : |
+    var llm = $llm(args.model)
+    
+    var res = llm.promptImgGen(args.prompt, __, args.output)
+
+    ow.oJob.output(res, args)
