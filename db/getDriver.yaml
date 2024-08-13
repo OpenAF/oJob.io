@@ -322,6 +322,8 @@ jobs:
       pack.repository = {};
       pack.dependencies = { openaf: ">=20240318" };
       pack.scripts.postinstall = `log("Check ${db.docs}. To use it just: loadLib(\\\"${target}.js\\\"); var db = new DB(\\\"${db.url}\\\", ...) ");`
+      pack.files = pack.files.sort()
+      pack.filesHash = sortMapKeys(pack.filesHash)
       io.writeFileYAML(target + "/.package.yaml", pack);
 
       if (!args.dir) {
@@ -358,3 +360,4 @@ jobs:
     }
 
     ow.oJob.output(res, args);
+
