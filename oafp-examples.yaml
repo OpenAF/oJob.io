@@ -799,3 +799,17 @@ data:
   d: "Given a host and a port will display a continuously updating line chart with network latency, in ms, between the current device and the target host and port"
   e: |-
     HOST=1.1.1.1 && PORT=53 && oafp in=oaf data="ow.loadNet().testPortLatency('$HOST',$PORT)" out=chart chart="int @:red:latencyMS -min:0" loop=1 loopcls=true
+- c: Docker
+  s: Registry
+  d: List all the docker container image repositories of a private registry.
+  e: |-
+    # opack install DockerRegistry
+    # check more options with 'oafp libs=dockerregistry help=dockerregistry' 
+    oafp libs=dockerregistry data="()" in=registryrepos inregistryurl=http://localhost:5000
+- c: Docker
+  s: Registry
+  d: List all the docker container image repository tags of a private registry.
+  e: |-
+    # opack install DockerRegistry
+    # check more options with 'oafp libs=dockerregistry help=dockerregistry' 
+    oafp libs=dockerregistry data="library/nginx" in=registrytags inregistryurl=http://localhost:5000
