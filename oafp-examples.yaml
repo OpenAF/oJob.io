@@ -813,3 +813,10 @@ data:
     # opack install DockerRegistry
     # check more options with 'oafp libs=dockerregistry help=dockerregistry' 
     oafp libs=dockerregistry data="library/nginx" in=registrytags inregistryurl=http://localhost:5000
+- c: Docker
+  s: Registry
+  d: List all a table of docker container images repository and corresponding tags of a private registry.
+  e: |-
+    # opack install DockerRegistry
+    # check more options with 'oafp libs=dockerregistry help=dockerregistry' 
+    oafp libs=dockerregistry in=registryrepos data="()" inregistryurl=http://localhost:5000 inregistrytags=true out=ctable
