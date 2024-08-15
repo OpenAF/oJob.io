@@ -29,7 +29,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20230325
-  - Docker: 20220422
+  - DockerRegistry: 20220422
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
   loadLibs    :
