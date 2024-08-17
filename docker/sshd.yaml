@@ -117,7 +117,7 @@ jobs:
     if (args.bg) cmds.push("-d")
 
     cmds = cmds.concat([
-      "openaf/oaf:nightly", 
+      "openaf/oaf:latest", 
       "-c", 
       "$sh(\"" + subcmds.join(" && ") + "\").exec()"
     ])
