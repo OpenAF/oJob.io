@@ -22,13 +22,17 @@ help:
     desc     : A YAML file with host, port and an optional test type
     example  : afile.yaml
     mandatory: false
+  - name     : targets
+    desc     : A JSSLON string with host, port and an optional test type or a comma separated list of host:port (if port is not defined, it will default to ping)
+    example  : "host1:12345,host2"
+    mandatory: false
 
 todo:
 - Test host
 
 ojob:
   opacks      :
-  - openaf: 20211229
+  - openaf: 20240812
   catch       : logErr(exception)
   logToConsole: false   # to change when finished
         
@@ -39,6 +43,7 @@ jobs:
   check:
     in:
       host   : isString.default(__)
+      targets: isString.default(__)
       port   : toNumber.isNumber.default(__)
       timeout: toNumber.isNumber.default(__)
       type   : oneOf(["ping", "socket"]).isString.default(__)
@@ -53,7 +58,24 @@ jobs:
       if (!isArray(_l)) throw "No array found in '" + args.file + "'"
       targets = _l
     } else {
-      targets = [{ host: args.host, port: args.port, type: args.type, timeout: args.timeout }]
+      if (isDef(args.targets)) {
+        var _r
+        try {
+          targets = af.fromJSSLON(args.targets)
+        } catch(e) {
+          targets = args.targets.split(",").map(r => {
+            var _d = r.trim().split(":")
+            return {
+              host: _d[0],
+              port: _d[1],
+              type: isDef(_d[1]) ? "socket" : "ping",
+              timeout: args.timeout
+            }
+          })
+        }
+      } else {
+        targets = [{ host: args.host, port: args.port, type: args.type, timeout: args.timeout }]
+      }
     }
 
     var msg = "", max = 0
@@ -72,12 +94,13 @@ jobs:
             r1 = ow.net.testPort(target.ip, target.port, target.timeout)
             if (r1) r2 = ow.net.testPortLatency(target.ip, target.port, target.timeout)
             res.push({
-              type  : "socket",
-              host  : target.host,
-              ip    : target.ip,
-              port  : target.port,
-              result: r1,
-              time  : r1 ? r2+"ms" : ""
+              type   : "socket",
+              host   : target.host,
+              ip     : target.ip,
+              port   : target.port,
+              result : r1,
+              time   : r1 ? r2+"ms" : "",
+              comment: isDef(target.comment) ? target.comment : ""
             })
             break
           case "ping"  :
@@ -86,12 +109,13 @@ jobs:
 
             var r = ow.net.testHost(target.ip, target.timeout)
             res.push({
-              type  : "ping",
-              host  : target.host,
-              ip    : target.ip,  
-              port  : "",
-              result: r.reachable,
-              time  : (r.reachable ? r.time+"ms" : "")
+              type   : "ping",
+              host   : target.host,
+              ip     : target.ip,  
+              port   : "",
+              result : r.reachable,
+              time   : (r.reachable ? r.time+"ms" : ""),
+              comment: isDef(target.comment) ? target.comment : ""
             })
             break
         }
@@ -100,5 +124,9 @@ jobs:
     }
     print(repeat(max, " "))
 
-    if (isUnDef(args.__format)) args.__format = "table"
+    if (isUnDef(args.__format)) args.__format = "ctable"
+    if ($from(res).notEquals("comment", "").none()) {
+      res.forEach(r => delete r.comment)
+    }
+
     ow.oJob.output(res, args)
