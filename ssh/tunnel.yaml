@@ -82,7 +82,9 @@ jobs:
 
     var ssh, _re = /(?:(\[[^\]]+\]|[^:]+)?:)?([^:]+)(?::(\[[^\]]+\]|[^:]+))?(?::([^:]+))?/
     do {
+     try {
       ssh = new SSH(args.host, args.port, args.user, args.pass, args.key, __, args.timeout, args.insecure)
+      log("Connected!")
       if (isDef(args.localPorts)) {
         args.localPorts.split(",").map(i => i.trim()).forEach(l => {
           var _l = l.match(_re), i1 = "127.0.0.1", p1, i2 = "0.0.0.0", p2
@@ -102,10 +104,10 @@ jobs:
             i1 = _l[1]
             p1 = _l[2]
           } else {
-            printErr("Invalid local ports: " + l)
+            logErr("Invalid local ports: " + l)
             return
           }
-          print(`Tunnel ${isDef(i1) ? i1 + ":" : ""}${p1} -> ${isDef(i2) ? i2 + ":" : ""}${p2}`)
+          log(`Tunnel ${isDef(i1) ? i1 + ":" : ""}${p1} -> ${isDef(i2) ? i2 + ":" : ""}${p2}`)
           ssh.tunnelLocalBind(i1, p1, i2, p2)
         })
       } 
@@ -128,10 +130,10 @@ jobs:
             i1 = _l[1]
             p1 = _l[2]
           } else {
-            printErr("Invalid remote ports: " + l)
+            logErr("Invalid remote ports: " + l)
             return
           }
-          print(`Tunnel ${isDef(i1) ? i1 + ":" : ""}${p1} <- ${isDef(i2) ? i2 + ":" : ""}${p2}`)
+          log(`Tunnel ${isDef(i1) ? i1 + ":" : ""}${p1} <- ${isDef(i2) ? i2 + ":" : ""}${p2}`)
           ssh.tunnelRemoteBind(i1, p1, i2, p2)
         })
       }
@@ -142,6 +144,11 @@ jobs:
       } while(ssh.isConnected())
 
       ssh.close()
+     } catch(ee) {
+      logWarn(`Error '${ee}'`)
+      sleep(2500, true)
+      log("Trying to reconnect...")
+     }
     } while(1)
 
 
