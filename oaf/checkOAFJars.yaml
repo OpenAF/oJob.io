@@ -14,6 +14,10 @@ help:
     desc     : Boolean value to indicate that the resulting files should be removed from path
     example  : "true"
     mandatory: false
+  - name     : versioninsensitive
+    desc     : Boolean value to indicate if the list should exclude any version difference
+    example  : "true"
+    mandatory: false
 
 todo:
 - Check OAF Jars
@@ -59,9 +63,10 @@ jobs:
 - name : Check OAF Jars
   check:
     in:
-      path   : isString
-      reverse: toBoolean.isBoolean.default(false)
-      remove : toBoolean.isBoolean.default(false)
+      path              : isString
+      reverse           : toBoolean.isBoolean.default(false)
+      remove            : toBoolean.isBoolean.default(false)
+      versioninsensitive: toBoolean.isBoolean.default(false)
   exec : |
     var data, oafData, localData
 
@@ -74,12 +79,29 @@ jobs:
       return r
     })
 
-    oafData = $job("Get artifacts & versions", { list: ar })
+    if (!args.versioninsensitive) {
+      oafData = $job("Get artifacts & versions", { list: ar })
 
-    if (args.reverse) 
-      data = $from(localData).except(oafData).select()
-    else
-      data = $from(localData).intersect(oafData).select()
+      if (args.reverse) 
+        data = $from(localData).except(oafData).select()
+      else
+        data = $from(localData).intersect(oafData).select()
+    } else {
+      oafData = $from( $job("Get artifacts & versions", { list: ar }) ).detach("filename").detach("version").select()
+
+      if (args.reverse) 
+        data = $from($from(localData).select({ artifact: "" }))
+               .except(oafData)
+               .attach("filename", r => $from(localData).equals("artifact", r.artifact).at(0).filename)
+               .attach("version", r => $from(localData).equals("artifact", r.artifact).at(0).version)
+               .select()
+      else
+        data = $from($from(localData).select({ artifact: "" }))
+               .intersect(oafData)
+               .attach("filename", r => $from(localData).equals("artifact", r.artifact).at(0).filename)
+               .attach("version", r => $from(localData).equals("artifact", r.artifact).at(0).version)
+               .select()
+    }
 
     if (args.remove) data.forEach(r => io.rm(args.path + "/" + r.filename))
 
