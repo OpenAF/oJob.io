@@ -1,0 +1,184 @@
+# Author: Nuno Aguiar
+help: 
+  text   : Generates a registry UI for a docker registry with an optional docker2ecr service
+  expects: 
+  - name     : title
+    desc     : The title to show in the UI
+    example  : My Registry
+    mandatory: true
+  - name     : ns
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: true
+  - name     : ecr
+    desc     : The ECR repository to use
+    example  : 123456789012.dkr.ecr.us-east-1.amazonaws.com
+    mandatory: false
+  - name     : region
+    desc     : The ECR region
+    example  : us-east-1
+    mandatory: false
+
+_data:
+  docker2ecr : &docker2ecr |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: docker2ecr
+      name: docker2ecr
+      namespace: {{ns}}
+    spec:
+      selector:
+        matchLabels:
+          app: docker2ecr
+      template:
+        metadata:
+          labels:
+            app: docker2ecr
+        spec:
+          containers:
+          - image: openaf/oaf
+            imagePullPolicy: IfNotPresent
+            name: ojobrt
+            resources: {}
+            env:
+            - name : OJOB
+              value: ojob.io/aws/docker2ECR
+            - name : ecr
+              value: {{ecr}}
+            - name : region
+              value: {{region}}
+            ports:
+            - containerPort: 8080
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+
+    ---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: docker2ecr
+      name: docker2ecr
+      namespace: {{ns}}
+    spec:
+      ports:
+      - port: 8080
+        protocol: TCP
+        targetPort: 8080
+      selector:
+        app: docker2ecr
+      type: ClusterIP
+
+  registry-ui: &registry-ui |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: registry-ui
+      name: registry-ui
+      namespace: {{ns}}
+    spec:
+      selector:
+        matchLabels:
+          app: registry-ui
+      template:
+        metadata:
+          labels:
+            app: registry-ui
+        spec:
+          containers:
+          - image: joxit/docker-registry-ui:2
+            imagePullPolicy: IfNotPresent
+            name: registry-ui
+            resources: {}
+            env:
+            - name : SINGLE_REGISTRY
+              value: "true"
+            - name : REGISTRY_TITLE
+              value: "{{title}}"
+            - name : DELETE_IMAGES
+              value: "false"
+            - name : NGINX_PROXY_PASS_URL
+              value: "http://docker2ecr.{{ns}}.svc:8080"
+            - name : SHOW_CATALOG_NB_TAGS
+              value: "true"
+            - name : REGISTRY_SECURED
+              value: "false"
+            ports:
+            - containerPort: 80
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+
+    ---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: registry-ui
+      name: registry-ui
+      namespace: {{ns}}
+    spec:
+      ports:
+      - port: 80
+        protocol: TCP
+        targetPort: 80
+      selector:
+        app: registry-ui
+      type: ClusterIP
+
+todo:
+- (if    ): String("{{ecr}}").length > 0
+  ((then)):
+  - (state): ecr
+  ((else)):
+  - (state): direct
+
+- name: Generate registry-ui + docker2ecr
+  when: ecr
+
+- name: Generate registry-ui
+  when: direct
+
+ojob:
+  templateArgs: false
+
+jobs:
+# ----------------------------------------
+- name : Generate registry-ui + docker2ecr
+  check:
+    in:
+      title : isString
+      ecr   : isString
+      ns    : isString.default("default")
+      region: isString.default("us-east-1")
+  from :
+  - (template): *docker2ecr
+    ((key   )): args
+    ((out   )): docker2ecr
+  - (template): *registry-ui
+    ((key   )): args
+    ((out   )): registry-ui
+  to   :
+  - (print): |
+      {{{$path ($get 'docker2ecr') 'output'}}}
+
+      ---
+
+      {{{$path ($get 'registry-ui') 'output'}}}
+
+# ---------------------------
+- name : Generate registry-ui
+  check:
+    in:
+      title : isString
+  from :
+  - (template): *registry-ui
+    ((key   )): args
+    ((out   )): registry-ui
+  to   :
+  - (print): |
+      {{{$path ($get 'registry-ui') 'output'}}}
