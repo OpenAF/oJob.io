@@ -1,0 +1,149 @@
+# Author: Nuno Aguiar
+help:
+  text   : Acts as a proxy between Docker and AWS ECR
+  expects: 
+  - name     : ecr
+    desc     : The ECR to use
+    example  : 123456789012.dkr.ecr.us-east-1.amazonaws.com
+    mandatory: true
+  - name     : region
+    desc     : The region to use
+    example  : us-east-1
+    mandatory: false
+  - name     : accessKey
+    desc     : The AWS access key
+    example  : AKIAIOSFODNN7EXAMPLE
+    mandatory: false
+  - name     : secretKey
+    desc     : The AWS secret key
+    example  : wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    mandatory: false
+
+todo:
+- (httpdStart  ): 8080
+- (httpdService): 8080
+  ((uri       )): /
+  ((execURI   )): |
+    cprint(request)
+    return stringify(request,__,"")
+- (httpdService): 8080
+  ((uri       )): /v2
+  ((error     )): true
+  ((execURI   )): |
+    var aws = new AWS(args.accessKey, args.secretKey, __, args.region)
+    $cache("authToken")
+    .ttl(3600)
+    .fn(k => {
+      var _t = aws.ECR_GetAuthorizationToken(args.region)
+      var _creds = ow.format.fromBase64(_t.authorizationToken).split(":")
+      return merge(_t, { username: _creds[0], password: _creds[1] })
+    })
+    .create()
+
+    if (request.uri.endsWith("/tags/list")) {
+      // tags/list
+      //
+      var _r = request.uri.match(/\/v2\/(.+)\/tags\/list$/)
+      var repo = _r[1]
+      log("Listing tags for " + repo + "...")
+      var res = aws.ECR_ListImages(args.region, repo)
+      return ow.server.httpd.reply({
+        name: repo,
+        tags: res.map(r => r.imageTag).filter(isDef).map(r => String(r))
+      })
+    } else if (request.uri.endsWith("/_catalog")) {
+      // _catalog
+      //
+      log("Listing repositories...")
+      var res = aws.ECR_DescribeRepositories(args.region)
+      return ow.server.httpd.reply({
+        repositories: res.map(r => r.repositoryName).filter(isDef)
+      })
+    } /*else if (request.uri.match(/\/manifests\/[^\/]+$/)) {
+      // manifests
+      //
+      cprint(request)
+      var _r = request.uri.match(/\/v2\/(.*)\/manifests\/([^\/]+)$/)
+      var repo = _r[1], tag = _r[2]
+      log("Getting manifest for " + repo + ":" + tag + "...")
+      var res = aws.ECR_BatchGetImage(args.region, repo, tag)
+      var _creds = $cache("authToken").get({})
+      cprint(res)
+      request.header.host = _creds.proxyEndpoint.replace(/https?:\/\//,"")
+      return ow.server.httpd.reply([ 
+      $rest({ 
+          login: _creds.username, 
+          pass: _creds.password,
+          requestHeaders: merge(request.header, { Accept: "application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" })
+      }).get(_creds.proxyEndpoint + "/v2/" + repo + "/manifests/" + tag)
+      , $rest({ 
+          login: _creds.username, 
+          pass: _creds.password,
+          requestHeaders: merge(request.header, { Accept: "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" })
+      }).get(_creds.proxyEndpoint + "/v2/" + repo + "/manifests/" + tag)])
+    } */ else {
+      var _creds = $cache("authToken").get({})
+
+      ow.loadObj()
+      var hs = new ow.obj.http()
+      var clt = new Packages.okhttp3.OkHttpClient.Builder()
+      //clt = clt.sslSocketFactory(global.__httpSSLSocketFactory, global.__httpX509TrustManager)
+      clt = clt.followSslRedirects(false)
+      clt = clt.followRedirects(false)
+      hs.client = clt.build()
+
+      var isBlob = request.uri.indexOf("/blobs/") > 0
+
+      var _r = $rest({
+        httpClient: hs,
+        login: _creds.username, 
+        pass: _creds.password,
+        requestHeaders: merge(isBlob ? {} : request.header, { 
+          Host: _creds.proxyEndpoint.replace(/https?:\/\//,"")
+        })
+      }).get(_creds.proxyEndpoint + request.uri)
+      var _hdrs = hs.responseHeaders()
+      var _mime = isBlob ? "application/octet-stream" : "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"
+      delete _hdrs["content-length"]
+      delete _hdrs["sizes"]
+      delete _hdrs["content-type"]
+      delete _hdrs["transfer-encoding"]
+      _hdrs["X-Content-Type-Options"] = "nosniff"
+      _hdrs["Docker-Content-Digest"] = "sha256:" + sha256(stringify(_r, __, ""))
+      _hdrs["Etag"] = '"' + _hdrs["Docker-Content-Digest"] + '"'
+
+      if (isBlob && isDef(_hdrs["location"])) {
+        return ow.server.httpd.reply($rest().get(_hdrs["location"]))
+      }
+      return ow.server.httpd.reply(_r, 200, _mime, _hdrs)
+    }
+
+    return stringify(request, __, "")
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  - AWS
+  - oJob-common
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  daemon      : true
+  loadLibs    :
+  - aws.js
+
+include:
+- oJobHTTPd.yaml
+
+jobs:
+# --------------------------
+- name : Docker proxy to ECR
+  check:
+    in:
+      ecr      : isString
+      region   : isString.default(__)
+      accessKey: isString.default(__)
+      secretKey: isString.default(__)
+  to   :
+  - ojob debug
+  exec : |
+    //
