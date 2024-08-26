@@ -152,7 +152,7 @@ jobs:
     delete origPV.spec.claimRef.uid
 
     origPV.spec.csi.volumeHandle = $get("targetVolume")
-    $from(origPV.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions).equals("key", "topology.ebs.csi.aws.com/zone").at(0).values[0] = args.targetaz
+    $from(origPV.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions).equals("key", "topology.ebs.csi.aws.com/zone").orEquals("key", "topology.kubernetes.io/zone").at(0).values[0] = args.targetaz
 
     Object.keys(origPVC.metadata).filter(r => r != "name" && r != "namespace").forEach(r => delete origPVC.metadata[r] )
     delete origPVC.status
@@ -234,9 +234,9 @@ jobs:
       $set("pvc", pvc)
 
       log(`Get PV ${pvc.spec.volumeName}...`)
-      var pv = $sh(`kubectl get pv ${pvc.spec.volumeName} -o json`).getJson(0)
+      var pv = $sh(`kubectl get pv ${pvc.spec.volumeName} -n ${args.ns} -o json`).getJson(0)
       $set("pv", pv.stdout)
-      $set("sourceRegion", $from(pv.stdout.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions).equals("key", "topology.ebs.csi.aws.com/zone").at(0).values[0])
+      $set("sourceRegion", $from(pv.stdout.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions).equals("key", "topology.ebs.csi.aws.com/zone").orEquals("key", "topology.kubernetes.io/zone").at(0).values[0])
     } else {
       throw("No PVs could be retrieved. (" + _pvs.stderr + ")")
     }
