@@ -820,3 +820,8 @@ data:
     # opack install DockerRegistry
     # check more options with 'oafp libs=dockerregistry help=dockerregistry' 
     oafp libs=dockerregistry in=registryrepos data="()" inregistryurl=http://localhost:5000 inregistrytags=true out=ctable
+- c: Kubernetes
+  s: PVC
+  d: Produces a table with all Kubernetes persistent volume claims (PVCs) in use by pods.
+  e: |-
+    oafp cmd="kubectl get pods -A -o json" path="items[].spec.set(@,'m').volumes[?persistentVolumeClaim].insert(@,'pname',get('m').containers[0].name).insert(@,'node',get('m').nodeName) | [].{pod:pname,node:node,pvc:persistentVolumeClaim.claimName}" from="sort(node,pod)" out=ctable
