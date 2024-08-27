@@ -131,11 +131,6 @@ jobs:
             exec: |
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
-    # --------------------
-    - name: Generate index
-      run : |
-        /tmp/oaf/oafp in=ls data="output" lsrecursive=true path="[?ends_with(filename,'.yaml')].replace(filepath,'\.yaml$','','').replace(@,'^output','','ojob.io')" out=json > output/_index.json
-
     # -----------------------
     - name: Copy build result
       uses: openaf/ojob-action@v4
