@@ -131,6 +131,10 @@ jobs:
             exec: |
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
 
+    # --------------------
+    - name: Generate index
+      run : |
+        /tmp/oaf/oafp file="output/_integrity.json" path="keys(@)[].replace(@,'^\.','','').replace(@,'^','','ojob.io')|[?ends_with(@,'.yaml')].replace(@,'\.yaml$','','')" out=json > output/_index.json
 
     # -----------------------
     - name: Copy build result
