@@ -134,7 +134,7 @@ jobs:
     # --------------------
     - name: Generate index
       run : |
-        /tmp/oaf/oafp file="output/_integrity.json" path="keys(@)[].replace(@,'^\.','','').replace(@,'^','','ojob.io')|[?ends_with(@,'.yaml')].replace(@,'\.yaml$','','')" out=json > output/_index.json
+        /tmp/oaf/oafp in=ls data="ojob.io" lsrecursive=true path="[?ends_with(filename,'yaml')].replace(filepath,'\.yaml$','','').replace(@,'^output','','ojob.io')" > output/_index.json
 
     # -----------------------
     - name: Copy build result
