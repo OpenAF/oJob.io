@@ -1,0 +1,62 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a completion code for bash or zsh
+  expects: 
+  - name     : shell
+    desc     : Choose the shell
+    example  : bash
+    mandatory: false
+
+todo:
+- Generate completion
+
+ojob:
+  opacks      :
+  - openaf: 20240902
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+init:
+  bash: |-
+    if [ ! -e ~/.openaf_completion_bash.sh ] || [ $(find ~/.openaf_completion_bash.sh -mtime +1) ]; then
+      oaf --bashcompletion oaf > ~/.openaf_completion_bash.sh
+      oaf --bashcompletion oafp >> ~/.openaf_completion_bash.sh
+      oaf --bashcompletion ojob >> ~/.openaf_completion_bash.sh
+      oaf --bashcompletion opack >> ~/.openaf_completion_bash.sh
+    fi
+    source ~/.openaf_completion_bash.sh
+
+  zsh : |-
+    if [ ! -e ~/.openaf_completion_zsh.sh ] || [ $(find ~/.openaf_completion_zsh.sh -mtime +1) ]; then
+      oaf --zshcompletion oaf > ~/.openaf_completion_zsh.sh
+      oaf --zshcompletion oafp >> ~/.openaf_completion_zsh.sh
+      oaf --zshcompletion ojob >> ~/.openaf_completion_zsh.sh
+      oaf --zshcompletion opack >> ~/.openaf_completion_zsh.sh
+    fi
+    source ~/.openaf_completion_zsh.sh
+
+jobs:
+# --------------------------
+- name : Generate completion
+  check:
+    in:
+      shell: isString.oneOf(['bash', 'zsh'])
+  exec : |
+    if (isUnDef(args.shell)) {
+      if (isDef(getEnv("SHELL")) && getEnv("SHELL").endsWith("zsh")) {
+        args.shell = 'zsh';
+      } else {
+        args.shell = 'bash';
+      }
+    }
+    
+    switch(args.shell) {
+    case 'bash':
+      print(args.init.bash)
+      break
+    case 'zsh':
+      print(args.init.zsh)
+      break
+    default   :
+      printErr("Shell not supported: " + args.shell)
+    }
