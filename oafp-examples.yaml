@@ -829,4 +829,4 @@ data:
   s: List files
   d: After listing all files and folders recursively producing a count table by file extension. 
   e: |-
-    FPATH="git/ojob.io" && oafp in=ls lsrecursive=true data="$FPATH" path="[].insert(@,'extension',if(isFile && index_of(filename,'.')>'0',replace(filename,'^.+\.([^\.]+)$','','\$1'),'<dir>'))" from="countBy(extension).sort(-_count)" out=ctable
+    FPATH="git/ojob.io" && oafp in=ls lsrecursive=true data="$FPATH" path="[].insert(@,'extension',if(isFile && index_of(filename,'.')>'0',replace(filename,'^.+\.([^\.]+)$','','\$1'),'<dir>'))" from="countBy(extension)" out=json | oafp from="sort(-_count)" out=ctable
