@@ -1,0 +1,37 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a pad with the given parameters
+  expects: 
+  - name     : size
+    desc     : Size of the pad
+    example  : "1024"
+    mandatory: true
+  - name     : pad
+    desc     : The output pad file name
+    example  : pad.bin
+    mandatory: true
+
+todo:
+- Generate pad
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -------------------
+- name : Generate pad
+  check:
+    in:
+      size: toNumber.isNumber
+      pad : isString
+  exec : |
+    var __res = pForEach(range(args.size), p => {
+                  var sr = new java.security.SecureRandom()
+                  return sr.nextInt(256)
+                })
+    
+    io.writeFileBytes(args.pad, af.fromArray2Bytes(__res))
