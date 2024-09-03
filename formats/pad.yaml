@@ -1,0 +1,68 @@
+# Author: Nuno Aguiar
+help:
+  text   : Add/Sub a pad to an input file to an output file
+  expects: 
+  - name     : input
+    desc     : The file to add the pad
+    example  : aninput.txt
+    mandatory: true
+  - name     : pad
+    desc     : The pad file to add
+    example  : apad.txt
+    mandatory: true
+  - name     : output
+    desc     : The output file
+    example  : anoutput.txt
+    mandatory: true
+  - name     : op
+    desc     : The operation to perform (add/sub)
+    example  : add
+    mandatory: false
+
+todo:
+- File op with pad
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------------
+- name : File op with pad
+  check:
+    in:
+      input : isString
+      output: isString
+      pad   : isString
+      op    : isString.oneOf(["add", "sub"]).default("add")
+  exec : |
+    // Check pad file
+    if (!io.fileExists(args.pad)) throw "Pad file not found: " + args.pad
+    log("Reading pad file: " + args.pad + "...")
+    var _pad = io.readFileBytes(args.pad)
+
+    // Read input file
+    log("Reading input file: " + args.input + "...")
+    var input = io.readFileBytes(args.input)
+
+    // Check pad size
+    if (input.length > _pad.length) throw "Pad size different from input size"
+
+    var _res = []
+
+    // Add or sub pad
+    log("Processing...")
+    for(var i = 0; i < input.length; i++) {
+      if (args.op == "add") {
+        _res[i] = (input[i] + _pad[i]) % 256
+      } else {
+        _res[i] = (input[i] - _pad[i] + 256) % 256
+      }
+    }
+
+    // Write output file
+    log("Writing output file: " + args.output + "...")
+    io.writeFileBytes(args.output, af.fromArray2Bytes(_res))
