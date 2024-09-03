@@ -55,7 +55,9 @@ jobs:
 
       if (args.usetar) {
         // Create tar file for each layer folder
-        $sh("tar -cf " + _f + " -C " + folder.filepath + " .").exec()
+        $sh("tar -cf " + _f + " -C . .")
+        .pwd(folder.filepath)
+        .exec()
       } else {
         // Create tar file for each layer folder
         io.writeFileTARStream(_f, true, writer => {
@@ -136,7 +138,9 @@ jobs:
 
     // Create the image tar
     if (args.usetar) {
-      $sh("tar -cf " + args.image + " -C " + _d + " .").exec()
+      $sh("tar -cf " + args.image + " -C . .")
+      .pwd(_d)
+      .exec()
     } else {
       io.writeFileTARStream(args.image, true, writer => {
         $from( listFilesRecursive(_d) )
