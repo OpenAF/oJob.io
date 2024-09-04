@@ -55,7 +55,7 @@ jobs:
 
       if (args.usetar) {
         // Create tar file for each layer folder
-        $sh("tar -cf " + _f + " -C . .")
+        $sh("tar -cf " + _f + " -C . *")
         .pwd(folder.filepath)
         .exec()
       } else {
@@ -138,7 +138,7 @@ jobs:
 
     // Create the image tar
     if (args.usetar) {
-      $sh("tar -cf " + io.fileInfo(args.image).canonicalPath + " -C . .")
+      $sh("tar -cf " + io.fileInfo(args.image).canonicalPath + " -C . *")
       .pwd(_d)
       .exec()
     } else {
