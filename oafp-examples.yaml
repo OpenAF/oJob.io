@@ -830,3 +830,8 @@ data:
   d: After listing all files and folders recursively producing a count table by file extension. 
   e: |-
     FPATH="git/ojob.io" && oafp in=ls lsrecursive=true data="$FPATH" path="[].insert(@,'extension',if(isFile && index_of(filename,'.')>'0',replace(filename,'^.+\.([^\.]+)$','','\$1'),'<dir>'))" from="countBy(extension)" out=json | oafp from="sort(-_count)" out=ctable
+- c: Mac
+  s: Tunnelblink
+  d: In a Mac OS with Tunnelblink, if you want to copy all your OpenVPN configurations into ovpn files.
+  e: |-
+    oafp in=ls data="$HOME/Library/Application Support/Tunnelblick/Configurations" path="[?filename=='config.ovpn'].insert(@,'name',replace(filepath,'.+\/([^\/]+)\.tblk\/.+','','\$1'))" lsrecursive=true out=cmd outcmdtmpl=true outcmd="cp \"{{filepath}}\" output/\"{{name}}.ovpn\""
