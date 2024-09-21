@@ -835,3 +835,13 @@ data:
   d: In a Mac OS with Tunnelblink, if you want to copy all your OpenVPN configurations into ovpn files.
   e: |-
     oafp in=ls data="$HOME/Library/Application Support/Tunnelblick/Configurations" path="[?filename=='config.ovpn'].insert(@,'name',replace(filepath,'.+\/([^\/]+)\.tblk\/.+','','\$1'))" lsrecursive=true out=cmd outcmdtmpl=true outcmd="cp \"{{filepath}}\" output/\"{{name}}.ovpn\""
+- c: Network
+  s: ASN
+  d: Retrieve the list of ASN number and names from RIPE and transforms it to a CSV.
+  e: |-
+    oafp url="https://ftp.ripe.net/ripe/asnames/asn.txt" in=lines linesjoin=true path="[?length(@)>'0'].split(@,' ').{asn:[0],name:join(' ',[1:])}" out=csv
+- c: Network
+  s: ASN
+  d: Retrieve an IP to ASN list list and converts it to ndjson
+  e: |-
+    oafp cmd="curl https://api.iptoasn.com/data/ip2asn-combined.tsv.gz | gunzip" in=lines linesjoin=true path="[?length(@)>'0'].split(@,'\t').{start:[0],end:[1],asn:[2],area:[3],name:[4]}" out=ndjson
