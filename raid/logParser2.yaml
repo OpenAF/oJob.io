@@ -34,6 +34,10 @@ help:
     desc     : "Boolean to determine if output should be in JSON format"
     example  : "true"
     mandatory: false
+  - name     : alltypes
+    desc     : "Boolean to determine if all types should be output"
+    example  : "true"
+    mandatory: false
 
 init:
   templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{{activityDescr}}}, {{{result}}}, {{errorCode}}, {{{failureDescr}}}, {{operationTime}} {{stack_trace}}"
@@ -85,6 +89,7 @@ jobs:
       icase    : toBoolean.isBoolean.default(true)
       inception: toBoolean.isBoolean.default(true)
       injson   : toBoolean.isBoolean.default(false)
+      alltypes : toBoolean.isBoolean.default(false)
   exec : |
     var is = __, os = __, metrics = {
       auditLines: 0,
@@ -173,6 +178,7 @@ jobs:
       if (isDef(args.type) && data.logger_name != args.type) go = false 
       if (isUnDef(args.type) && data.logger_name == "AuditLogger") { metrics.auditLines++; go = false }
 
+      if (args.alltypes) go = true
       if (go) {
         if (isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         switch(data.logger_name) {
@@ -213,6 +219,13 @@ jobs:
         }
       } else {
         metrics.filteredLines++
+        if (args.alltypes) {
+          if (isMap(data)) {
+            print(af.toSLON(data))
+          } else {
+            print(data)
+          }
+        }
       }
     }
 
@@ -283,5 +296,3 @@ jobs:
     } else {
       $job("Parse ndjson", args)
     }
-
-
