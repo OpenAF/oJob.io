@@ -26,11 +26,11 @@ jobs:
         
     - name: Generate ojob complete for bash
       run : |
-        docker run --rm -ti openaf/oaf:t8 -c "\$sh('oaf --zshcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_zsh_t8.sh
-        docker run --rm -ti openaf/oaf:nightly -c "\$sh('oaf --zshcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_zsh_nightly.sh
+        docker run --rm -ti --pull=always openaf/oaf:t8 -c "\$sh('oaf --zshcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_zsh_t8.sh
+        docker run --rm -ti --pull=always openaf/oaf:nightly -c "\$sh('oaf --zshcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_zsh_nightly.sh
         
-        docker run --rm -ti openaf/oaf:t8 -c "\$sh('oaf --bashcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_bash_t8.sh
-        docker run --rm -ti openaf/oaf:nightly -c "\$sh('oaf --bashcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_bash_nightly.sh
+        docker run --rm -ti --pull=always openaf/oaf:t8 -c "\$sh('oaf --bashcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_bash_t8.sh
+        docker run --rm -ti --pull=always openaf/oaf:nightly -c "\$sh('oaf --bashcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_bash_nightly.sh
 
     # -------------
     - name: Checkin

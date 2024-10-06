@@ -48,6 +48,7 @@ F_ojob_io__ojob_io_aws_route53update=0
 F_ojob_io__ojob_io_aws_skopeo=0
 F_ojob_io__ojob_io_aws_testRegions=0
 F_ojob_io__ojob_io_cheatsheet_logSQLs=0
+F_ojob_io__ojob_io_cheatsheet_oaf_sideLineThemes=0
 F_ojob_io__ojob_io_cheatsheet_ojob_langs=0
 F_ojob_io__ojob_io_cheatsheet_ojob_shortcuts=0
 F_ojob_io__ojob_io_common_oJobBasics=0
@@ -323,6 +324,9 @@ F_ojob_io__ojob_io_oaf_pyoaf=0
 F_ojob_io__ojob_io_oaf_symlinks=0
 F_ojob_io__ojob_io_oaf_versions=0
 F_ojob_io__ojob_io_oaf_winTerm=0
+F_ojob_io__ojob_io_oaf_mvs_export=0
+F_ojob_io__ojob_io_oaf_mvs_import=0
+F_ojob_io__ojob_io_oaf_mvs_list=0
 F_ojob_io__ojob_io_obook_generate=0
 F_ojob_io__ojob_io_obook_run=0
 F_ojob_io__ojob_io_ojob_code=0
@@ -361,6 +365,7 @@ F_ojob_io__ojob_io_raid_formats_toPrettyPrint=0
 F_ojob_io__ojob_io_raid_har_har2queries=0
 F_ojob_io__ojob_io_raid_har_testQueries=0
 F_ojob_io__ojob_io_raid_logicalfield_ops=0
+F_ojob_io__ojob_io_raid_lookups_list=0
 F_ojob_io__ojob_io_raid_mashup_ops=0
 F_ojob_io__ojob_io_rocksdb_stats=0
 F_ojob_io__ojob_io_s3_getMC=0
@@ -471,6 +476,7 @@ if [ $# -gt 0 ]; then
     if [ "$arg" = "ojob.io/aws/skopeo" ]; then FFOUND=1; F_ojob_io__ojob_io_aws_skopeo=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/aws/testRegions" ]; then FFOUND=1; F_ojob_io__ojob_io_aws_testRegions=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/cheatsheet/logSQLs" ]; then FFOUND=1; F_ojob_io__ojob_io_cheatsheet_logSQLs=1; F_ojob_io_=0; fi
+    if [ "$arg" = "ojob.io/cheatsheet/oaf/sideLineThemes" ]; then FFOUND=1; F_ojob_io__ojob_io_cheatsheet_oaf_sideLineThemes=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/cheatsheet/ojob/langs" ]; then FFOUND=1; F_ojob_io__ojob_io_cheatsheet_ojob_langs=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/cheatsheet/ojob/shortcuts" ]; then FFOUND=1; F_ojob_io__ojob_io_cheatsheet_ojob_shortcuts=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/common/oJobBasics" ]; then FFOUND=1; F_ojob_io__ojob_io_common_oJobBasics=1; F_ojob_io_=0; fi
@@ -746,6 +752,9 @@ if [ $# -gt 0 ]; then
     if [ "$arg" = "ojob.io/oaf/symlinks" ]; then FFOUND=1; F_ojob_io__ojob_io_oaf_symlinks=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/oaf/versions" ]; then FFOUND=1; F_ojob_io__ojob_io_oaf_versions=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/oaf/winTerm" ]; then FFOUND=1; F_ojob_io__ojob_io_oaf_winTerm=1; F_ojob_io_=0; fi
+    if [ "$arg" = "ojob.io/oaf/mvs/export" ]; then FFOUND=1; F_ojob_io__ojob_io_oaf_mvs_export=1; F_ojob_io_=0; fi
+    if [ "$arg" = "ojob.io/oaf/mvs/import" ]; then FFOUND=1; F_ojob_io__ojob_io_oaf_mvs_import=1; F_ojob_io_=0; fi
+    if [ "$arg" = "ojob.io/oaf/mvs/list" ]; then FFOUND=1; F_ojob_io__ojob_io_oaf_mvs_list=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/obook/generate" ]; then FFOUND=1; F_ojob_io__ojob_io_obook_generate=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/obook/run" ]; then FFOUND=1; F_ojob_io__ojob_io_obook_run=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/ojob/code" ]; then FFOUND=1; F_ojob_io__ojob_io_ojob_code=1; F_ojob_io_=0; fi
@@ -784,6 +793,7 @@ if [ $# -gt 0 ]; then
     if [ "$arg" = "ojob.io/raid/har/har2queries" ]; then FFOUND=1; F_ojob_io__ojob_io_raid_har_har2queries=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/raid/har/testQueries" ]; then FFOUND=1; F_ojob_io__ojob_io_raid_har_testQueries=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/raid/logicalfield/ops" ]; then FFOUND=1; F_ojob_io__ojob_io_raid_logicalfield_ops=1; F_ojob_io_=0; fi
+    if [ "$arg" = "ojob.io/raid/lookups/list" ]; then FFOUND=1; F_ojob_io__ojob_io_raid_lookups_list=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/raid/mashup/ops" ]; then FFOUND=1; F_ojob_io__ojob_io_raid_mashup_ops=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/rocksdb/stats" ]; then FFOUND=1; F_ojob_io__ojob_io_rocksdb_stats=1; F_ojob_io_=0; fi
     if [ "$arg" = "ojob.io/s3/getMC" ]; then FFOUND=1; F_ojob_io__ojob_io_s3_getMC=1; F_ojob_io_=0; fi
@@ -930,6 +940,7 @@ if [ $F_ojob_io_ -eq 1 ]; then
   echo "ojob.io/aws/skopeo	"
   echo "ojob.io/aws/testRegions	"
   echo "ojob.io/cheatsheet/logSQLs	"
+  echo "ojob.io/cheatsheet/oaf/sideLineThemes	"
   echo "ojob.io/cheatsheet/ojob/langs	"
   echo "ojob.io/cheatsheet/ojob/shortcuts	"
   echo "ojob.io/common/oJobBasics	"
@@ -1205,6 +1216,9 @@ if [ $F_ojob_io_ -eq 1 ]; then
   echo "ojob.io/oaf/symlinks	"
   echo "ojob.io/oaf/versions	"
   echo "ojob.io/oaf/winTerm	"
+  echo "ojob.io/oaf/mvs/export	"
+  echo "ojob.io/oaf/mvs/import	"
+  echo "ojob.io/oaf/mvs/list	"
   echo "ojob.io/obook/generate	"
   echo "ojob.io/obook/run	"
   echo "ojob.io/ojob/code	"
@@ -1243,6 +1257,7 @@ if [ $F_ojob_io_ -eq 1 ]; then
   echo "ojob.io/raid/har/har2queries	"
   echo "ojob.io/raid/har/testQueries	"
   echo "ojob.io/raid/logicalfield/ops	"
+  echo "ojob.io/raid/lookups/list	"
   echo "ojob.io/raid/mashup/ops	"
   echo "ojob.io/rocksdb/stats	"
   echo "ojob.io/s3/getMC	"
