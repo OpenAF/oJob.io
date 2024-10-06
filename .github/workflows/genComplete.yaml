@@ -1,0 +1,43 @@
+name: Generate Complete
+
+on:
+  #push:
+  #  branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+
+  genComplete:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      
+    steps  :
+    # --------------------------
+    - name: Cache OpenAF runtime
+      uses: actions/cache@v4
+      with:
+        key : oaf-nightly
+        path: /tmp/oaf
+        
+    # -------------------------
+    - uses: actions/checkout@v2
+        
+    - name: Generate ojob complete for bash
+      run : |
+        docker run --rm -ti openaf/oaf:t8 -c "\$sh('oaf --zshcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_zsh_t8.sh
+        docker run --rm -ti openaf/oaf:nightly -c "\$sh('oaf --zshcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_zsh_nightly.sh
+        
+        docker run --rm -ti openaf/oaf:t8 -c "\$sh('oaf --bashcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_bash_t8.sh
+        docker run --rm -ti openaf/oaf:nightly -c "\$sh('oaf --bashcompletion ojob > /dev/null && cat /openaf/.openaf_completion_ojob.sh').exec()" > oaf/openaf_completion_ojob_bash_nightly.sh
+
+    # -------------
+    - name: Checkin
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: openaf/ojob-action@v4
+      with:
+        ojob: 'ojob.io/git/hub/contentIn'
+        args: 'message="Update\ badge\ {{date}}/{{time}}" title="Update\ badge" paths=.github/'
+        dist: nightly
