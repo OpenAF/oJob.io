@@ -45,7 +45,7 @@ todo:
   #- name: Prepare my docs
 
 help:
-  text   : Starts a very simple HTTP server on the provided port for file upload
+  text   : Starts a very simple HTTPS server on the provided port for file upload
   expects:
   - name: port 
     desc: The port to use (default to 8888)
