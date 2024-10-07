@@ -1,11 +1,15 @@
 # Author: Nuno Aguiar
 help:
   text   : Given a vulnerability report (from ojob.io/sec/trivy) produces a summary of number of vulnerabilities per severity 
-  #expects: 
-  #- name     : something
-  #  desc     : To do something
-  #  example  : aValueExample
-  #  mandatory: false
+  expects: 
+  - name     : key
+    desc     : The key where the trivy report is stored (if not provided defaults to __pm)
+    example  : report
+    mandatory: false
+  - name     : file
+    desc     : The file where the trivy report is stored in json (if not provided defaults to key)
+    example  : /tmp/trivy.json
+    mandatory: false
 
 todo:
 - Vulnerability summary
@@ -20,9 +24,23 @@ ojob:
 jobs:
 # ----------------------------
 - name : Vulnerability summary
+  check:
+    in:
+      key : isString.default(__)
+      file: isString.default(__)
   exec : |
-    var report = __pm
-    if (isDef(__pm._map))  report = __pm._map
+    var report
+    if (isUnDef(args.key)) {
+      if (isDef(args.file)) {
+        report = io.readFile(args.file)
+      } else {
+        report = __pm
+        if (isDef(__pm._map))  report = __pm._map
+      }
+    } else {
+      report = $get(args.key)
+    }
+
     var result = {
       TOTAL   : 0,
       CRITICAL: 0,
@@ -35,7 +53,7 @@ jobs:
       throw "No trivy results found."
     } else {
       var total = 0
-      if (report.Results.length > 0) { 
+      if (report.Results.length > 0) { 
         report.Results.forEach(res => {
           if (isArray(res.Vulnerabilities) && 
               res.Vulnerabilities.length > 0) {
