@@ -1,0 +1,75 @@
+# Author: Nuno Aguiar
+help:
+  text   : Scales up or down deployments and/or statefulsets with their declared dependencies
+  expects: 
+  - name     : deps
+    desc     : Dependencies to scale up or down in SLON or JSON
+    example  : "[(n: app-1, t: deploy, r: 2) | (n: app-2, t: statefulset) | (ns: other, n: app-3, d: [ 'app-1' | 'app-2' ] )]"
+    mandatory: false
+  - name     : filedeps
+    desc     : File with dependencies to scale up or down in SLON or JSON
+    example  : "deps.json"
+    mandatory: false
+  - name     : ns
+    desc     : Namespace
+    example  : "default"
+    mandatory: false
+  - name     : scale
+    desc     : Scale up or down
+    example  : "down"
+    mandatory: true
+  - name     : timeout
+    desc     : Timeout in milliseconds
+    example  : "60000"
+    mandatory: false
+  - name     : scanwait
+    desc     : Scan wait in milliseconds
+    example  : "1000"
+    mandatory: false
+
+todo:
+- Scaling with deps
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  - Kube  : 20241018
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ------------------------
+- name : Scaling with deps
+  check:
+    in:
+      ns      : isString.default(__)
+      scale   : isString.oneOf([ "up", "down" ]).default("up")
+      timeout : toNumber.isNumber.default(__)
+      scanwait: toNumber.isNumber.default(__)
+  exec : |
+    var deps
+    if (isDef(args.filedeps)) {
+        if (io.fileExists(args.filedeps)) {
+          if (args.filedeps.endsWith(".yaml")) {
+            deps = io.readFileYAML(args.filedeps)
+          } else {
+            deps = af.fromJSSLON(io.readFileString(args.filedeps))
+          }
+        } else {
+          throw "File not found: " + args.filedeps
+        }
+    } else {
+        deps = args.deps
+    }
+
+    loadLib("kube.js")
+    var k = new Kube()
+    var res = k.scaleWithDeps(args.ns, deps, args.scale == 'down' ? true : false, args.timeout, args.scanwait)
+    k.close()
+    traverse(res, (aK, aV, aP, aO) => {
+      if (isBoolean(aV)) {
+        aO[aK] = aV ? "up" : "down"
+      }
+    })
+    ow.oJob.output(res, args)
