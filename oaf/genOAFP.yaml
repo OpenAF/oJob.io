@@ -1,0 +1,80 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate an OAFP lib extension
+  expects: 
+  - name     : name
+    desc     : The name of the OAFP lib
+    example  : "test"
+    mandatory: true
+
+init:
+  codejs: &CODEJS |
+    ;(function() {
+        exports.oafplib = function(params, _$o, $o, oafp) {
+            var _r = {
+                fileExtensions: [ { ext: ".{{name}}", type: "{{name}}" } ],
+                input         : [ { 
+                    type: "{{name}}", 
+                    fn: (r, options) => {
+                        oafp._showTmpMsg()
+                        _$o({ {{name}}: '{{name}} input' }, options)
+                    }
+                } ],
+                output        : [ { 
+                    type: "{{name}}", 
+                    fn: (r, options) => {
+                        $o({ {{name}}: '{{name}} output' }, options)
+                    }
+                } ],
+                transform     : [ { 
+                    type: "{{name}}", 
+                    fn: (r) => {
+                        return { {{name}}: '{{name}} transform' }
+                    }
+                } ],
+                help          : 
+    `# {{name}} oafp lib
+
+    ## ⬇️  {{name}} input types:
+
+    Extra input types added by the {{name}} lib:
+
+    | Input type | Description |
+    |------------|-------------|
+    | {{name}}       | {{name}} input  |
+
+    ---
+
+    ## 🚜 {{name}} optional transforms:
+
+    Extra optional transforms added by the {{name}} lib:
+
+    | Option | Type | Description |
+    |--------|------|-------------|
+    | {{name}}   | Boolean | {{name}} transform |
+
+    ---
+
+    ## ⬆️  Output formats
+
+    Extra output formats added by the {{name}} lib:
+
+    | Output format | Description |
+    |---------------|-------------|
+    | {{name}}          | {{name}} output  |
+    `
+            }
+
+            return _r
+        }
+    })();
+
+todo:
+- (print): *CODEJS
+  ((key)): args
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
