@@ -855,3 +855,9 @@ data:
   d: Builds a grid with two charts providing a visualization over a Nvidia GPU usage and the corresponding memory usage for a specific GPU_IDX (gpu index)
   e: |-
     GPU_IDX=0 &&oafp cmd="nvidia-smi --query-gpu=index,name,memory.total,memory.used,memory.free,utilization.gpu --format=csv,nounits | oafp in=lines path=\"map(&trim(@),split(@,',')).join(',',@)\"" in=csv path="[$GPU_IDX].{memTotal:mul(to_number(\"memory.total [MiB]\"),\`1024\`),memUsed:mul(to_number(\"memory.used [MiB]\"),\`1024\`),memFree:mul(to_number(\"memory.free [MiB]\"),\`1024\`),gpuUse:to_number(\"utilization.gpu [%]\")}" out=grid grid="[[(title: usage, type: chart, obj: 'int gpuUse:green:usage -min:0 -max:100')]|[(title: memory, type: chart, obj: 'bytes memTotal:red:total memUsed:cyan:used -min:0')]]" loopcls=true loop=1
+- c: DB
+  s: Mongo
+  d: List all records from a specific MongoDB database and collection from a remote Mongo database.
+  e: |-
+    # opack install mongo
+    oafp libs="@Mongo/mongo.js" in=ch inch="(type: mongo, options: (database: default, collection: collection, url: 'mongodb://a.server:27017'))" inchall=true path="[].delete(@,'_id')" data="()"
