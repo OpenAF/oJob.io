@@ -861,3 +861,15 @@ data:
   e: |-
     # opack install mongo
     oafp libs="@Mongo/mongo.js" in=ch inch="(type: mongo, options: (database: default, collection: collection, url: 'mongodb://a.server:27017'))" inchall=true path="[].delete(@,'_id')" data="()"
+- c: Channels
+  s: S3
+  d: "Given a S3 bucket will save a list of data (the current list of name and versions of OpenAF's oPacks) within a provided prefix" 
+  e: |-
+    # opack install s3
+    oafp libs="@S3/s3.js" -v path="openaf.opacks" out=ch ch="(type: s3, options: (s3url: 'https://play.min.io:9000', s3accessKey: abc123, s3secretKey: 'xyz123', s3bucket: test, s3prefix: data, multifile: true, gzip: true))" chkey=name
+- c: Channels
+  s: S3
+  d: "Given a S3 bucket will load data from a previously store data in a provided prefix"
+  e: |-
+    # opack install s3
+    oafp libs="@S3/s3.js" in=ch inch="(type: s3, options: (s3url: 'https://play.min.io:9000', s3accessKey: abc123, s3secretKey: 'xyz123', s3bucket: test, s3prefix: data, multifile: true, gzip: true))" data="()" inchall=true out=ctable
