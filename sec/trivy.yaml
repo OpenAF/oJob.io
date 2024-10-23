@@ -14,6 +14,10 @@ help:
     desc     : Extra options to provide to trivy
     example  : --insecure
     mandatory: false
+  - name     : dockerOptions
+    desc     : Changes the docker options used from the default "-v trivy-db:/root/.cache/trivy"
+    example  : "-v trivy:/root/.cache/trivy"
+    mandatory: false
   - name     : localdocker
     desc     : Boolean to indicate if the local docker registry should be used by trivy
     example  : "true"
