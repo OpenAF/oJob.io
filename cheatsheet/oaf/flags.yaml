@@ -1,0 +1,69 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints a cheatsheet with tips on how to test connectivity
+
+ojob:
+  opacks:
+    openaf: 20230704
+  logToConsole: true
+
+todo:
+- (printmd): |
+    # OpenAF flags
+
+    Most of the functionalities of OpenAF can be configured through the global variable "__flags". This global variable has multiple keys and sub-keys witn values. If a particular key or sub-key might not exist in an old OpenAF version and this should noticeable by the absence of value.
+
+    | __flags | Type | Description |
+    |---------|------|-------------|
+    | OJOB_SEQUENTIAL | Boolean | If true an oJob will be execute the 'todo' component sequentially by default. |
+    | OJOB_SHAREARGS | Boolean | If true, in an oJob, if a 'job' execution returns a map it will be merged into the next 'job' execution as 'args'. |
+    | OJBO_HELPSIMPLEUI | Boolean | If true, the 'ojob' command-line UI will default to the simplest non-ansi version. Helpful for old terminals. |
+    | OJOB_JOBSIGNORELOG | Array | List of OpenAF oJobs 'jobs' which will be ignored the value of jobs[].typeArgs.shortcut.nolog and log everything. |
+    | OJOB_CONSOLE_STDERR | Boolean | If true the oJob console logging will be output to stderr. |
+    | OJOB_INIT_ARRAY_ARGS_LIST | Boolean | Will convert oJob 'args' arrays into a map with '_list'. |
+    | OJOB_CHECK_JOB_REMOVAL | Boolean | If true, in oJob, it will check if code tries to remove any job definition and will emit a warning. |
+    | OJOB_CHECK_JOB_CHANGES | Boolean | If true, in oJob, it will check if code tries to change any job definition and will emit a warning. |
+    | OAF_CLOSED | Boolean | If true it will not allow ow.debug to change code to add debug instructions. |
+    | OAF_PRECOMPILE_LEVEL | Number | Obsolete flag that if 0 would mean no pre-compile from javascript to java should be performed up to 2 to force pre-compile. |
+    | TEMPLATE_SET | Boolean | If true ow.template OpenAF helpers will be able to change data otherwise template data will be read-only. |
+    | VISIBLELENGTH | Boolean | If true the format OpenAF functions will calculate length based on terminal visible length, since some characterts (e.g. emoticons) might need more bytes than other, instead of byte length. |
+    | MD_NOMAXWIDTH | Boolean | When generating HTML for a Markdown input, if true, it won't impose a maximum width to the content body. |
+    | MD_SHOWDOWN_OPTIONS | Map | Allows for adding options to be used with the Showdown Javascript library when converting Markdown into HTML. |
+    | USE_JAVA_GENUUID | Boolean | If true it will default to a faster Java based code to generate an UUID, otherwise it will use a Javascript based version. |
+    | ANSICOLOR_CACHE | Boolean | If true any ANSI byte generation to represent colors will be cached in memory instead of using code to determine it making ansi color functionality faster. |
+    | ANSICOLOR_ASK | Boolean | If true it will default to use ANSI colors for OpenAF's ask* functions. |
+    | OPENMETRICS_LABEL_MAX | Boolean | Will impose a maximum of 128 bytes for OpenMetrics labels. |
+    | TREE.fullKeySize | Boolean | If true, on printTree, will align map keys. |
+    | TREE.fullValSize | Boolean | If true, on printTree, will align map values. |
+    | TREE.withValues | Boolean | If true, on printTree, values will be included. |
+    | TREE.wordWrap | Boolean | If true, on printTree, string values will be word-wrapped. |
+    | TREE.compact | Boolean | If true, on printTree, a more compact format will be used. |
+    | TABLE.wordWrap | Boolean | If true, on printTable, will word-wrap the render values. |
+    | TABLE.wordWrapUseSep | Boolean | If true, on printTable, will use a visual separator between table rows. |
+    | TABLE.bandRows | Boolean | If true, on printTable, will band color table rows. |
+    | CONSOLE.view | String | Choice between "tree" or "map" on OpenAF console when "view on". |
+    | IO.bufferSize | Number | The number of bytes to be used as buffer for most IO functions. |
+    | ALTERNATIVES.traverse | Boolean | Feature flag for a faster alternative implementation of the 'traverse' function. |
+    | ALTERNATIVES.extend | Boolean | Feature flag for a faster alternative implementation of the 'extend' function. |
+    | ALTERNATIVES.merge | Boolean | Feature flag for a faster alternative implementation of the 'merge' function. |
+    | ALTERNATIVES.jsonParse | Boolean | Feature flag for a faster alternative implementation of the 'jsonParse' function. |
+    | ALTERNATIVES.listFilesRecursive | Boolean | Feature flag for a faster alternative implementation of the 'listFilesRecursive' function. |
+    | ATLERNATIVES.colorify | Boolean | Feature flag for a faster alternative implementation of the 'colorify' function. |
+    | WITHMD.htmlFilter | Boolean | If true, the function ow.format.withMD will try to remove any HTML references from the output to be returned. |
+    | OAFP.libs | Array | List of oAFp's libs to assume by default instead of having to reference 'libs=something,other' | 
+    | SH.prefixLog | Boolean | If true will use 'log' functions instead of 'print' functions when the $sh prefix functionality is used. |
+    | ALTERNATIVE_HOME | String | If the current user home folder is not writable this will be the folder used to store OpenAF files (defaults to the OS temporary folder) |
+    | ALTERNATIVE_PROCESSEXPR | Boolean | Feature flag for a faster alternative implementation for the processExpr function. |
+    | HTTP_DEFAULT_HEADERS | Boolean | If true HTTP requests will be send with default headers such as "Accept: *". |
+    | HTTP_USE_MEDIA_TYPE | Boolean | If true will use the declared HTTP header mime type to force the media type to use (when using ow.obj.http). |
+    | SQL_QUERY_METHOD | String | When $sql is used it will either 'auto'matically try to decide between a simple implementation or full H2 implementation OR 'nlinq' to force the simple implementation OR 'h2' to force the full H2 implementation. |
+    | SQL_QUERY_H2_INMEM | Boolean | If true and when the $sql query method is used the H2 in-memory implementation will be used using more memory but faster. |
+    | SQL_QUERY_COLS_DETECT_SAMPLE | Number | When using $sql the number of random rows, from the result set, to use to determine the fields set. |
+    | DOH_PROVIDER | String | Sets the DNS over HTTP (DOH) provider should be used (between 'cloudflare, 'google', 'nextdns' and 'local) when DOH functions are used. |
+    | PRINT_BUFFER_STREAM | Number | The number of bytes to use to improve the performance of the bare OpenAF printing functions. |
+    | JAVA_CERT_BC_PROVIDER | Boolean | If true and if the BouncyCastle oPack is installed it will use it as the Java certificate provider on the ow.java.cipher functionality. | 
+    | PFOREACH.seq_thrs_ms | Number | In the pForEach function if the time spent on each execution is less than this value a decision to switch for parallel to sequential execution will be taken to increase the global performance. | 
+    | PFOREACH.threads_thrs | Number | Influences the decision, on the pForEach function, to switch between sequential or parallel execution given the current queued threads for execution (the bigger the number the faster the decision will be made as the queue increases) |
+    | PFOREACH.waitms | Number | In the pForEach function this will determine how long, in ms, will the function, when running in parallel execution, will wait between checks on used threads. |
+    | PFOREACH.forceSeq | Boolean | In the pForEach function if this flag is true the processing will be forced to be sequential. |
+    | PFOREACH.seq_ratio | Number | In the pForEach function, if the ration between the number of active threads and available reported CPU cores is bigger than this. |
