@@ -1,0 +1,207 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints a cheatsheet with tips on to use OpenAF programming
+
+ojob:
+  opacks:
+    openaf: 20230704
+  logToConsole: true
+
+todo:
+- (printmd): |
+    # OpenAF programming quick-guide
+
+    List of functions to help you get started with any OpenAF script programming.
+
+    |   |
+    |---|
+    | [My first Hello World](#my-first-hello-world) |
+    | [Print functions](#print-functions) |
+    | [Reading/Writing files](#readingwriting-files) |
+    | [Convert JSON to a string and vice-versa](#convert-json-to-a-string-and-vice-versa) |
+    | [Running a shell command](#running-a-shell-command) |
+    | [Asking for user input](#asking-for-user-input) |
+    | [Continue learning](#continue-learning) |
+
+    ## My first Hello World
+
+    Step-by-step "Hello World":
+
+    1. Follow the [instructions to install/setup OpenAF](../index.md#Installing) if you haven't already
+    2. Create a text file "test.js" in an folder with the following contents:
+
+    ```javascript
+    print("Hello World!")
+    ```
+
+    3. Run the file you just created:
+
+    ```bash
+    [openaf install directory]/oaf -f test.js
+    # 'Hello World!' should appear as output
+    ```
+
+    ## Print functions
+
+    | Function | Example | Description |
+    |----------|-------------|---------|
+    | print(aStr) | ```print("Hello World")``` | Prints a string to the screen |
+    | sprint(aObj) | ```sprint({ a: 123, b: true })``` | Prints a javascript object structure to the screen |
+
+    ### Example
+
+    ```javascript
+    // Print a string
+    var str = "Hello!"
+    print(str)
+
+    // Print a number
+    var num = 123.456
+    print(num)
+
+    // Print a javascript object structure
+    var obj = { x: 1, y: -1, z: 0 }
+    sprint(obj)
+
+    // Print a javascript array
+    var arr = [ 1, 2, 3, 4 ]
+    sprint(arr)
+    ```
+
+    ### Learn more
+
+    You can learn more how to print data with OpenAF in:
+
+    * [How to - Use log](../../howto/Use-log.md)
+
+    ## Reading/Writing files
+
+    | Function | Example | Description |
+    |----------|-------------|---------|
+    | io.readFileString(aFilename, anEncoding) | ```var str = io.readFileString("some/path/myfile.txt", "UTF-8")``` | Reads the contents of a provided filename into a string variable | 
+    | io.readFileJSON(aFilename) | ```var obj = io.readFileJSON("some/path/myfile.json")``` | Reads and parses the contents of a provided filename, as JSON, into an object variable |
+    | io.writeFileString(aFilename, aString, anEnconding, shouldAppend) | ```io.writeFileString("some/path/myfile.txt", str, "UTF-8", false)``` | Writes the "str"ing variable contents into the provided filename |  
+    | io.writeFileJSON(aFilename, aObj, aSpace) | ```io.writeFileJSON("some/path/myfile.json", obj, " ")``` | Writes an "obj"ect into a file, as JSON, with a provded spacing | 
+
+    ### Example with a string:
+
+    ```javascript
+    // Assigning a string to a variable
+    var str = "This is a test!"
+    // Write the string variable to a file
+    io.writeFileString("mytext.txt", str)
+
+    // ...
+
+    // Reading a string from a file
+    var newStr = io.readFileString("mytext.txt")
+    // Print the string read from a file to the screen
+    print(newStr)
+    ```
+
+    ### Example with JSON:
+
+    ```javascript
+    // Defining a variable with a JSON map structure
+    var obj = { name: "test", value: 123 }
+    // Print the structure to the screen
+    sprint(obj)
+    // Save the structure to a file
+    io.writeFileJSON("myobj.json", obj)
+
+    // ...
+
+    // Reading a structure from a file
+    var newObj = io.readFileJSON("myobj.json")
+    // Print the structure read from the file to the screen
+    sprint(newObj)
+    ```
+
+    ### Learn more
+
+    You can learn more how to read and write files with OpenAF in:
+
+    * [How to - Use files](../../howto/Use-files.md)
+
+    ## Convert JSON to a string and vice-versa
+
+    | Function | Example | Description |
+    |----------|-------------|---------|
+    | stringify(aObj, aReplacerFn, space) | ```var str = stringify(obj)``` | Converts a provide javascript object structure into a string JSON representation of the same |
+    | jsonParse(aStr, useAlternative, useUnsafe, ignoreNonJson) | ```var obj = jsonParse(str)``` | Converts a string with a JSON representation of an object into a javascript object structure | 
+
+    ### Example:
+
+    ```javascript
+    // Assign a javascript object structure to a variable
+    var obj = { text: "some text", number: 1234.56, boolean: false }
+    // Convert an object structure into a string
+    var str = stringify(obj)
+    // Print the converted string
+    print(str)
+
+    // ...
+
+    // Convert a string back to an object structure
+    var newObj = jsonParse(str)
+    // Print the new object structure
+    sprint(newObj)
+    // Print the 'text' string element of the object
+    print(newObj.text)
+    ```
+
+    ## Running a shell command
+
+    | Function | Example | Description |
+    |----------|-------------|---------|
+    | $sh(aCmd).exec(aIdx) | ```$sh("ls -lad *").exec(0)``` | Executes aCmd without capturing stdout and stderr and just returning the exitcode |
+    | $sh(aCmd).get(aIdx) | ```var res = $sh("uname -a").get(0)``` | Executes aCmd and returns a map with stdout, stderr and exitcode |
+
+    ### Example of executing a command
+
+    ```javascript
+    // Executing a command
+    var res = $sh("ls -lad *").exec(0)
+    // Print to the screen the exit code of the command
+    print(res.exitcode)
+    ```
+
+    ### Example of executing a command capturing the output
+
+    ```javascript
+    // Execute a command capturing the output
+    var res = $sh("uname -a").get(0)
+    // Print to the screen the stdout of the command
+    print(res.stdout)
+    ```
+
+    ## Asking for user input
+
+    | Function | Example | Description |
+    |----------|-------------|---------|
+    | ask(aPrompt) | ```var str = ask("What's your name? ")``` | Stops executing, printing the provided prompt, to ask an user for input returning the same |
+
+    ### Example
+
+    ```javascript
+    // Ask for the user's name
+    var name = ask("What's your name? ")
+    // Printing the captured user answer
+    print("Your name is " + name)
+    ```
+
+    ### Learn more
+
+    You can learn more how to interactively ask for user input in OpenAF in:
+
+    * [How to - Use ask](../../howto/Use-ask.md)
+
+    ## Continue learning
+
+    To continue you can check some base OpenAF concepts in [Concepts](../../concepts/index.md). You don't need to know them all but it will get you up-to-speed on some functionality you might be more interested on.
+
+    You can check the [how-to guides](../../howto/index.md) that expand on the base core functionaly cover on the previous chapters.
+
+    You also have some [specific guides](../../guides/index.md) for specific functionality. The [beginner guides](../../guides/beginner/) are a great place to start.
+
+    And lastly you can search this site (on the top search bar) and check the comprehensive [reference](../../reference/index.md).

@@ -1,0 +1,35 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints a cheatsheet with tips on how to use $sh
+
+ojob:
+  opacks:
+    openaf: 20230704
+  logToConsole: true
+
+todo:
+- (printmd): |
+    # $sh shortcuts
+
+    The "$sh" wrapper allows for quick execution of external processes as easy as using the command-line both in Unix/MacOS and in Windows. The following table uses _"chainable"_ methods and results returning methods (e.g. exec, get and getJson)
+
+    ## Returning methods
+
+    | Method | Description | Returns |
+    |--------|-------------|---------|
+    | ````.exec(anIndex)```` | Executes the chain of commands without capturing stdout/stderr | Returns an array of maps with the corresponding exit codes or the specific anIndex element of that array. |
+    | ````.get(anIndex)```` | Executes the chain of commands and captures stdout/stderr. | Returns an array of maps with the corresponding stdout & stderr and the corresponding exit codes or the specific anIndex element of that array. |
+    | ````.getJson(anIndex)```` | Executes the chain of commands and captures stdout/stderr parsing the contents into a JSON map when possible. | Returns an array of maps with the corresponding stdout & stderr (parsed into a JSON map when possible) and the corresponding exit codes or the specific anIndex element of that array. |
+
+    ## Examples using chainable and returning methods
+
+    | Example | Description |
+    |--------|-------------|
+    | ````$sh("id").exec(0).exitcode```` | Executes the command "id" and returns the corresponding exit code. |
+    | ````$sh("cat -", "1\n\2\n3\4").get(0).stdout```` | Executes the command "cat -" receiving, as stdin, three lines with the numbers 1, 2, 3 and returns the stdout as a string. |
+    | ````$sh("echo 1").sh("echo 2").sh("echo 3").get()````| Executes the three commands and returns an array with the three stdouts, stderrs and exit codes. |
+    | ````$sh("ls").pwd("/tmp").get(0).stdout```` | Executes the command "ls" in the working directoy "/tmp" returning the corresponding stdout |
+    | ````$sh("sleep 5").timeout(2500).get()```` | Executes the command "sleep 5" and will return and exit code "-1", after 2500ms, if the execution hasn't finished. |
+    | ````$sh().envs({ ABC: "123" }).sh("echo $ABC").get()```` | Executes the command "echo $ABC" setting the environment variable ABC to "123" and returns the corresponding stdout, stderr and exit code. |
+    | ````$sh("ls").cb((o, e, i) => myFn(o, e, i)).get()```` | Executes the command "ls" and will call "myFn" with three java streams: output, error and input. |
+    | ````$sh("ls").pwd("/tmp").prefix("tmp").get()```` | Executes the command "ls" in the working directory "/tmp" capturing and printing each line with the prefix "[tmp] " directly to stdout. |

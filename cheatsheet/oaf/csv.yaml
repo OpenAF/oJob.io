@@ -1,0 +1,45 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prints a cheatsheet with tips on how to use $csv
+
+ojob:
+  opacks:
+    openaf: 20230704
+  logToConsole: true
+
+todo:
+- (printmd): |
+    # $csv shortcuts
+
+    | Category | Function | Example |
+    |----------|----------|-------------|
+    | from     | fromInArray | ````$csv().toOutFile( "data.csv" ).fromInArray( anArray )```` |
+    | from     | fromInFile | ````$csv().fromInFile( "data.csv" ).toOutArray()```` |
+    | from     | fromInFn | ````$csv().withHeaders([ "x", "y" ]).fromInFn(points.pop)```` (>=20220825) |
+    | from     | fromInStream | ````$csv().fromInStream( aInStream ).toOutArray()```` |
+    | from     | fromInString | ````$csv().fromInString( csvString ).toOutArray()```` |
+    | to       | toOutArray | ````$csv().fromInFile( "data.csv" ).toOutArray()```` |
+    | to       | toOutFile | ````$csv().toOutFile( "data.csv" ).fromInArray( anArray )```` |
+    | to       | toOutFn | ````$csv().fromInFile( "data.csv" ).toOutFn( sprint )```` |
+    | to       | toOutStream | ````$csv().toOutStream( aOutStream ).fromInArray( anArray )```` |
+    | set      | setFormat | ````$csv().setFormat("postgresql_text").fromInArray( anArray )```` |
+    | set      | setHeader | ````$csv().setHeader(false).fromInArray( anArray )```` |
+    | set      | setQuoteMode | ````$csv().setQuoteMode("all").fromInArray( anArray )```` |
+    | set      | setSettings | ````$csv().setSettings({ withHeader: false })```` |
+    | get      | getSettings | ````$csv().getSettings()```` |
+    | with     | withDelimiter | ````$csv().withDelimiter("\|").fromInArray( anArray )```` |
+    | with     | withEscape | ````$csv().setQuoteMode("all").withEscape("$").fromInArray( anArray )```` |
+    | with     | withHeaders | ````$csv().withHeaders([ "x", "y" ]).fromInFile( "points3d.csv" ).toOutArray()```` |
+    | with     | withNull | ````$csv().withNull("NA").fromInArray( anArray )```` |
+
+    ## Settings
+
+    | Setting | Values |
+    |---------|--------|
+    | format | default, excel, informix_unload_csv, informix_unload, mysql, rfc4180, oracle, postgresql_csv, postgresql_text, tdf |
+    | quoteMode | all, all_non_null, minimal, non_numeric, none |
+    | withDelimiter | _a Character_ |
+    | withEscape | _a Character_ |
+    | withHeader | true, false |
+    | withHeaders | _an Array of strings_ |
+    | withNullString | _a String_ |
