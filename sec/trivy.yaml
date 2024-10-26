@@ -73,7 +73,7 @@ jobs:
       options      : isString.default("")
       path         : isString.default(__)
       image        : isString.default(__)
-      dockerOptions: isString.default("")
+      dockerOptions: isString.default("-v trivy-db:/root/.cache/trivy")
       localdocker  : toBoolean.isBoolean.default(false)
       report       : toBoolean.isBoolean.default(false)
   exec : |
