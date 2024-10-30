@@ -6,6 +6,10 @@ help:
     desc     : Choose the shell
     example  : bash
     mandatory: false
+  - name     : detail
+    desc     : Boolean flag to include the completion of each command
+    example  : "true"
+    mandatory: false
 
 todo:
 - Generate completion
@@ -19,19 +23,27 @@ ojob:
 init:
   bash: |-
     if [ ! -e ~/.openaf_completion_bash.sh ] || [ $(find ~/.openaf_completion_bash.sh -mtime +1) ]; then
+      {{#if detail}}
       oaf --bashcompletion oaf > ~/.openaf_completion_bash.sh
       oaf --bashcompletion oafp >> ~/.openaf_completion_bash.sh
       oaf --bashcompletion ojob >> ~/.openaf_completion_bash.sh
       oaf --bashcompletion opack >> ~/.openaf_completion_bash.sh
+      {{else}}
+      oaf --bashcompletion all > ~/.openaf_completion_bash.sh
+      {{/if}}
     fi
     source ~/.openaf_completion_bash.sh
 
   zsh : |-
     if [ ! -e ~/.openaf_completion_zsh.sh ] || [ $(find ~/.openaf_completion_zsh.sh -mtime +1) ]; then
+      {{#if detail}}
       oaf --zshcompletion oaf > ~/.openaf_completion_zsh.sh
       oaf --zshcompletion oafp >> ~/.openaf_completion_zsh.sh
       oaf --zshcompletion ojob >> ~/.openaf_completion_zsh.sh
       oaf --zshcompletion opack >> ~/.openaf_completion_zsh.sh
+      {{else}}
+      oaf --zshcompletion all > ~/.openaf_completion_zsh.sh
+      {{/if}}
     fi
     source ~/.openaf_completion_zsh.sh
 
@@ -40,7 +52,8 @@ jobs:
 - name : Generate completion
   check:
     in:
-      shell: isString.oneOf(['bash', 'zsh'])
+      shell : isString.oneOf(['bash', 'zsh'])
+      detail: toBoolean.isBoolean.default(false)
   exec : |
     if (isUnDef(args.shell)) {
       if (isDef(getEnv("SHELL")) && getEnv("SHELL").endsWith("zsh")) {
@@ -52,10 +65,10 @@ jobs:
     
     switch(args.shell) {
     case 'bash':
-      print(args.init.bash)
+      tprint(args.init.bash, { detail: args.detail })
       break
     case 'zsh':
-      print(args.init.zsh)
+      tprint(args.init.zsh, { detail: args.detail })
       break
     default   :
       printErr("Shell not supported: " + args.shell)
