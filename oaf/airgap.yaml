@@ -1,0 +1,74 @@
+# Author: Nuno Aguiar
+help:
+  text   : Downloads ojob.io and OpenAF's oPacks and stores them in a locally for use in air-gapped environments 
+  expects: 
+  - name     : noopacks
+    desc     : Boolean flag to not download the oPacks
+    example  : "true"
+    mandatory: false
+  - name     : noojobio
+    desc     : Boolean flag to not download the ojob.io
+    example  : "true"
+    mandatory: false
+  - name     : opacks
+    desc     : A comma-separated list of oPacks to download
+    example  : "oJob-common,S3"
+    mandatory: false
+  - name     : path
+    desc     : The path to store the downloaded files
+    example  : "/tmp"
+    mandatory: false
+
+todo:
+- Download ojobio
+- Download oPacks
+
+ojob:
+  opacks      :
+  - openaf: 20241102
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ----------------------
+- name : Download ojobio
+  check:
+    in:
+      noojobio: toBoolean.isBoolean.default(false)
+      path    : isString.default(".")
+  exec : |
+    if (!args.noojobio) {
+      var tmpf = io.createTempFile("ojobio", ".zip")
+      log("Downloading ojob.io...")
+      $rest().get2File(tmpf, "https://ojob.io/_output.zip")
+      log("Unzipping ojob.io...")
+      io.unzip(tmpf, args.path + "/ojob.io")
+    }
+
+# ----------------------
+- name : Download oPacks
+  check:
+    path    : isString.default(".")
+    noopacks: toBoolean.isBoolean.default(false)
+    opacks  : isString.default(__)
+  exec : |
+    if (!args.noopacks) {
+      var lst, rmtdb = getOPackRemoteDB()
+      if (isDef(args.opacks)) {
+        lst = args.opacks.split(",")
+      } else {
+        lst = $m4a(rmtdb).map(r => r.name)
+      }
+      pForEach(lst, pack => {
+        var _pack = rmtdb[pack]
+        if (isDef(_pack)) {
+          if (_pack.repository && _pack.repository.type == "http") {
+            log("Downloading " + pack + "...")
+            $rest().get2File(args.path + "/opacks/" + pack + ".opack", _pack.repository.url)
+          } else {
+            log("Skipping " + pack + " as it is not a supported repository")
+          }
+        }
+      })
+    }
