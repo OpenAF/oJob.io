@@ -878,3 +878,8 @@ data:
   d: Given a Maven pom.xml parses the XML content to a colored table ordering by the fields groupId and artifactId.
   e: |-
     oafp pom.xml path="project.dependencies.dependency" out=ctable sql="select * order by groupId, artifactId"
+- c: Markdown
+  s: Tables
+  d: For an input markdown file, parse all tables, transform it to JSON and output as a colored table
+  e: |-
+    oafp url="https://raw.githubusercontent.com/OpenAF/sh/refs/heads/main/README.md" in=mdtable inmdtablejoin=true path="[0]" out=ctable
