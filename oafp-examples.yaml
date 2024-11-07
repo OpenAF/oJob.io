@@ -873,3 +873,8 @@ data:
   e: |-
     # opack install s3
     oafp libs="@S3/s3.js" in=ch inch="(type: s3, options: (s3url: 'https://play.min.io:9000', s3accessKey: abc123, s3secretKey: 'xyz123', s3bucket: test, s3prefix: data, multifile: true, gzip: true))" data="()" inchall=true out=ctable
+- c: XML
+  s: Maven
+  d: Given a Maven pom.xml parses the XML content to a colored table ordering by the fields groupId and artifactId.
+  e: |-
+    oafp pom.xml path="project.dependencies.dependency" out=ctable sql="select * order by groupId, artifactId"
