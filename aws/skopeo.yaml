@@ -8,7 +8,7 @@ help:
     mandatory: false
   - name     : path
     desc     : Path to the skopeo binary
-    example  : "/usr/bin/skopeo"
+    example  : "/usr/bin"
     mandatory: false
 
 todo:
