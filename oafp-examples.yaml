@@ -894,3 +894,9 @@ data:
   e: |-
     # opack install AWS
     oafp libs="@AWS/aws.js" in=ch inch="(type: dynamo, options: (region: us-west-1, tableName: my-table))" inchall=true data="__"  out=ndjson
+- c: AWS
+  s: DynamoDB
+  d: Given an AWS DynamoDB table 'my-users' will produce a colored tree output by getting the item for the email key 'scott.tiger@example.com'
+  e: |-
+    # opack install AWS
+    oafp in=ch inch="(type: dynamo, options: (region: eu-west-1, tableName: my-users))" data="(email: scott-tiger@example.com)" libs="@AWS/aws.js" out=ctree
