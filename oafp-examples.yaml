@@ -559,9 +559,14 @@ data:
     oafp some.file in=rawhex inrawhexline=15 out=ctable
 - c: Unix
   s: Activity
-  d: "Uses the Linux command 'last' output to build a table with user, tty, from and period of activity"
+  d: "Uses the Linux command 'last' output to build a table with user, tty, from and period of activity for Debian based Linuxs"
   e: |-
     oafp cmd="last" in=lines linesjoin=true path="[:-3]|[?contains(@,'no logout')==\`false\`&&contains(@,'system boot')==\`false\`].split_re(@,' \\s+').{user:[0],tty:[1],from:[2],period:join(' ',[3:])}" out=ctable
+- c: Unix
+  s: Activity
+  d: "Uses the Linux command 'last' output to build a table with user, tty, from and period of activity for RedHat based Linuxs"
+  e: |-
+    last | sed '/^$/d;$d;$d' | oafp in=lines linesjoin=true path="[].split_re(@, '\\s+').{user: [0], tty: [1], from: [2], login_time: join(' ', [3:7])}" out=ctable
 - c: Mac
   s: Activity
   d: "Uses the Mac terminal command 'last' output to build an activity table with user, tty, from, login-time and logout-time"
@@ -883,3 +888,9 @@ data:
   d: For an input markdown file, parse all tables, transform it to JSON and output as a colored table
   e: |-
     oafp url="https://raw.githubusercontent.com/OpenAF/sh/refs/heads/main/README.md" in=mdtable inmdtablejoin=true path="[0]" out=ctable
+- c: AWS
+  s: DynamoDB
+  d: Given an AWS DynamoDB table 'my-table' will produce a ndjson output with all table items.
+  e: |-
+    # opack install AWS
+    oafp libs="@AWS/aws.js" in=ch inch="(type: dynamo, options: (region: us-west-1, tableName: my-table))" inchall=true data="__"  out=ndjson
