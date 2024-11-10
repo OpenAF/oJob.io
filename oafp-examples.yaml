@@ -905,3 +905,8 @@ data:
   d: Given two json files, with arrays of component versions, generate a table with the difference on one of the sides.
   e: |-
     oafp data="[(file: versions-latest.json)|(file: versions-build.json)]" in=oafp set="(a:'[0]',b:'[1]')" setop=diffb out=ctable
+- c: Generic
+  s: Set
+  d: Given two json files, with arrays of component versions, generate a table with the union of the two sides.
+  e: |-
+    oafp data="[(file: versions-latest.json)|(file: versions-build.json)]" in=oafp set="(a:'[0]',b:'[1]')" setop=union out=ctable
