@@ -1,0 +1,105 @@
+# Author: Nuno Aguiar
+help:
+  text   : 
+  expects: 
+  - name     : path
+    desc     : Path to the final trivy-db.tgz file
+    example  : /tmp
+    mandatory: true
+  - name     : tmppath
+    desc     : Path to the temporary trivy-db.tgz file
+    example  : /tmp
+    mandatory: false
+
+init:
+  tmpl: &TMPL |
+    #!/bin/bash
+
+    # Function to retry a command up to 10 times with 15-second intervals
+    retry_command() {
+      local retries=10
+      local count=0
+      local success=0
+
+      while [ $count -lt $retries ]; do
+        "$@"
+        if [ $? -eq 0 ]; then
+          success=1
+          break
+        fi
+        count=$((count + 1))
+        echo "Command failed. Retrying in 15 seconds... ($count/$retries)"
+        sleep 15
+      done
+
+      return $success
+    }
+
+    # Run the first Docker command with retry logic
+    echo "Running first Docker command with retry..."
+    retry_command docker run --pull always --rm -v trivy-db:/root/.cache/trivy aquasec/trivy image --download-db-only
+    first_command_success=$?
+
+    # Wait for 15 seconds
+    echo "Waiting for 15 seconds..."
+    sleep 15
+
+    # Run the second Docker command with retry logic
+    echo "Running second Docker command with retry..."
+    retry_command docker run --rm -v trivy-db:/root/.cache/trivy aquasec/trivy image --download-java-db-only
+    second_command_success=$?
+
+    # Check if both Docker commands succeeded
+    if [ $first_command_success -eq 1 ] && [ $second_command_success -eq 1 ]; then
+      echo "Both Docker commands succeeded. Proceeding to create trivy-db.tgz."
+
+      # Define paths
+      FINAL_DEST="{{finalPath}}/trivy-db.tgz"
+      TEMP_TGZ="{{tmpPath}}/trivy-db.tmp.tgz"
+
+      # Create a temporary trivy-db.tgz file
+      echo "Creating temporary trivy-db.tgz..."
+      docker run --rm \
+        -v trivy-db:/volume \
+        -v "{{finalPath}}":/backup \
+        busybox tar czf /backup/trivy-db.tmp.tgz -C /volume .
+
+      # Check if the temporary file was created successfully
+      if [ $? -eq 0 ]; then
+        echo "Temporary trivy-db.tgz created successfully."
+
+        # Move the temporary tgz to the final destination
+        echo "Moving temporary trivy-db.tgz to final destination..."
+        mv "$TEMP_TGZ" "$FINAL_DEST"
+
+        if [ $? -eq 0 ]; then
+          echo "trivy-db.tgz has been successfully created at $FINAL_DEST."
+        else
+          echo "Failed to move trivy-db.tmp.tgz to $FINAL_DEST."
+          exit 1
+        fi
+      else
+        echo "Failed to create temporary trivy-db.tgz."
+        exit 1
+      fi
+    else
+      echo "One or both Docker commands failed. Cannot create trivy-db.tgz."
+      exit 1
+    fi
+
+todo:
+- (pass          ):
+    finalPath: '{{path}}'
+    tmpPath  : '{{tmppath}}'
+  ((templateArgs)): true
+- (template ): *TMPL
+  ((key    )): res
+  ((out    )): out
+- (output   ): out
+  ((path   )): output
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
