@@ -910,3 +910,36 @@ data:
   d: Given two json files, with arrays of component versions, generate a table with the union of the two sides.
   e: |-
     oafp data="[(file: versions-latest.json)|(file: versions-build.json)]" in=oafp set="(a:'[0]',b:'[1]')" setop=union out=ctable
+- c: Mac
+  s: Chart
+  d: On a Mac OS produce a looping chart with the total percentage of current CPU usage.
+  e: |-
+    oafp cmd="top -l 1 | grep 'CPU usage' | awk '{print \$3 + \$5}'" out=chart chart="int @:blue:CPU_Usage -min:0 -max:100" loop=2 loopcls=true
+- c: AI
+  s: Scaleway
+  d: Setting up a Scaleway Generative API LLM connection and ask for a list of all Roman emperors.
+  e: |-
+    OAFP_MODEL="(type: openai, url: 'https://api.scaleway.ai', key: '111-222-333', model: 'llama-3.1-70b-instruct', headers: (Content-Type: application/json))"
+    oafp data="list all roman emperors" in=llm getlist=true out=ctable
+- c: Mac
+  s: Info
+  d: Get a list of the current logged users in Mac OS
+  e: |-
+    oafp cmd="who -aH" in=lines linesvisual=true linesjoin=true out=ctable path="[0:-1]"
+- c: GitHub
+  s: GIST
+  d: Using GitHub's GIST functionality retrieves and parses an oAFp examples YAML file with the template and the corresponding data.
+  e: |-
+    opack install GIST
+    oafp libs="@GIST/gist.js" in=ch inch="(type: gist)" data="(id: '557e12e4a840d513635b3a57cb57b722', file: oafp-examples.yaml)" path=content | oafp in=yaml out=template templatedata=data templatepath=tmpl
+- c: GIT
+  s: History
+  d: Give a GIT repository will retrieve the current log history and parse it to an Excel (XLS) file.
+  e: |-
+    opack install plugin-XLS
+    git log --pretty=format:'{c:"%H",a:"%an",d:"%ad",m:"%s"}' | oafp in=ndjson ndjsonjoin=true path="[].{commit:c,author:a,date:to_date(d),message:m}" out=xls outfile=data.xlsx xlsopen=false
+- c: Generic
+  s: RSS
+  d: Generates a HTML page with the current news from Google News, order by date, and opens a browser with it.
+  e: |-
+    oafp url="https://news.google.com/rss" path="rss.channel.item[].{title:title,link:link,date:pubDate,source:source._}" out=template templatetmpl=true template="<html><body><h1>Current Main News</h1><ul>{{#each this}}<li><a href='{{link}}' target='_blank'>{{title}}</a> <br><small>{{date}} | Source: {{source}}</small></li>{{/each}}</ul></body></html>" sql="select * order by date desc" | oafp in=raw out=html
