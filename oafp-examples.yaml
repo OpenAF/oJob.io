@@ -926,3 +926,9 @@ data:
   d: Get a list of the current logged users in Mac OS
   e: |-
     oafp cmd="who -aH" in=lines linesvisual=true linesjoin=true out=ctable path="[0:-1]"
+- c: GitHub
+  s: GIST
+  d: Using GitHub's GIST functionality retrieves and parses an oAFp examples YAML file with the template and the corresponding data.
+  e: |-
+    opack install GIST
+    oafp libs="@GIST/gist.js" in=ch inch="(type: gist)" data="(id: '557e12e4a840d513635b3a57cb57b722', file: oafp-examples.yaml)" path=content | oafp in=yaml out=template templatedata=data templatepath=tmpl
