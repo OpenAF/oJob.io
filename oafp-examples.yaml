@@ -1,5 +1,6 @@
 # oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml out=template path=data templatepath=tmpl sql="select * where d like '%something%'"
 # oafp url="https://gist.githubusercontent.com/nmaguiar/557e12e4a840d513635b3a57cb57b722/raw/oafp-examples.yaml" in=yaml path="data[].{category:c,subCategory:s,description:d}" from="sort(category,subCategory,description)" out=ctable
+# verify: oafp oafp-examples.yaml path="data[?length(nvl(c, \'\')) == \`0\` || length(nvl(s, \'\')) == \`0\` || length(nvl(d, \'\')) == \`0\` || length(nvl(e, \'\')) == \`0\`]"
 #
 tmpl: |-
   {{#each this}}
@@ -48,6 +49,11 @@ data:
   d: Building an Excel file with the AWS IPv4 and IPv6 ranges (3).
   e: |-
     oafp ip-ranges.json path=ipv6_prefixes out=xls xlsfile=aws-ip-ranges.xlsx xlssheet=ipv6
+- c: Generic
+  s: YAML
+  d: Given an YAML file with a data array composed of maps with fields 'c', 's', 'd' and 'e' filter by any record where any field doesn't have contents.
+  e: |-
+    oafp oafp-examples.yaml path="data[?length(nvl(c, \'\')) == \`0\` || length(nvl(s, \'\')) == \`0\` || length(nvl(d, \'\')) == \`0\` || length(nvl(e, \'\')) == \`0\`]"
 # DB / H2
 - c: DB
   s: H2
@@ -59,19 +65,48 @@ data:
   d: Perform a SQL query over a H2 database.
   e: |-
     echo "select * from \"data\"" | oafp in=db indbjdbc="jdbc:h2:./data" indbuser=sa indbpass=sa out=ctable
+- c: DB
+  s: H2
+  d: Perform queries and DML SQL statements over a H2 databases
+  e: |-
+    # Dump data into a table
+    oafp data="[(id: 1, val: x)|(id: 2, val: y)|(id: 3, val: z)]" in=slon out=db dbjdbc="jdbc:h2:./data" dbuser=sa dbpass=sa dbtable=data
+    # Copy data to another new table
+    ESQL='create table newdata as select * from "data"' && oafp in=db indbjdbc="jdbc:h2:./data" indbuser=sa indbpass=sa indbexec=true data="$ESQL"
+    # Drop the original table
+    ESQL='drop table "data"' && oafp in=db indbjdbc="jdbc:h2:./data" indbuser=sa indbpass=sa indbexec=true data="$ESQL"
+    # Output data from the new table
+    SQL='select * from newdata' && oafp in=db indbjdbc="jdbc:h2:./data" indbuser=sa indbpass=sa data="$SQL" out=ctable
 # DB / SQLite
+- c: DB
+  s: SQLite
+  d: Lists all files in openaf.jar, stores the result in a 'data' table on a SQLite data.db file and performs a query over the stored data.
+  e: |-
+    # ojob ojob.io/db/getDriver op=install db=sqlite
+    opack install jdbc-sqlite
+    # Dump data into a 'data' table
+    oafp in=ls data=openaf.jar out=db dbjdbc="jdbc:sqlite:data.db" dblib=sqlite dbtable="data"
+    # Gets stats over the dump data from the 'data' table
+    SQL='select count(1) numberOfFiles, round(avg("size")) avgSize, sum("size") totalSize from "data"' && oafp in=db indbjdbc="jdbc:sqlite:data.db" indblib=sqlite data="$SQL" out=ctable
 - c: DB
   s: SQLite
   d: Store the json result on a SQLite database table.
   e: |-
-    ojob ojob.io/db/getDriver op=install db=sqlite
+    # ojob ojob.io/db/getDriver op=install db=sqlite
+    opack install jdbc-sqlite
     oaf -c "\$o(listFilesRecursive('.'),{__format:'json'})" | oafp out=db dbjdbc="jdbc:sqlite:data.db" dbtable=data dblib=sqlite
 - c: DB
   s: SQLite
   d: Perform a query over a database using JDBC.
   e: |-
-    ojob ojob.io/db/getDriver op=install db=sqlite
+    # ojob ojob.io/db/getDriver op=install db=sqlite
+    opack install jdbc-sqlite
     echo "select * from data" | oafp in=db indbjdbc="jdbc:sqlite:data.db" indbtable=data indblib=sqlite out=ctable
+- c: DB
+  s: List
+  d: List all OpenAF's oPack pre-prepared JDBC drivers
+  e: |-
+    oaf -c "sprint(getOPackRemoteDB())" | oafp maptoarray=true opath="[].{name:name,description:description,version:version}" sql="select * where name like 'jdbc-%' order by name" out=ctable
 # Generic / Docker
 - c: Docker
   s: Containers
@@ -323,6 +358,11 @@ data:
   d: List all MX (mail servers) network addresses from the current DNS server for a hostname using OpenAF
   e: |-
     DOMAIN=gmail.com && TYPE=MX && oaf -c "sprint(ow.loadNet().getDNS('$DOMAIN','$TYPE'))" | oafp from="sort(Address)" out=ctable
+- c: OpenAF
+  s: Network
+  d: Gets all the DNS host addresses for a provided domain and ensures that the output is always a list
+  e: |-
+    DOMAIN="nattrmon.io" && oafp in=oaf data="ow.loadNet().getDNS('$DOMAIN','a',__,true)" path="if(type(@)=='array',[].Address.HostAddress,[Address.HostAddress]).map(&{ip:@},[])" out=ctable
 - c: OpenAF
   s: TLS
   d: List the TLS certificates of a target host with a sorted alternative names using OpenAF
@@ -943,3 +983,9 @@ data:
   d: Generates a HTML page with the current news from Google News, order by date, and opens a browser with it.
   e: |-
     oafp url="https://news.google.com/rss" path="rss.channel.item[].{title:title,link:link,date:pubDate,source:source._}" out=template templatetmpl=true template="<html><body><h1>Current Main News</h1><ul>{{#each this}}<li><a href='{{link}}' target='_blank'>{{title}}</a> <br><small>{{date}} | Source: {{source}}</small></li>{{/each}}</ul></body></html>" sql="select * order by date desc" | oafp in=raw out=html
+- c: Java
+  s: Certificates
+  d: Given a Java keystore will obtain a list of certificates and output them order by the ones that will expire first.
+  e: |-
+    # execute 'ojob ojob.io/java/certs -jobhelp' to get more options
+    ojob ojob.io/java/certs op=list keystore=mycerts -json | oafp out=ctable sql="select * order by notAfter"
