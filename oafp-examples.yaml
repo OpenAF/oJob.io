@@ -744,6 +744,16 @@ data:
     oafp in=llmmodels data="()" out=ctable path="[].{name:name,parameters:details.parameter_size,quantization:details.quantization_level,format:details.format,family:details.family,parent:details.parent,size:size}" sql="select * order by parent,family,format,parameters,quantization"
 - c: AI
   s: Generate data
+  d: Generates synthetic data making parallel prompts to a LLM model and then cleaning up the result removing duplicate records into a final csv file.
+  e: |-
+    # Set the LLM model to use
+    export OAFP_MODEL="(type: openai, url: 'https://api.scaleway.ai', key: '111-222-333', model: 'llama-3.1-70b-instruct', headers: (Content-Type: application/json))"
+    # Run 5 parallel prompts to generate data
+    oafp data="()" path="range(\`5\`)" out=cmd outcmdtmpl=true outcmd="oafp data='generate a list of 10 maps each with firstName, lastName, city and country' in=llm out=ndjson" > data.ndjson
+    # Clean-up generate data removing duplicates
+    oafp data.ndjson in=ndjson ndjsonjoin=true removedups=true out=csv > data.csv
+- c: AI
+  s: Generate data
   d: Generates synthetic data using a LLM model and then uses the recorded conversation to generate more data respecting the provided instructions
   e: |-
     export OAFP_MODEL="(type: ollama, model: 'llama3', url: 'https://models.local', timeout: 900000)"
@@ -989,3 +999,13 @@ data:
   e: |-
     # execute 'ojob ojob.io/java/certs -jobhelp' to get more options
     ojob ojob.io/java/certs op=list keystore=mycerts -json | oafp out=ctable sql="select * order by notAfter"
+- c: OpenAF
+  s: Flags
+  d: List the current values of OpenAF/oAFp internal flags
+  e: |-
+    oafp in=oaf data="__flags"
+- c: Generic
+  s: Commands
+  d: Given an input array with phone numbers will run parallel output commands, calling ojob.io/telco/phoneNumber, for each entry effectively building an output from those multiple command executions.
+  e: |-
+    oafp data="[(p:911234567)|(p:+18004564567)]" in=slon out=cmd outcmdtmpl=true outcmd="ojob ojob.io/telco/phoneNumber country=PT number={{p}} -json" | oafp in=ndjson ndjsonjoin=true path="[].phoneInfo" out=ctree
