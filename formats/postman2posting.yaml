@@ -1,0 +1,102 @@
+# Author: Nuno Aguiar
+help:
+  text   : Converts a JSON Postman collection to a posting yaml folder structure
+  expects: 
+  - name     : input
+    desc     : JSON Postman collection
+    example  : collection.json
+    mandatory: true
+  - name     : output
+    desc     : Folder where the yaml files will be created
+    example  : myfolder
+    mandatory: true
+
+todo:
+- Convert Postman to Posting
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------------------
+- name : Convert Postman to Posting
+  check:
+    in:
+      input : isString
+      output: isString
+  exec : |
+    var data = io.readFileJSON(args.input)
+    if (isArray(data.item)) {
+      pForEach(data.item, r => {
+        // Request
+        var url = r.request.url.raw
+        var method = r.request.method
+        var body = r.request.body
+        var headers = r.request.header
+        var auth = r.request.auth
+        var name = r.name
+
+        // Create yaml
+        var yaml = {
+          name: name,
+          method: method,
+          url: url,
+          headers: [],
+          body: {}
+        }
+
+        // Body
+        if (isDef(body)) {
+          if (isDef(body.mode) && body.mode == 'formdata') {
+            yaml.body.form_data = []
+            body.formdata.forEach(f => {
+              yaml.body.form_data.push({name: f.key, value: f.value})
+            })
+            yaml.body.content_type = 'application/x-www-form-urlencoded'
+          } else if (isDef(body.mode) && body.mode == 'raw') {
+            yaml.body.content = body.raw
+            yaml.body.content_type = 'application/json'
+          } else if (isDef(body.mode) && body.mode == 'urlencoded') {
+            yaml.body.form_data = []
+            body.urlencoded.forEach(f => {
+              yaml.body.form_data.push({name: f.key, value: f.value})
+            })
+            yaml.body.content_type = 'application/x-www-form-urlencoded'
+          } else {
+            yaml.body = body
+          }
+        }
+
+        // Headers
+        if (isDef(headers)) {
+          headers.forEach(h => {
+            yaml.headers.push({name: h.key, value: h.value})
+          })
+        }
+
+        // Auth
+        if (isMap(auth)) {
+          if (isDef(auth.type) && auth.type == 'basic') {
+            yaml.auth = {type: auth.type, user: auth.username, pass: auth.password}
+          } else if (isDef(auth.type) && auth.type == 'bearer') {
+            yaml.headers.push({name: 'Authorization', value: 'Bearer ' + auth.bearer[0].value})
+          } else {
+            yaml.auth = auth
+          }
+        }
+
+        // Event not supported
+        if (isDef(r.event)) {
+          logWarn("Event not supported yet")
+        }
+
+        io.writeFileYAML(args.output + "/" + name + ".posting.yaml", yaml)
+      })
+    } else {
+      throw "Not a Postman collection"
+    }
+    ow.oJob.output(args, args)
