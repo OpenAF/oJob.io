@@ -117,9 +117,9 @@ tmpl: &TMPL |
               - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
                 value: "false"
               - name: YARN-SITE.XML_yarn.nodemanager.hostname
-                value: "nodemanager.{{ns}}.svc"
+                value: "nodemanager.{{ns}}{{#if ns}}.svc{{/if}}"
               - name: YARN-SITE.XML_yarn.resourcemanager.hostname
-                value: resourcemanager.{{ns}}.svc
+                value: resourcemanager.{{ns}}{{#if ns}}.svc{{/if}}
             image: apache/hadoop:3
             name: datanode
             ports:
@@ -236,9 +236,9 @@ tmpl: &TMPL |
               - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
                 value: "false"
               - name: YARN-SITE.XML_yarn.nodemanager.hostname
-                value: "nodemanager.{{ns}}.svc"
+                value: "nodemanager.{{ns}}{{#if ns}}.svc{{/if}}"
               - name: YARN-SITE.XML_yarn.resourcemanager.hostname
-                value: resourcemanager.{{ns}}.svc
+                value: resourcemanager.{{ns}}{{#if ns}}.svc{{/if}}
             image: apache/hadoop:3
             name: namenode
             ports:
@@ -341,11 +341,11 @@ tmpl: &TMPL |
               - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
                 value: "false"
               - name: YARN-SITE.XML_yarn.nodemanager.hostname
-                value: "nodemanager.{{ns}}.svc"
+                value: "nodemanager.{{ns}}{{#if ns}}.svc{{/if}}"
               - name: YARN-SITE.XML_yarn.nodemanager.bind-host
                 value: "0.0.0.0"
               - name: YARN-SITE.XML_yarn.resourcemanager.hostname
-                value: resourcemanager.{{ns}}.svc
+                value: resourcemanager.{{ns}}{{#if ns}}.svc{{/if}}
             image: apache/hadoop:3
             name: nodemanager
             ports:
@@ -451,7 +451,7 @@ tmpl: &TMPL |
               - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
                 value: "false"
               - name: YARN-SITE.XML_yarn.nodemanager.hostname
-                value: "nodemanager.{{ns}}.svc"
+                value: "nodemanager.{{ns}}{{#if ns}}.svc{{/if}}"
               - name: YARN-SITE.XML_yarn.resourcemanager.hostname
                 value: resourcemanager-0
             image: apache/hadoop:3
@@ -511,7 +511,7 @@ jobs:
     in:
       usePV: toBoolean.isBoolean.default(false)
       name : isString.default("hdfs")
-      ns   : isString.default("default")
+      ns   : isString.default("")
   exec : ;
   to   :
   - (template      ): *TMPL
