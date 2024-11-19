@@ -29,9 +29,12 @@ jobs:
       input : isString
       output: isString
   exec : |
-    var data = io.readFileJSON(args.input)
-    if (isArray(data.item)) {
-      pForEach(data.item, r => {
+    var fnProc = (r, pre) => {
+      pre = _$(pre).isString().default("/")
+
+      if (isMap(r) && isArray(r.item)) {
+        pForEach(r.item, rr => fnProc(rr, pre + r.name + "/"))
+      } else {
         // Request
         var url = r.request.url.raw
         var method = r.request.method
@@ -79,7 +82,7 @@ jobs:
         }
 
         // Auth
-        if (isMap(auth)) {
+        if (isDef(auth) && isMap(auth)) {
           if (isDef(auth.type) && auth.type == 'basic') {
             yaml.auth = {type: auth.type, user: auth.username, pass: auth.password}
           } else if (isDef(auth.type) && auth.type == 'bearer') {
@@ -94,7 +97,14 @@ jobs:
           logWarn("Event not supported yet")
         }
 
-        io.writeFileYAML(args.output + "/" + name + ".posting.yaml", yaml)
+        io.writeFileYAML(args.output + pre + name + ".posting.yaml", yaml)
+      }    
+    }
+
+    var data = io.readFileJSON(args.input)
+    if (isArray(data.item)) {
+      pForEach(data.item, r => {
+        fnProc(r)
       })
     } else {
       throw "Not a Postman collection"
