@@ -1,0 +1,521 @@
+# Author: Nuno Aguiar
+help:
+  text   : "Generates a Kubernetes YAML file for testing HDFS on a Kubernetes cluster. (NOTE: you will need to run, once the datanode is ready, 'kubectl exec -ti datanode-0 -n yourns -- hdfs dfs -chmod 777 /')"
+  expects: 
+  - name     : usePV
+    desc     : If data should be persisted
+    example  : "true"
+    mandatory: false
+  - name     : name
+    desc     : A distinct name to give to the PVs
+    example  : hdfs
+    mandatory: false
+  - name     : ns
+    desc     : The namespace to be used
+    mandatory: true
+
+tmpl: &TMPL |
+  {{#if usePV}}
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    labels:
+      service: hadoop
+    name: {{name}}-data
+  spec:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 256Gi
+    volumeMode: Filesystem
+
+  ---
+  {{/if}}
+
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    labels:
+      service: datanode
+    name: datanode
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        service: datanode
+    template:
+      metadata:
+        labels:
+          service: datanode
+      spec:
+        # Init container to set permissions
+        {{#if usePV}}initContainers:
+        - name: volume-permissions
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /data && chmod -R 777 /data"]
+          volumeMounts:
+          - name: {{name}}-data
+            mountPath: /data{{/if}}
+        containers:
+          - args:
+              - hdfs
+              - datanode
+            securityContext:
+              runAsUser: 1000  
+              runAsGroup: 1000     
+            env:
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-am-resource-percent
+                value: "0.1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-applications
+                value: "10000"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.node-locality-delay
+                value: "40"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings-override.enable
+                value: "false"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.resource-calculator
+                value: org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_administer_queue
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_submit_applications
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.maximum-capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.state
+                value: RUNNING
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.user-limit-factor
+                value: "1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.queues
+                value: default
+              - name: CORE-SITE.XML_fs.default.name
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_fs.defaultFS
+                value: hdfs://namenode
+              - name: HDFS-SITE.XML_dfs.namenode.rpc-address
+                value: namenode:8020
+              - name: HDFS-SITE.XML_dfs.replication
+                value: "1"
+              {{#if usePV}}- name: HDFS-SITE.XML_dfs.datanode.data.dir
+                value: "/data"{{/if}}
+              - name: MAPRED-SITE.XML_mapreduce.framework.name
+                value: yarn
+              - name: MAPRED-SITE.XML_mapreduce.map.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_mapreduce.reduce.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_yarn.app.mapreduce.am.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: YARN-SITE.XML_yarn.nodemanager.aux-services
+                value: mapreduce_shuffle
+              - name: YARN-SITE.XML_yarn.nodemanager.delete.debug-delay-sec
+                value: "600"
+              - name: YARN-SITE.XML_yarn.nodemanager.pmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.hostname
+                value: "nodemanager.{{ns}}.svc"
+              - name: YARN-SITE.XML_yarn.resourcemanager.hostname
+                value: resourcemanager.{{ns}}.svc
+            image: apache/hadoop:3
+            name: datanode
+            ports:
+            - containerPort: 9864
+              protocol: TCP
+            - containerPort: 9866
+              protocol: TCP
+            - containerPort: 9867
+              protocol: TCP
+            {{#if usePV}}volumeMounts:
+              - mountPath: /data
+                name: {{name}}-data{{/if}}
+        restartPolicy: Always
+        {{#if usePV}}volumes:
+          - name: {{name}}-data
+            persistentVolumeClaim:
+              claimName: {{name}}-data{{/if}}
+
+
+  ---
+
+  apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      service: datanode
+    name: datanode
+  spec:
+    ports:
+      - name: "9864"
+        port: 9864
+        targetPort: 9864
+      - name: "9866"
+        port: 9866
+        targetPort: 9866
+      - name: "9867"
+        port: 9867
+        targetPort: 9867
+    selector:
+      service: datanode
+
+  ---
+
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    labels:
+      service: namenode
+    name: namenode
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        service: namenode
+    template:
+      metadata:
+        labels:
+          service: namenode
+      spec:
+        containers:
+          - args:
+              - hdfs
+              - namenode
+            env:
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-am-resource-percent
+                value: "0.1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-applications
+                value: "10000"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.node-locality-delay
+                value: "40"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings-override.enable
+                value: "false"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.resource-calculator
+                value: org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_administer_queue
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_submit_applications
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.maximum-capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.state
+                value: RUNNING
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.user-limit-factor
+                value: "1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.queues
+                value: default
+              - name: CORE-SITE.XML_fs.default.name
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_fs.defaultFS
+                value: hdfs://namenode
+              - name: ENSURE_NAMENODE_DIR
+                value: /tmp/hadoop-root/dfs/name
+              - name: HDFS-SITE.XML_dfs.namenode.rpc-address
+                value: namenode-0:8020
+              - name: HDFS-SITE.XML_dfs.replication
+                value: "1"
+              - name: MAPRED-SITE.XML_mapreduce.framework.name
+                value: yarn
+              - name: MAPRED-SITE.XML_mapreduce.map.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_mapreduce.reduce.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_yarn.app.mapreduce.am.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: YARN-SITE.XML_yarn.nodemanager.aux-services
+                value: mapreduce_shuffle
+              - name: YARN-SITE.XML_yarn.nodemanager.delete.debug-delay-sec
+                value: "600"
+              - name: YARN-SITE.XML_yarn.nodemanager.pmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.hostname
+                value: "nodemanager.{{ns}}.svc"
+              - name: YARN-SITE.XML_yarn.resourcemanager.hostname
+                value: resourcemanager.{{ns}}.svc
+            image: apache/hadoop:3
+            name: namenode
+            ports:
+            - containerPort: 9870
+              protocol: TCP
+            - containerPort: 8020
+              protocol: TCP
+        hostname: namenode-0
+        restartPolicy: Always
+
+  --- 
+
+  apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      service: namenode
+    name: namenode
+  spec:
+    ports:
+      - name: "9870"
+        port: 9870
+        targetPort: 9870
+      - name: "8020"
+        port: 8020
+        targetPort: 8020
+    selector:
+      service: namenode
+
+  ---
+
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    labels:
+      service: nodemanager
+    name: nodemanager
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        service: nodemanager
+    template:
+      metadata:
+        labels:
+          service: nodemanager
+      spec:
+        containers:
+          - args:
+              - yarn
+              - nodemanager
+            env:
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-am-resource-percent
+                value: "0.1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-applications
+                value: "10000"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.node-locality-delay
+                value: "40"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings-override.enable
+                value: "false"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.resource-calculator
+                value: org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_administer_queue
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_submit_applications
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.maximum-capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.state
+                value: RUNNING
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.user-limit-factor
+                value: "1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.queues
+                value: default
+              - name: CORE-SITE.XML_fs.default.name
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_fs.defaultFS
+                value: hdfs://namenode
+              - name: HDFS-SITE.XML_dfs.namenode.rpc-address
+                value: namenode:8020
+              - name: HDFS-SITE.XML_dfs.replication
+                value: "1"
+              - name: MAPRED-SITE.XML_mapreduce.framework.name
+                value: yarn
+              - name: MAPRED-SITE.XML_mapreduce.map.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_mapreduce.reduce.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_yarn.app.mapreduce.am.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: YARN-SITE.XML_yarn.nodemanager.aux-services
+                value: mapreduce_shuffle
+              - name: YARN-SITE.XML_yarn.nodemanager.delete.debug-delay-sec
+                value: "600"
+              - name: YARN-SITE.XML_yarn.nodemanager.pmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.hostname
+                value: "nodemanager.{{ns}}.svc"
+              - name: YARN-SITE.XML_yarn.nodemanager.bind-host
+                value: "0.0.0.0"
+              - name: YARN-SITE.XML_yarn.resourcemanager.hostname
+                value: resourcemanager.{{ns}}.svc
+            image: apache/hadoop:3
+            name: nodemanager
+            ports:
+            - containerPort: 5556
+              protocol: TCP
+            - containerPort: 8042
+              protocol: TCP
+        restartPolicy: Always
+        hostname: nodemanager
+
+  ---
+
+  apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      service: nodemanager
+    name: nodemanager
+  spec:
+    ports:
+      - name: "5556"
+        port: 5556
+        targetPort: 5556
+      - name: "8042"
+        port: 8042
+        targetPort: 8042
+    selector:
+      service: nodemanager
+
+  ---
+
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    labels:
+      service: resourcemanager
+    name: resourcemanager
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        service: resourcemanager
+    template:
+      metadata:
+        labels:
+          service: resourcemanager
+      spec:
+        containers:
+          - args:
+              - yarn
+              - resourcemanager
+            securityContext:
+              runAsUser: 1000 
+              runAsGroup: 1000   
+            env:
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-am-resource-percent
+                value: "0.1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.maximum-applications
+                value: "10000"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.node-locality-delay
+                value: "40"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.queue-mappings-override.enable
+                value: "false"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.resource-calculator
+                value: org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_administer_queue
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.acl_submit_applications
+                value: '*'
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.maximum-capacity
+                value: "100"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.state
+                value: RUNNING
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.default.user-limit-factor
+                value: "1"
+              - name: CAPACITY-SCHEDULER.XML_yarn.scheduler.capacity.root.queues
+                value: default
+              - name: CORE-SITE.XML_fs.default.name
+                value: hdfs://namenode
+              - name: CORE-SITE.XML_fs.defaultFS
+                value: hdfs://namenode
+              - name: HDFS-SITE.XML_dfs.namenode.rpc-address
+                value: namenode:8020
+              - name: HDFS-SITE.XML_dfs.replication
+                value: "1"
+              - name: MAPRED-SITE.XML_mapreduce.framework.name
+                value: yarn
+              - name: MAPRED-SITE.XML_mapreduce.map.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_mapreduce.reduce.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: MAPRED-SITE.XML_yarn.app.mapreduce.am.env
+                value: HADOOP_MAPRED_HOME=/opt/hadoop
+              - name: YARN-SITE.XML_yarn.nodemanager.aux-services
+                value: mapreduce_shuffle
+              - name: YARN-SITE.XML_yarn.nodemanager.delete.debug-delay-sec
+                value: "600"
+              - name: YARN-SITE.XML_yarn.nodemanager.pmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.vmem-check-enabled
+                value: "false"
+              - name: YARN-SITE.XML_yarn.nodemanager.hostname
+                value: "nodemanager.{{ns}}.svc"
+              - name: YARN-SITE.XML_yarn.resourcemanager.hostname
+                value: resourcemanager-0
+            image: apache/hadoop:3
+            name: resourcemanager
+            ports:
+              - containerPort: 8088
+                protocol: TCP
+              - containerPort: 8031
+                protocol: TCP
+              - containerPort: 8032
+                protocol: TCP
+              - containerPort: 8033
+                protocol: TCP
+        hostname: resourcemanager-0
+        restartPolicy: Always
+
+  ---
+
+  apiVersion: v1
+  kind: Service
+  metadata:
+    labels:
+      service: resourcemanager
+    name: resourcemanager
+  spec:
+    ports:
+      - name: "8088"
+        port: 8088
+        targetPort: 8088
+      - name: "8031"
+        port: 8031
+        targetPort: 8031
+      - name: "8032"
+        port: 8032
+        targetPort: 8032
+      - name: "8033"
+        port: 8033
+        targetPort: 8033
+    selector:
+      service: resourcemanager
+
+
+
+todo:
+- Generate output
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+jobs:
+# ----------------------
+- name : Generate output
+  check:
+    in:
+      usePV: toBoolean.isBoolean.default(false)
+      name : isString.default("hdfs")
+      ns   : isString.default("default")
+  exec : ;
+  to   :
+  - (template      ): *TMPL
+    ((key         )): args
+    ((out         )): output
+  - (output        ): output
+    ((path        )): output
