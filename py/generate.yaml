@@ -1,0 +1,71 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a python squeleton to start OpenAF in the background and interact with it using ow.python functionality
+  expects: 
+  - name     : pybin
+    desc     : Set the python binary to use
+    example  : /usr/bin/python3
+    mandatory: false
+  - name     : oafbin
+    desc     : Set the OpenAF binary to use
+    example  : /usr/bin/oaf
+    mandatory: false
+
+tmpl:
+  py: &TMPL |
+    import subprocess
+
+    # Start OpenAF in the background
+    proc = subprocess.Popen(
+      ["{{oafbin}}", "-c", "ow.loadPython();{{#if pybin}}ow.python.setPython('{{pybin}}');{{/if}}ow.python.startServer(__,__,__,true);print(ow.python.initCode()+'\\n--+++--')"],
+      stdout=subprocess.PIPE,
+      stderr=subprocess.STDOUT,
+      text=True
+    )
+
+    # Read stdout from OpenAF to include init code
+    code_lines = []
+    for line in proc.stdout:
+      if '--+++--' in line:
+          break
+      code_lines.append(line)
+
+    # Execute the captured code from OpenAF 
+    code = ''.join(code_lines)
+    exec(code)
+
+    # --- START YOUR CODE HERE ---
+    # _d(json)     - dump a json object 
+    # _(code)      - execute code in OpenAF and returns the result
+    # _oaf(code)   - same as _
+    # _g(key)      - get object from an OpenAF $get key
+    # _s(key, obj) - set and object into an OpenAF $set key
+
+    # --- END YOUR CODE HERE --
+
+    # Terminate the OpenAF background process
+    proc.terminate()
+    proc.wait()
+
+todo:
+- Generate Python Squeleton
+
+ojob:
+  opacks      :
+  - openaf: 20241120
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+jobs:
+- name : Generate Python Squeleton
+  check:
+    in:
+      pybin : isString.default(__)
+      oafbin: isString.default("oaf")
+  exec : ;
+  to   :
+  - (template): *TMPL
+    ((key   )): args
+    ((out   )): output
+  - (output  ): output
+    ((path  )): output
