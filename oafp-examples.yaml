@@ -1009,3 +1009,35 @@ data:
   d: Given an input array with phone numbers will run parallel output commands, calling ojob.io/telco/phoneNumber, for each entry effectively building an output from those multiple command executions.
   e: |-
     oafp data="[(p:911234567)|(p:+18004564567)]" in=slon out=cmd outcmdtmpl=true outcmd="ojob ojob.io/telco/phoneNumber country=PT number={{p}} -json" | oafp in=ndjson ndjsonjoin=true path="[].phoneInfo" out=ctree
+- c: AI
+  s: BedRock
+  d: List all AWS BedRock models available to use.
+  e: |-
+    export OAFP_MODEL="(type: bedrock, options: ())"
+    oafp in=llmmodels out=ctable path="[].{id: modelId, arn: modelArn}" libs="@AWS/aws.js" data="()"
+- c: AI
+  s: BedRock
+  d: Place a prompt to get a list of data using AWS BedRock titan express model.
+  e: |-
+    export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'amazon.titan-text-express-v1', temperature: 0, params: (textGenerationConfig: (maxTokenCount: 1024))))"
+    oafp in=llm libs="@AWS/aws.js" data="list of primary color names" getlist=true out=ctable
+- c: Docker
+  s: Volumes
+  d: Given a list of docker volumes will remove all of them, if not in use, in parallel for faster execution.
+  e: |-
+    docker volume ls --format json | oafp in=ndjson ndjsonjoin=true path="[].Name" out=cmd outcmd="docker volume rm {}" outcmdparam=true
+- c: Unix
+  s: Ask
+  d: Unix bash script to ask for a path and choose between filetypes to perform an unix find command.
+  e: |-
+    #!/bin/bash
+    temp_file=$(mktemp)
+    oafp data="[\
+      (name: path, prompt: 'Enter the path to search: ', type: question) |\
+      (name: type, prompt: 'Choose the file type: ', type: choose, options: ['.jar'|'.class'|'.java'|'.js']) ]"\
+         in=ask out=envs\
+         arraytomap=true arraytomapkey=name envsnoprefix=true\
+         outfile=$temp_file
+    source $temp_file
+    
+    find "${path_answer:-.}" -type f -name "*$type_answer"
