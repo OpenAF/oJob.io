@@ -11,6 +11,12 @@ tmpl: |-
 
   {{/each}}
 data:
+- c: AI
+  s: Evaluate
+  d: Given a strace summary of the execution of a command (CMD) use a LLM to describe a reason on the results obtained.
+  e: |-
+    export OAFP_MODEL="(type: openai, model: 'gpt-4o-mini', timeout: 900000, temperature: 0)"
+    CMD="strace --tips" && strace -c -o /tmp/result.txt $CMD ; cat /tmp/result.txt ; oafp /tmp/result.txt in=raw llmcontext="strace execution json summary" llmprompt="given the provided strace execution summary produce a table-based analysis with a small description of each system call and a bullet point conclusion summary" out=md ; rm /tmp/result.txt
 # Grid / Java
 - c: Grid
   s: Java
@@ -1041,3 +1047,8 @@ data:
     source $temp_file
     
     find "${path_answer:-.}" -type f -name "*$type_answer"
+- c: Unix
+  s: strace
+  d: Given a strace unix command will produce a summary table of the system calls invoked including a small line chart of the percentage of time of each.
+  e: |-
+    strace -c -o '!oafp in=lines linesvisual=true linesjoin=true opath="[1:-2].merge(@,{perc:progress(to_number(\"% time\"),\`100\`,\`0\`,\`15\`,__,__)})" out=ctable' strace --tips
