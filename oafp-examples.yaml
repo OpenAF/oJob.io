@@ -1027,6 +1027,12 @@ data:
   e: |-
     export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'amazon.titan-text-express-v1', temperature: 0, params: (textGenerationConfig: (maxTokenCount: 1024))))"
     oafp in=llm libs="@AWS/aws.js" data="list of primary color names" getlist=true out=ctable
+- c: AI
+  s: BedRock
+  d: Place a prompt to get a list of data using an AWS BedRock Llama model.
+  e: |-
+    export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'eu.meta.llama3-2-3b-instruct-v1:0', region: eu-central-1, temperature: 0.1, params: ('top_p': 0.9, 'max_gen_len': 512)))"
+    oafp in=llm libs="@AWS/aws.js" data="produce a list of european countries with the country name and capital" getlist=true out=ctable
 - c: Docker
   s: Volumes
   d: Given a list of docker volumes will remove all of them, if not in use, in parallel for faster execution.
@@ -1052,3 +1058,9 @@ data:
   d: Given a strace unix command will produce a summary table of the system calls invoked including a small line chart of the percentage of time of each.
   e: |-
     strace -c -o '!oafp in=lines linesvisual=true linesjoin=true opath="[1:-2].merge(@,{perc:progress(to_number(\"% time\"),\`100\`,\`0\`,\`15\`,__,__)})" out=ctable' strace --tips
+- c: AI
+  s: Classification
+  d: Using Google's Gemini model and a list of jar files will try to produce a table categorizing and describing the function of each jar file.
+  e: |-
+    # export OAFP_MODEL=(type: gemini, model: gemini-1.5-flash, key: '...', timeout: 900000, temperature: 0)
+    oafp in=ls data=lib path="[?ends_with(filename,'.jar')].filename" llmcontext="jar list" llmprompt="add a 'category', 'subcategory' and 'description' to each listed jar file" getlist=true out=json | oafp sql="select * order by category, subcategory" out=ctable
