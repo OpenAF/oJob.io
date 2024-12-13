@@ -1,26 +1,30 @@
 # Author: Nuno Aguiar
 help:
-  text   : Interactive process to retrieve data from an OpenAF sBucket
+  text   : Interactive process to set data on an OpenAF sBucket
   expects: 
   - name     : repo
     desc     : An OpenAF sBucket repository
     example  : "default"
     mandatory: false
   - name     : sbucket
-    desc     : The sBucket to get the data
+    desc     : The sBucket to set the data
     example  : "default"
     mandatory: false
   - name     : key
-    desc     : The key to get the data
+    desc     : The key to set the data
     example  : "key"
     mandatory: false
   - name     : pass
     desc     : The password of the sBucket repository
     example  : "password"
     mandatory: false
+  - name     : value
+    desc     : The value to set in JSON/SLON
+    example  : "(x: 1, y: -1)"
+    mandatory: false
 
 todo:
-- Get sBucket key data
+- Set sBucket key data
 
 ojob:
   opacks      :
@@ -30,30 +34,40 @@ ojob:
 
 jobs:
 # ---------------------------
-- name : Get sBucket key data
+- name : Set sBucket key data
   check:
     in:
       repo   : isString.default(__)
       sbucket: isString.default(__)
       key    : isString.default(__)
-      pass   : isString.default(__)
+      value  : isString.default(__)
   exec : |
     // Ask for the password
     var pwd = isDef(args.pass) ? args.pass : askEncrypt("Password of the default sbuckets repo: ")
-    var lst1 = Object.keys( $sec(args.repo, __, pwd).list() )
+    var lst1 = $sec(args.repo, __, pwd).list()
+    if (isDef(lst1)) lst1 = Object.keys(lst1); else lst1 = []
 
     // First-level 
     var level1 = isDef(args.sbucket) ? lst1.indexOf(args.sbucket) : askChoose("Choose a sbucket: ", lst1)
-    if (level1 < 0) throw "sBucket not found"
+    if (level1 < 0) {
+      lst1.push(args.sbucket)
+      level1 = lst1.length - 1
+    }
 
     // Second-level
     var lst2 = $sec(args.repo, lst1[level1], pwd).list()
-    var level2 = isDef(args.key) ? lst2.indexOf(args.key) : askChoose("Choose a key: ", lst2[lst1[level1]])
-    if (level2 < 0) throw "Key not found"
+    if (isUnDef(lst2)) { lst2 = {}; lst2[lst1[level1]] = [] }
+    var level2
+    if (isDef(args.key)) {
+      lst2[lst1[level1]].push(args.key)
+      level2 = lst2[lst1[level1]].length - 1
+    } else {
+      askChoose("Choose a key: ", lst2[lst1[level1]])
+    }
 
     // Print the value
-    var _data = $sec(args.repo, lst1[level1], pwd).get(lst2[lst1[level1]][level2])
-
-    args.__format = _$(args.__format, "__format").isString().default("cslon")
-
-    ow.oJob.output(_data, args)
+    var _data
+    if (isUnDef(args.value)) {
+      _data = ask("sBucket key value: ")
+    }
+    $sec(args.repo, lst1[level1], pwd).set(lst2[lst1[level1]][level2], af.fromJSSLON(_data))

@@ -1,17 +1,17 @@
 # Author: Nuno Aguiar
 help:
-  text   : Interactive process to retrieve data from an OpenAF sBucket
+  text   : Interactive process to unset data from an OpenAF sBucket
   expects: 
   - name     : repo
     desc     : An OpenAF sBucket repository
     example  : "default"
     mandatory: false
   - name     : sbucket
-    desc     : The sBucket to get the data
+    desc     : The sBucket to unset the data
     example  : "default"
     mandatory: false
   - name     : key
-    desc     : The key to get the data
+    desc     : The key to unset the data
     example  : "key"
     mandatory: false
   - name     : pass
@@ -20,7 +20,7 @@ help:
     mandatory: false
 
 todo:
-- Get sBucket key data
+- Unset sBucket key data
 
 ojob:
   opacks      :
@@ -29,8 +29,8 @@ ojob:
   logToConsole: false   # to change when finished
 
 jobs:
-# ---------------------------
-- name : Get sBucket key data
+# -----------------------------
+- name : Unset sBucket key data
   check:
     in:
       repo   : isString.default(__)
@@ -51,9 +51,10 @@ jobs:
     var level2 = isDef(args.key) ? lst2.indexOf(args.key) : askChoose("Choose a key: ", lst2[lst1[level1]])
     if (level2 < 0) throw "Key not found"
 
-    // Print the value
-    var _data = $sec(args.repo, lst1[level1], pwd).get(lst2[lst1[level1]][level2])
+    // Unset the data
+    $sec(args.repo, lst1[level1], pwd).unset(lst2[lst1[level1]][level2])
+    var _data = $sec(args.repo, lst1[level1], pwd).list()
+    _data = isDef(_data) ? _data[lst1[level1]] : {}
 
-    args.__format = _$(args.__format, "__format").isString().default("cslon")
-
+    args.__format = _$(args.__format, "__format").isString().default("cyaml")
     ow.oJob.output(_data, args)
