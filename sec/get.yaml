@@ -18,6 +18,14 @@ help:
     desc     : The password of the sBucket repository
     example  : "password"
     mandatory: false
+  - name     : mainpass
+    desc     : The password of the main sBucket repository
+    example  : "password"
+    mandatory: false
+  - name     : file
+    desc     : Alternative OpenAF sBucket file
+    example  : "file.yaml"
+    mandatory: false
 
 todo:
 - Get sBucket key data
@@ -33,26 +41,28 @@ jobs:
 - name : Get sBucket key data
   check:
     in:
-      repo   : isString.default(__)
-      sbucket: isString.default(__)
-      key    : isString.default(__)
-      pass   : isString.default(__)
+      repo    : isString.default(__)
+      sbucket : isString.default(__)
+      key     : isString.default(__)
+      pass    : isString.default(__)
+      mainpass: isString.default(__)
+      file    : isString.default(__)
   exec : |
     // Ask for the password
     var pwd = isDef(args.pass) ? args.pass : askEncrypt("Password of the default sbuckets repo: ")
-    var lst1 = Object.keys( $sec(args.repo, __, pwd).list() )
+    var lst1 = Object.keys( $sec(args.repo, __, pwd, args.mainpass, args.file).list() )
 
     // First-level 
     var level1 = isDef(args.sbucket) ? lst1.indexOf(args.sbucket) : askChoose("Choose a sbucket: ", lst1)
     if (level1 < 0) throw "sBucket not found"
 
     // Second-level
-    var lst2 = $sec(args.repo, lst1[level1], pwd).list()
+    var lst2 = $sec(args.repo, lst1[level1], pwd, args.mainpass, args.file).list()
     var level2 = isDef(args.key) ? lst2.indexOf(args.key) : askChoose("Choose a key: ", lst2[lst1[level1]])
     if (level2 < 0) throw "Key not found"
 
     // Print the value
-    var _data = $sec(args.repo, lst1[level1], pwd).get(lst2[lst1[level1]][level2])
+    var _data = $sec(args.repo, lst1[level1], pwd, args.mainpass, args.file).get(lst2[lst1[level1]][level2])
 
     args.__format = _$(args.__format, "__format").isString().default("cslon")
 
