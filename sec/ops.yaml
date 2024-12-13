@@ -3,7 +3,7 @@ help:
   text   : Gets/Sets OpenAF's sBuckets.
   expects: 
   - name   : op
-    desc   : "Provides the operation to perform: list; getbucket; setbucket; unsetbucket; set; setfn; setobj; setmap; unset"
+    desc   : "Provides the operation to perform: list; getbucket; setbucket; unsetbucket; set; setfn; setobj; setmap; unset; get"
     example: list
   - name   : secrepo
     desc   : The sBucket security repository (or don't define for default)

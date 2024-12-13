@@ -4,7 +4,7 @@ help:
   expects: 
   - name   : keysize 
     desc   : The corresponding keysize to generate (for asymmetric keys is 2048 by default)
-    example: 2048 
+    example: "2048"
   - name   : pubkey
     desc   : The file path to store the public key
     example: public.key

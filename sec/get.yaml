@@ -1,0 +1,42 @@
+# Author: Nuno Aguiar
+help:
+  text   : Interactive process to retrieve data from an OpenAF sBucket
+  expects: 
+  - name     : repo
+    desc     : An OpenAF sBucket repository
+    example  : "default"
+    mandatory: false
+
+todo:
+- Get sBucket key data
+
+ojob:
+  opacks      :
+  - openaf: 20241117
+  catch       : printErrnl("[" + job.name + "] "); printErr(exception)
+  logToConsole: false   # to change when finished
+
+jobs:
+# ---------------------------
+- name : Get sBucket key data
+  check:
+    in:
+      repo: isString.default(__)
+  exec : |
+    // Ask for the password
+    var pwd = askEncrypt("Password of the default sbuckets repo: ")
+    var lst1 = Object.keys( $sec(args.repo, __, pwd).list() )
+
+    // First-level 
+    var level1 = askChoose("Choose a sbucket: ", lst1)
+
+    // Second-level
+    var lst2 = $sec(args.repo, lst1[level1], pwd).list()
+    var level2 = askChoose("Choose a key: ", lst2[lst1[level1]])
+
+    // Print the value
+    var _data = $sec(args.repo, lst1[level1], pwd).get(lst2[lst1[level1]][level2])
+
+    args.__format = _$(args.__format, "__format").isString().default("cslon")
+
+    ow.oJob.output(_data, args)

@@ -18,6 +18,18 @@ help:
     desc     : The path to store the downloaded files
     example  : "/tmp"
     mandatory: false
+  - name     : dist
+    desc     : The OpenAF distribution to use (defaults to stable)
+    example  : "stable"
+    mandatory: false
+  - name     : os
+    desc     : A comma-separated list of the OpenAF distribution OS to download (defaults to all)
+    example  : "alpine linux, mac"
+    mandatory: false
+  - name     : arch
+    desc     : A comma-separated list of the OpenAF distribution architecture to download (defaults to all)
+    example  : "x86_64, aarch64"
+    mandatory: false
 
 todo:
 - Download ojobio
