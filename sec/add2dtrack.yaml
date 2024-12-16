@@ -1,0 +1,76 @@
+# Author: Nuno Aguiar
+help:
+  text   : Adds a BOM of a container imager, as CycloneDX JSON, to a Dependency Track instance
+  expects:
+  - name     : url
+    desc     : The URL of the Dependency Track instance
+    example  : http://localhost:8080
+    mandatory: true
+  - name     : image
+    desc     : The container image to scan
+    example  : openaf/openaf
+    mandatory: true
+  - name     : key
+    desc     : The API key to access the Dependency Track instance
+    example  : "1234567890"
+    mandatory: true
+  - name     : project
+    desc     : The project name
+    example  : OpenAF
+    mandatory: true
+  - name     : version
+    desc     : The project version
+    example  : "20231222"
+    mandatory: false
+  - name     : parentProject
+    desc     : The parent project name
+    example  : OpenAF
+    mandatory: false
+  - name     : parentVersion
+    desc     : The parent project version
+    example  : "20231222"
+    mandatory: false
+
+todo:
+- Add BOM to Dependency Track
+
+ojob:
+  opacks      :
+  - openaf: 20241117
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+
+jobs:
+# ----------------------------------
+- name : Add BOM to Dependency Track
+  check:
+    in:
+      url          : isString
+      image        : isString
+      key          : isString
+      project      : isString
+      version      : isString.default(__)
+      parentProject: isString.default(__)
+      parentVersion: isString.default(__)
+  exec : |
+    var res = {}
+    log("Scanning image " + args.image + "...")
+    var _res = $sh("syft scan registry:" + args.image + " --enrich all -o cyclonedx-json").get(0)
+    if (_res.exitcode == 0) {
+      var _d = {
+        projectName: args.project,
+        bom        : ow.format.toBase64(_res.stdout),
+        autoCreate : true
+      }
+
+      if (isDef(args.version)) _d.projectVersion = args.version
+      if (isDef(args.parentProject)) _d.parentProjectName = args.parentProject
+      if (isDef(args.parentVersion)) _d.parentProjectVersion = args.parentVersion
+
+      log("Adding BOM for " + args.image + " to Dependency Track...")
+      res = $rest({requestHeaders: { "X-Api-Key": args.key }}).put(args.url + "/api/v1/bom", _d)
+    } else {
+      logErr("Error scanning image" + args.image + ": " + _res.stderr)
+    }
+    ow.oJob.output(res, args)
