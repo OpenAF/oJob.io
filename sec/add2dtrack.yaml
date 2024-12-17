@@ -65,8 +65,8 @@ jobs:
       }
 
       if (isDef(args.version)) _d.projectVersion = args.version
-      if (isDef(args.parentProject)) _d.parentProjectName = args.parentProject
-      if (isDef(args.parentVersion)) _d.parentProjectVersion = args.parentVersion
+      if (isDef(args.parentProject)) _d.parentName = args.parentProject
+      if (isDef(args.parentVersion)) _d.parentVersion = args.parentVersion
 
       log("Adding BOM for " + args.image + " to Dependency Track...")
       res = $rest({requestHeaders: { "X-Api-Key": args.key }}).put(args.url + "/api/v1/bom", _d)
