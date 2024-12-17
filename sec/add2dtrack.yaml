@@ -57,7 +57,7 @@ jobs:
     var res = {}
     log("Scanning image " + args.image + "...")
     var _res = $sh("syft scan registry:" + args.image + " --enrich all -o cyclonedx-json").get(0)
-    if (_res.exitcode == 0) {
+    if (isMap(jsonParse(_res.stdout))) {
       var _d = {
         projectName: args.project,
         bom        : ow.format.toBase64(_res.stdout),
