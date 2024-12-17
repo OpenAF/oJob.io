@@ -71,6 +71,6 @@ jobs:
       log("Adding BOM for " + args.image + " to Dependency Track...")
       res = $rest({requestHeaders: { "X-Api-Key": args.key }}).put(args.url + "/api/v1/bom", _d)
     } else {
-      logErr("Error scanning image" + args.image + ": " + _res.stderr)
+      logErr("Error scanning image " + args.image + ": " + _res.stderr)
     }
     ow.oJob.output(res, args)
