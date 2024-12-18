@@ -56,11 +56,22 @@ jobs:
   exec : |
     var res = {}
     log("Scanning image " + args.image + "...")
-    var _res = $sh("syft scan registry:" + args.image + " --enrich all -o cyclonedx-json").get(0)
-    if (isMap(jsonParse(_res.stdout))) {
+    var _res = $sh("syft scan registry:" + args.image + " --enrich all -o cyclonedx-json --source-name " + args.project + " --source-version " + args.version).getJson(0)
+    if (isMap(_res.stdout)) {
+      // Deal with missing root in dependencies
+      if (isDef(_res.stdout.metadata) && isDef(_res.stdout.metadata.component) && isDef(_res.stdout.metadata.component["bom-ref"])) {
+        if ($from(_res.stdout.dependencies).equals("ref", _res.stdout.metadata.component["bom-ref"]).none()) {
+          // then fix
+          _res.stdout.dependencies.push({
+            ref: _res.stdout.metadata.component["bom-ref"],
+            dependsOn: _res.stdout.components.map(r => r["bom-ref"])
+          })
+        }
+      }
+
       var _d = {
         projectName: args.project,
-        bom        : ow.format.toBase64(_res.stdout),
+        bom        : ow.format.toBase64(stringify(_res.stdout,__,"")),
         autoCreate : true
       }
 
