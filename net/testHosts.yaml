@@ -62,6 +62,7 @@ jobs:
         var _r
         try {
           targets = af.fromJSSLON(args.targets)
+          if (!isMap(targets)) throw "not a map"
         } catch(e) {
           targets = args.targets.split(",").map(r => {
             var _d = r.trim().split(":")
