@@ -2,65 +2,68 @@
 help: 
   text   : Replaces or extracts code from oJob YAML.
   expects: 
-  - name   : op
-    desc   : "Operation to perform: help, replace (from js files to an oJob code entry) and extract (from an oJob code entry to js files)"
-    example: help
-  - name   : job
-    desc   : The filepath to the oJob YAML file.
-    example: myJob.yaml
-  - name   : js
-    desc   : If op=replace a comma delimited list of OpenAF javascript files
-    example: myFirstCode.js,mySecondCode.js
+  - name     : op
+    desc     : "Operation to perform: replace (from js files to an oJob code entry) and extract (from an oJob code entry to js files)"
+    mandatory: true
+    example  : extract
+  - name     : job
+    desc     : The filepath to the oJob YAML file.
+    example  : myJob.yaml
+  - name     : js
+    desc     : If op=replace a comma delimited list of OpenAF javascript files
+    example  : myFirstCode.js,mySecondCode.js
 
 todo:
 - Check operations
 
 ojob:
   opacks      :
-  - openaf: 20210526
-  catch       : "ow.oJob.output({ Help: args.init.help }, args); logErr(exception);"
+  - openaf: 20241117
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
         
 jobs:
 # ------------------
-- name: Replace code
-  exec: |
-    _$(args.job, "job").$_();
-    _$(args.js, "js").$_();
-
-    var code = require("code.js");
-    args.files = args.js.split(",").map(s => s.trim());
-    code.replaceCodeInYAML(args.job, args.files);
+- name : Replace code
+  check:
+    in:
+      job: isString
+      js : isString
+  exec : |
+    var code = require("code.js")
+    args.files = args.js.split(",").map(s => s.trim())
+    log("Rewriting " + args.job + "...")
+    code.replaceCodeInYAML(args.job, args.files)
 
 # ------------------
-- name: Extract code
-  exec: |
-    _$(args.job, "job").$_();
+- name : Extract code
+  check:
+    in:
+      job: isString
+  exec : |
+    var code  = require("code.js")
+    var files = code.extractCodeFromYAML(args.job)
 
-    var code = require("code.js");
-    var files = code.extractCodeFromYAML(args.job);
-
-    args.files = [];
+    args.files = []
     Object.keys(files).forEach(file => {
-      log("Writing '" + file + "'...");
-      args.files.push(file);
-      io.writeFileString(file, files[file]);
-    });
+      log("Writing '" + file + "'...")
+      args.files.push(file)
+      io.writeFileString(file, files[file])
+    })
 
 # ----------------------
-- name: Check operations
-  exec: |
-    args.op = _$(args.op, "op").default("help");
-    var res = {};
-
-    switch(args.op) {
-    case "replace": res = $job("Replace code", args).files; break;
-    case "extract": res = $job("Extract code", args).files; break;
-    case "help"   : 
-    default       : res = { Help: args.init.help };
-    }
-
-    ow.oJob.output(res, args);
+- name : Check operations
+  check:
+    in:
+      op: isString
+  from :
+  - (optionOn   ): op
+    ((todos    )):
+      replace:
+      - Replace code
+      extract:
+      - Extract code
+    ((lowerCase)): true
 
 # ===========
 # ===========
@@ -75,11 +78,11 @@ code:
         * </odoc>
         */
       exports.extractCodeFromYAML = function(aYAMLJob) {
-          _$(aYAMLJob, "aYAMLJob").isString().check(io.fileExists, "File doesn't exist").$_();
+          _$(aYAMLJob, "aYAMLJob").isString().check(io.fileExists, "File doesn't exist").$_()
 
-          var o = io.readFileYAML(aYAMLJob, true);
-          return o.code;
-      };
+          var o = io.readFileYAML(aYAMLJob, true)
+          return o.code
+      }
 
       /**
         * <odoc>
@@ -89,46 +92,46 @@ code:
         * </odoc>
         */
       exports.replaceCodeInYAML = function(aYAMLJob, aJS) {
-          _$(aYAMLJob, "aYAMLJob").isString().check(io.fileExists, "File doesn't exist").$_();
-          _$(aJS, "aJS").isArray().$_();
+          _$(aYAMLJob, "aYAMLJob").isString().check(io.fileExists, "File doesn't exist").$_()
+          _$(aJS, "aJS").isArray().$_()
           
           // Get and check files
           aJS.forEach(f => {
-            if (!io.fileExists(f)) throw "File '" + f + "' not found!";
-          });
-          var o = io.readFileString(aYAMLJob);
-          var c = io.readFileYAML(aYAMLJob, true);
+            if (!io.fileExists(f)) throw "File '" + f + "' not found!"
+          })
+          var o = io.readFileString(aYAMLJob)
+          var c = io.readFileYAML(aYAMLJob, true)
 
           // Detect indent
-          var indent = 1;
+          var indent = 1
           Object.keys(c).forEach(k => {
             if (isMap(c[k])) {
-                var subKeys  = Object.keys(c[k]);
-                var matchRes = o.match(new RegExp("^" + k + " *:.*\n( +)" + subKeys[0] + " *:", "m"));
+                var subKeys  = Object.keys(c[k])
+                var matchRes = o.match(new RegExp("^" + k + " *:.*\n( +)" + subKeys[0] + " *:", "m"))
                 if (isArray(matchRes) && matchRes.length > 1) {
-                  foundIndent = matchRes[1].length;
-                  if (foundIndent > indent) indent = foundIndent;
+                  foundIndent = matchRes[1].length
+                  if (foundIndent > indent) indent = foundIndent
                 }
             }
-          });
-          var indentText = repeat(indent, " ");
+          })
+          var indentText = repeat(indent, " ")
 
           // Perform replaces
           //
-          var res = o;
+          var res = o
 
           // Prepare code map
-          var code = { code: {} };
+          var code = { code: {} }
           aJS.forEach(file => {
-            code.code[file] = io.readFileString(file).replace(/\t/g, "   ");
-          });
+            code.code[file] = io.readFileString(file).replace(/\t/g, "   ")
+          })
 
           if (isDef(c.code)) {
-            res = o.replace(/^code *:.*\n(( +.+\n*)+)/m, af.toYAML(code));
+            res = o.replace(/^code *:.*\n(( +.+\n*)+)/m, af.toYAML(code))
           } else {
-            res += af.toYAML(code);
+            res += af.toYAML(code)
           }
 
-          io.writeFileString(aYAMLJob, res);
-      };
-    })();
+          io.writeFileString(aYAMLJob, res)
+      }
+    })()
