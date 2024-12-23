@@ -1064,3 +1064,8 @@ data:
   e: |-
     # export OAFP_MODEL=(type: gemini, model: gemini-1.5-flash, key: '...', timeout: 900000, temperature: 0)
     oafp in=ls data=lib path="[?ends_with(filename,'.jar')].filename" llmcontext="jar list" llmprompt="add a 'category', 'subcategory' and 'description' to each listed jar file" getlist=true out=json | oafp sql="select * order by category, subcategory" out=ctable
+- c: AWS
+  s: EKS
+  d: Produce a list of all AWS EKS Kubernetes service accounts, per namespace, which have an AWS IAM role associated with it.
+  e: |-
+    oafp cmd="kubectl get sa -A -o json" path="items[].{ serviceAccount: metadata.name, ns: metadata.namespace, iamRole: nvl(metadata.annotations.\"eks.amazonaws.com/role-arn\", 'n/a') }" sql="select * where iamRole <> 'n/a'" out=ctable

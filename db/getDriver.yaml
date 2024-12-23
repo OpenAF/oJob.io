@@ -7,6 +7,7 @@ help:
     example: list
   - name   : db
     desc   : The db to install or build (use op=list to check the possible values)
+    example: mysql
 
 init:
   code: |
