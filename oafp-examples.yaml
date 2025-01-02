@@ -1069,3 +1069,8 @@ data:
   d: Produce a list of all AWS EKS Kubernetes service accounts, per namespace, which have an AWS IAM role associated with it.
   e: |-
     oafp cmd="kubectl get sa -A -o json" path="items[].{ serviceAccount: metadata.name, ns: metadata.namespace, iamRole: nvl(metadata.annotations.\"eks.amazonaws.com/role-arn\", 'n/a') }" sql="select * where iamRole <> 'n/a'" out=ctable
+- c: OpenAF
+  s: oafp
+  d: Produce a colored table with all the current oafp input and output formats supported.
+  e: |-
+    oafp -v path="concat(oafp.inputs[].{option:'in',type:@}, oafp.outputs[].{option:'out',type:@})" out=ctable
