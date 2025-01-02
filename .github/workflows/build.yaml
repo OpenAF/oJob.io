@@ -17,8 +17,9 @@ jobs:
     - name: Cache OpenAF runtime
       uses: actions/cache@v4
       with:
-        key : oaf-latest
+        key : oaf-t8
         path: /tmp/oaf
+        dist: t8
 
     # --------------------
     - name: Backup oJob.io
@@ -81,8 +82,9 @@ jobs:
     - name: Cache OpenAF runtime
       uses: actions/cache@v4
       with:
-        key : oaf-latest
+        key : oaf-t8
         path: /tmp/oaf
+        dist: t8
         
     # -------------------------
     #- uses: actions/checkout@v2
