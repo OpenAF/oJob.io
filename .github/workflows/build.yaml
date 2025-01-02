@@ -23,7 +23,7 @@ jobs:
 
     # --------------------
     - name: Backup oJob.io
-      uses: openaf/ojob-action@v5
+      uses: openaf/ojob-action@v6
       env :
         OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
@@ -91,7 +91,7 @@ jobs:
 
     # --------------------------
     - name: Install oJobIO opack
-      uses: openaf/ojob-action@v5
+      uses: openaf/ojob-action@v6
       with:
         #dist: nightly
         def : |
@@ -135,7 +135,7 @@ jobs:
 
     # -----------------------
     - name: Copy build result
-      uses: openaf/ojob-action@v5
+      uses: openaf/ojob-action@v6
       env :
         OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
