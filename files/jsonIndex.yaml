@@ -1,0 +1,67 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a JSON file to act as an file list table index.
+  expects: 
+  - name     : path  
+    desc     : The path from where to get the list (defaults to '.')
+    mandatory: false
+  - name     : filter
+    desc     : Optional filter based on $path
+    mandatory: false
+  - name     : ffilter
+    desc     : Option filter based on $from
+    mandatory: false
+  - name     : uri
+    desc     : Optional URI to include
+    mandatory: false
+
+todo:
+- Generate json index
+
+ojob:
+  opacks      :
+  - openaf: 20230704
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------------
+- name : Generate json index
+  check:
+    in:
+      path   : isString.default(".")
+      filter : isString.default(__)
+      ffilter: isString.default(__)
+      uri    : isString.default(__)
+  typeArgs:
+    execRequire: list.js
+
+code:
+  list.js: |
+    (function() {
+      exports["Generate json index"] = function(args) {
+        var content = ""
+        
+        var uri  = isDef(args.uri) ? args.uri : ""
+        if (!uri.trim().endsWith("/")) uri += "/"
+
+        var lst = io.listFiles(args.path).files
+        if (isDef(args.filter))   lst = $path(lst, args.filter)
+        if (isDef(args.ffilter))  {
+          args.ffilter = args.ffilter.replace(/\.select\(.+$/, "")
+          lst = $from(lst).query(af.fromNLinq(args.ffilter)).select()
+        }
+
+        var theList = $from(lst).sort("-isDirectory", "filename").select()
+
+        theList = theList.map(f => ({
+          filename: encodeURI(uri + f.filename + (f.isDirectory ? "/" : "")),
+          lastModified: new Date(f.lastModified),
+          size: f.size
+        }))
+        
+        if (isUnDef(args.__format)) args.__format = "json"
+        ow.oJob.output(theList, args)
+      }
+    })()

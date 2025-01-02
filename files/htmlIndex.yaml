@@ -1,4 +1,4 @@
-# Author: Anonymous
+# Author: Nuno Aguiar
 help:
   text   : Generates an markdown or HTML page to act as an file list table index.
   expects: 
