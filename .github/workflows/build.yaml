@@ -19,7 +19,6 @@ jobs:
       with:
         key : oaf-t8
         path: /tmp/oaf
-        dist: t8
 
     # --------------------
     - name: Backup oJob.io
@@ -27,7 +26,7 @@ jobs:
       env :
         OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
-        #dist  : nightly
+        dist  : t8
         def   : |
           todo:
           - Backup ojob.io
@@ -84,7 +83,6 @@ jobs:
       with:
         key : oaf-t8
         path: /tmp/oaf
-        dist: t8
         
     # -------------------------
     #- uses: actions/checkout@v2
@@ -93,7 +91,7 @@ jobs:
     - name: Install oJobIO opack
       uses: openaf/ojob-action@v6
       with:
-        #dist: nightly
+        dist: t8
         def : |
           todo:
           - Install aux packs
@@ -139,7 +137,7 @@ jobs:
       env :
         OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
-        #dist  : nightly
+        dist  : t8
         def   : |
           ojob:
             opacks: 
