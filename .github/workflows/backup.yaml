@@ -18,16 +18,16 @@ jobs:
     - name: Cache OpenAF runtime
       uses: actions/cache@v4
       with:
-        key : oaf-nightly
+        key : oaf-t8
         path: /tmp/oaf
 
     # --------------------
     - name: Backup oJob.io
-      uses: openaf/ojob-action@v5
+      uses: openaf/ojob-action@v6
       env :
         OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
-        dist  : nightly
+        dist  : t8
         def   : |
           todo:
           - Backup ojob.io

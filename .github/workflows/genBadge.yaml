@@ -18,7 +18,7 @@ jobs:
     - name: Cache OpenAF runtime
       uses: actions/cache@v4
       with:
-        key : oaf-nightly
+        key : oaf-t8
         path: /tmp/oaf
         
     # -------------------------
@@ -26,17 +26,17 @@ jobs:
         
     # -------------------
     - name: Update badges
-      uses: openaf/ojob-action@v4
+      uses: openaf/ojob-action@v6
       with:
         ojob: .github/ojobs/genBadge.yaml
-        dist: nightly
+        dist: t8
         
     # -------------
     - name: Checkin
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      uses: openaf/ojob-action@v4
+      uses: openaf/ojob-action@v6
       with:
         ojob: 'ojob.io/git/hub/contentIn'
         args: 'message="Update\ badge\ {{date}}/{{time}}" title="Update\ badge" paths=.github/'
-        dist: nightly
+        dist: t8
