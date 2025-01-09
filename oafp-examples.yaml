@@ -1074,3 +1074,8 @@ data:
   d: Produce a colored table with all the current oafp input and output formats supported.
   e: |-
     oafp -v path="concat(oafp.inputs[].{option:'in',type:@}, oafp.outputs[].{option:'out',type:@})" out=ctable
+- c: Generic
+  s: End of life
+  d: List the versions of a given product with the corresponding end-of-life dates (using endofline.date API)
+  e: |-
+    PRODUCT=jetty && oafp url="https://endoflife.date/api/$PRODUCT.json" out=ctable sql="select * order by releaseDate"
