@@ -1079,3 +1079,8 @@ data:
   d: List the versions of a given product with the corresponding end-of-life dates (using endofline.date API)
   e: |-
     PRODUCT=jetty && oafp url="https://endoflife.date/api/$PRODUCT.json" out=ctable sql="select * order by releaseDate"
+- c: Generic
+  s: BOM
+  d: Given a container image use syft to generate a table with a corresponding bill-of-materials (BOM) table with each identified artifact name, version, type, language, found path and maven group & id (if applicable).
+  e: |-
+    IMAGE=openaf/oaf:t8 && oafp cmd="syft scan registry:$IMAGE -o syft-json" path="artifacts[].{name:name,version:version,type:type,language:language,paths:join(',',locations[].path),groupId:nvl(metadata.pomProperties.groupId,'n/a'),artifactId:nvl(metadata.pomProperties.artifactId,'n/a')}" sql="select * order by type, name, version" out=ctable
