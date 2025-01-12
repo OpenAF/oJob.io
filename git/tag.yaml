@@ -1,0 +1,35 @@
+# Author: Nuno Aguiar
+help:
+  text   : Create or update git tags to existing tags 
+  expects: 
+  - name     : source
+    desc     : An existing git tag for the current repo
+    example  : "v1.0.0"
+    mandatory: true
+  - name     : target
+    desc     : The target git tag for the current repo
+    example  : "v1.0"
+    mandatory: true
+
+todo:
+- Update tag
+
+ojob:
+  opacks      :
+  - openaf: 20241117
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# -----------------
+- name : Update tag
+  lang : shell
+  check:
+    in:
+      source: isString
+      target: isString
+  exec : |
+    git fetch --tags
+    git tag -f $target $(git rev-list -n 1 $source)
+    git push origin $target --force
