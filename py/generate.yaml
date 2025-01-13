@@ -34,6 +34,15 @@ tmpl:
     code = ''.join(code_lines)
     exec(code)
 
+    # Register a function to be called when the script exits
+    def on_exit():
+       # Terminate the background process
+       proc.terminate()
+       proc.wait()
+    
+    atexit.register(on_exit)
+
+
     # --- START YOUR CODE HERE ---
     # _d(json)     - dump a json object 
     # _(code)      - execute code in OpenAF and returns the result
@@ -42,10 +51,6 @@ tmpl:
     # _s(key, obj) - set and object into an OpenAF $set key
 
     # --- END YOUR CODE HERE --
-
-    # Terminate the OpenAF background process
-    proc.terminate()
-    proc.wait()
 
 todo:
 - Generate Python Squeleton
