@@ -1084,3 +1084,13 @@ data:
   d: Given a container image use syft to generate a table with a corresponding bill-of-materials (BOM) table with each identified artifact name, version, type, language, found path and maven group & id (if applicable).
   e: |-
     IMAGE=openaf/oaf:t8 && oafp cmd="syft scan registry:$IMAGE -o syft-json" path="artifacts[].{name:name,version:version,type:type,language:language,paths:join(',',locations[].path),groupId:nvl(metadata.pomProperties.groupId,'n/a'),artifactId:nvl(metadata.pomProperties.artifactId,'n/a')}" sql="select * order by type, name, version" out=ctable
+- c: Generic
+  s: CSV
+  d: Given a BOM CSV with multiple fields (7 in total) return a new CSV with just 3 of the original fields.
+  e: |-
+    # Check current fields (filter for first 5 records)
+    oafp bom.csv sql="select * limit 5" out=ctable
+    # Test with just 3 fields (filter for first 5 records)
+    oafp bom.csv sql="select name, version, group limit 5" out=ctable
+    # Finally produce the new CSV with just 3 fields
+    oafp bom.csv sql="select name, version, group" out=csv > new_bom.csv
