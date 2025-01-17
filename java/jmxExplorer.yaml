@@ -7,9 +7,13 @@ help:
     example  : all
     mandatory: true 
   - name     : url
-    desc     : The JMX url to connecto to
+    desc     : The JMX url to connect to
     example  : service:jmx:rmi:///jndi/rmi://127.0.0.1:9999/jmxrmi
-    mandatory: true
+    mandatory: false
+  - name     : pid
+    desc     : In alternative to a JMX url you can provide a local Java process pid
+    example  : "12345"
+    mandatory: false
   - name     : query
     desc     : The JMX query or complete object reference for op=query and op=get
     example  : "java.lang:*"
@@ -42,7 +46,8 @@ jobs:
 - name : Connect to JMX target
   check:
     in:
-      url     : isString
+      url     : isString.default(__)
+      pid     : toNumber.isNumber.default(__)
       user    : isString.default(__)
       pass    : isString.default(__)
       provider: isString.default(__)
@@ -50,7 +55,13 @@ jobs:
     plugin("JMX")
     ow.loadJava()
 
-    args.jmx = new ow.java.JMX(args.url, args.user, args.pass, args.provider)
+    if (isUnDef(args.url)) {
+      if (isUnDef(args.pid)) throw "If an url is not provided a valid local Java pid is needed."
+      ow.loadServer()
+      args.jmx = new ow.java.JMX((new JMX()).attach2Local(args.pid).URL)
+    } else {
+      args.jmx = new ow.java.JMX(args.url, args.user, args.pass, args.provider)
+    }
 
 # ------------------
 - name : JMX Get all
@@ -89,7 +100,7 @@ jobs:
       **JMX Explorer help**
       **-----------------**
 
-        1. Start by dding to the target Java application the following options:
+        1. Start by adding to the target Java application the following options:
            _-D"com.sun.management.jmxremote.port=9999" -D"com.sun.management.jmxremote.authenticate=false" -D"com.sun.management.jmxremote.ssl=false"_
 
         2. Then build the JMX url you need to access it. Each call to JMX Explorer requires that you provide this url:
