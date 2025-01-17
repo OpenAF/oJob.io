@@ -49,9 +49,9 @@ fi
 echo "Starting (hit Ctrl-C or close Chrome to end)..."
 echo $TMPNAME
 if [ -x "$(command -v google-chrome)" ]; then
-    google-chrome --user-data-dir="$TMPNAME" $PROXYARG 
+    google-chrome --user-data-dir="$TMPNAME" $PROXYARG --no-first-run --no-default-browser-check --disable-sync
 else
-    chromium-browser --user-data-dir="$TMPNAME" $PROXYARG 
+    chromium-browser --user-data-dir="$TMPNAME" $PROXYARG
 fi
 
 if [ -d "$TMPNAME/Default" ]; then

@@ -49,7 +49,7 @@ if exist "%TMPDIR%\Default\" (
 )
 
 echo Starting (close Chrome and hit Ctrl-C to end)...
-start /wait chrome.exe --user-data-dir="%TMPDIR%" %PROXYARG% 
+start /wait chrome.exe --user-data-dir="%TMPDIR%" %PROXYARG% --no-first-run --no-default-browser-check --disable-sync
 
 if exist "%TMPDIR%\Default\" (
     if not exist "%TMPDIR%\lockfile" (

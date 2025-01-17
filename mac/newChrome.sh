@@ -36,7 +36,7 @@ fi
 
 echo "Starting (hit Ctrl-C or close Chrome to end)..."
 echo $TMPNAME
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir="$TMPNAME" $PROXYARG
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --user-data-dir="$TMPNAME" $PROXYARG --no-first-run --no-default-browser-check --disable-sync
 
 if [ -d "$TMPNAME/Default" ]; then
     if [ ! -L "$TMPNAME/SingletonLock" ] && [ ! "$NODELETE" == "yes" ]; then
