@@ -1094,3 +1094,14 @@ data:
     oafp bom.csv sql="select name, version, group limit 5" out=ctable
     # Finally produce the new CSV with just 3 fields
     oafp bom.csv sql="select name, version, group" out=csv > new_bom.csv
+- c: AWS
+  s: RDS Data
+  d: Given an AWS RDS, postgresql based, database with RDS Data API activated execute the 'analyze' statement for each table on the 'public' schema.
+  e: |-
+    SECRET="arn:aws:secretsmanager:eu-west-1:123456789000:secret:dbname-abc123" \
+    DB="arn:aws:rds:eu-west-1:123456789000:cluster:dbname" \
+    REGION="eu-west-1" \
+    oafp libs=AWS in=awsrdsdata awssecret=$SECRET awsdb=$DB awsregion=$REGION \
+    data="select table_schema, table_name, table_type from information_schema.tables where table_schema='public' and table_type='BASE TABLE'" \
+    path="formattedRecords[].{libs:'AWS',in:'awsrdsdata',awssecret:'$SECRET',awsdb:'$DB',awsregion:'$REGION',data:concat(concat('analyze \"', table_name),'\"')}" \
+    out=json | oafp in=oafp
