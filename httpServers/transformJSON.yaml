@@ -1,9 +1,9 @@
 # Author: Nuno Aguiar
 init:
-  port: &PORT 17878
+  port: &PORT 8080
 
 help:
-  text   : Web service to parse JSON (received as parameter 'data') to other formats (e.g. /json, /yaml, /html, /mdjson, /mdyaml)
+  text   : Web service, on port 8080, to parse JSON (received as parameter 'data') to other formats (e.g. /json, /yaml, /html, /mdjson, /mdyaml)
   # expects: 
   # - name     : port
   #   desc     : Port to listen to
