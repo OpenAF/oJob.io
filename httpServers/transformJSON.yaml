@@ -1,0 +1,118 @@
+# Author: Nuno Aguiar
+init:
+  port: &PORT 17878
+
+help:
+  text   : Web service to parse JSON (received as parameter 'data') to other formats (e.g. /json, /yaml, /html, /mdjson, /mdyaml)
+  # expects: 
+  # - name     : port
+  #   desc     : Port to listen to
+  #   example  : "8080"
+  #   mandatory: false
+
+todo:
+- (httpdStart  ): *PORT
+- (httpdDefault): *PORT
+  ((uri       )): /
+  
+# pretty JSON
+- (httpdService): *PORT
+  ((uri       )): /json
+  ((execURI   )): |
+    let data
+    if (isDef(request.files) && isDef(request.files.postData)) {
+      data = jsonParse(request.files.postData).data
+    } else {
+      if (isDef(request.params) && isDef(request.params.data))
+        data = jsonParse(request.params.data)
+      else 
+        data = request
+    }
+
+    return ow.server.httpd.reply( String(stringify(data)), 200, "text/plain" )
+
+# JSON to YAML
+- (httpdService): *PORT
+  ((uri       )): /yaml
+  ((execURI   )): |
+    let data
+    cprint(request)
+    if (isDef(request.files) && isDef(request.files.postData)) {
+      data = jsonParse(request.files.postData).data
+    } else {
+      if (isDef(request.params) && isDef(request.params.data))
+        data = jsonParse(request.params.data)
+      else 
+        data = request
+    }
+
+    return ow.server.httpd.reply( String(af.toYAML(data)), 200, "text/yaml" )
+
+# JSON to HTML
+- (httpdService): *PORT
+  ((uri       )): /html
+  ((execURI   )): |
+    let data
+    if (isDef(request.files) && isDef(request.files.postData)) {
+      data = jsonParse(request.files.postData).data
+    } else {
+      if (isDef(request.params) && isDef(request.params.data))
+        data = jsonParse(request.params.data)
+      else 
+        data = request
+    }
+
+    ow.loadTemplate()
+    var _res = ow.template.html.parseMap(data, true)
+    _res = "<html><style>" + _res.css + "</style><body>" + _res.out + "</body></html>"
+
+    return ow.server.httpd.reply( String(_res), 200, "text/html" )
+
+# JSON to MDJSON
+- (httpdService): *PORT
+  ((uri       )): /mdjson
+  ((execURI   )): |
+    let data
+    if (isDef(request.files) && isDef(request.files.postData)) {
+      data = jsonParse(request.files.postData).data
+    } else {
+      if (isDef(request.params) && isDef(request.params.data))
+        data = jsonParse(request.params.data)
+      else 
+        data = request
+    }
+
+    ow.loadTemplate()
+    var _res = ow.template.html.genStaticVersion4MD("```json\n" + stringify(data) + "\n```\n")
+
+    return ow.server.httpd.reply( String(_res), 200, "text/html" )
+
+# JSON to MDYAML
+- (httpdService): *PORT
+  ((uri       )): /mdyaml
+  ((execURI   )): |
+    let data
+    if (isDef(request.files) && isDef(request.files.postData)) {
+      data = jsonParse(request.files.postData).data
+    } else {
+      if (isDef(request.params) && isDef(request.params.data))
+        data = jsonParse(request.params.data)
+      else 
+        data = request
+    }
+
+    ow.loadTemplate()
+    var _res = ow.template.html.genStaticVersion4MD("```json\n" + af.toYAML(data) + "\n```\n")
+
+    return ow.server.httpd.reply( String(_res), 200, "text/html" )
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  - oJob-common
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  daemon      : true
+        
+include: 
+- oJobHTTPd.yaml
