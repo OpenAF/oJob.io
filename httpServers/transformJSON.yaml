@@ -14,12 +14,18 @@ todo:
 - (httpdStart  ): *PORT
 - (httpdDefault): *PORT
   ((uri       )): /
+
+# echo
+- (httpdService): *PORT
+  ((uri       )): /echo
+  ((execURI   )): |
+    return ow.server.httpd.reply( String(stringify(request)), 200, "text/plain" )
   
 # pretty JSON
 - (httpdService): *PORT
   ((uri       )): /json
   ((execURI   )): |
-    let data
+    var data
     if (isDef(request.files) && isDef(request.files.postData)) {
       data = jsonParse(request.files.postData).data
     } else {
@@ -35,8 +41,7 @@ todo:
 - (httpdService): *PORT
   ((uri       )): /yaml
   ((execURI   )): |
-    let data
-    cprint(request)
+    var data
     if (isDef(request.files) && isDef(request.files.postData)) {
       data = jsonParse(request.files.postData).data
     } else {
@@ -52,7 +57,7 @@ todo:
 - (httpdService): *PORT
   ((uri       )): /html
   ((execURI   )): |
-    let data
+    var data
     if (isDef(request.files) && isDef(request.files.postData)) {
       data = jsonParse(request.files.postData).data
     } else {
@@ -72,7 +77,7 @@ todo:
 - (httpdService): *PORT
   ((uri       )): /mdjson
   ((execURI   )): |
-    let data
+    var data
     if (isDef(request.files) && isDef(request.files.postData)) {
       data = jsonParse(request.files.postData).data
     } else {
@@ -91,7 +96,7 @@ todo:
 - (httpdService): *PORT
   ((uri       )): /mdyaml
   ((execURI   )): |
-    let data
+    var data
     if (isDef(request.files) && isDef(request.files.postData)) {
       data = jsonParse(request.files.postData).data
     } else {
