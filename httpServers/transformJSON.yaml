@@ -107,7 +107,7 @@ todo:
     }
 
     ow.loadTemplate()
-    var _res = ow.template.html.genStaticVersion4MD("```json\n" + af.toYAML(data) + "\n```\n")
+    var _res = ow.template.html.genStaticVersion4MD("```yaml\n" + af.toYAML(data) + "\n```\n")
 
     return ow.server.httpd.reply( String(_res), 200, "text/html" )
 
