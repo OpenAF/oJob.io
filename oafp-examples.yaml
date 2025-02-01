@@ -1127,3 +1127,9 @@ data:
     oafp data="(claims: (c1: a1, c2: a2))" out=jwt jwtsecret=this_is_my_own_very_long_signature
     # you can check it adding "| oafp in=jwt"
     # you can also verify the signature adding instead "| oafp in=jwt injwtsecret=this_is_my_own_very_long_signature injwtverify=true" which will add a __verified boolean field.
+- c: AI
+  s: DeepSeek
+  d: Given a list of files and their corresponding sizes use DeepSeek R1 model to produce a list of 5 files that would be interesting to use to test an ETL tool.
+  e: |-
+    # export OAFP_MODEL="(type: ollama, model: 'deepseek-r1:8b', url: 'https://ollama.local', timeout: 10000000, temperature: 0)"
+    oafp in=ls data="." path="[].{path:canonicalPath,size:size}" llmcontext="list of local files with path and size" llmprompt="output a json array with the suggestion of 5 data files that would be interesting to use to test an ETL tool" getlist=true out=ctable
