@@ -1110,3 +1110,8 @@ data:
   d: Given an URL to a resource on a website determine how long ago is was modified given the data provided by the server.
   e: |-
     URL="https://openaf.io/openaf.jar" && oafp url="$URL" urlmethod=head path="response.timeago(to_ms(\"last-modified\"))"
+- c: Generic
+  s: HTML
+  d: Given an input file, in a specific language (e.g. yaml, json, bash, etc...), output an HTML representation with syntax highlighting.
+  e: |-
+    OUT=yaml && FILE=data.yaml && oafp file=$FILE in=raw outkey=data out=json | oafp out=template templatetmpl=true template="\`\`\`$OUT\n{{{data}}}\n\`\`\`" | oafp in=md out=html
