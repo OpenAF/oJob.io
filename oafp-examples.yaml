@@ -1115,3 +1115,8 @@ data:
   d: Given an input file, in a specific language (e.g. yaml, json, bash, etc...), output an HTML representation with syntax highlighting.
   e: |-
     OUT=yaml && FILE=data.yaml && oafp file=$FILE in=raw outkey=data out=json | oafp out=template templatetmpl=true template="\`\`\`$OUT\n{{{data}}}\n\`\`\`" | oafp in=md out=html
+- c: Generic
+  s: JWT
+  d: Given an input JWT (JSON Web Token) converts it to a human readable format.
+  e: |-
+    echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c" | oafp in=jwt
