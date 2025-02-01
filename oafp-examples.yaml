@@ -1120,3 +1120,10 @@ data:
   d: Given an input JWT (JSON Web Token) converts it to a human readable format.
   e: |-
     echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c" | oafp in=jwt
+- c: Generic
+  s: JWT
+  d: Generates an output JWT (JSON Web Token) given the provided input claims signed with a provided secret.
+  e: |-
+    oafp data="(claims: (c1: a1, c2: a2))" out=jwt jwtsecret=this_is_my_own_very_long_signature
+    # you can check it adding "| oafp in=jwt"
+    # you can also verify the signature adding instead "| oafp in=jwt injwtsecret=this_is_my_own_very_long_signature injwtverify=true" which will add a __verified boolean field.
