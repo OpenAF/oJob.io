@@ -1105,3 +1105,8 @@ data:
     data="select table_schema, table_name, table_type from information_schema.tables where table_schema='public' and table_type='BASE TABLE'" \
     path="formattedRecords[].{libs:'AWS',in:'awsrdsdata',awssecret:'$SECRET',awsdb:'$DB',awsregion:'$REGION',data:concat(concat('analyze \"', table_name),'\"')}" \
     out=json | oafp in=oafp
+- c: Generic
+  s: URL
+  d: Given an URL to a resource on a website determine how long ago is was modified given the data provided by the server.
+  e: |-
+    URL="https://openaf.io/openaf.jar" && oafp url="$URL" urlmethod=head path="response.timeago(to_ms(\"last-modified\"))"
