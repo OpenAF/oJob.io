@@ -1,0 +1,61 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a Keycloak credential
+  expects:
+  - name     : password
+    desc     : The password to be used (if not provided, a random one will be generated)
+    example  : Password123
+    mandatory: false
+
+todo:
+- Generate keycloak credential
+
+ojob:
+  opacks      :
+  - openaf: 20240812
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+
+
+jobs:
+# -----------------------------------
+- name : Generate keycloak credential
+  check:
+    in:
+      password: isString.default(__)
+  exec : |
+    function genKeycloakCred(aPassword) {
+      var generateSalt = function() {
+        var random = new java.security.SecureRandom()
+        var salt = newJavaArray(java.lang.Byte.TYPE, 32)
+        random.nextBytes(salt)
+        return salt
+      }
+
+      var hashPassword = function(password, salt, iterations, keyLength) {
+        var spec = new javax.crypto.spec.PBEKeySpec(new java.lang.String(password).toCharArray(), salt, iterations, keyLength)
+        var factory = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+        var hash = factory.generateSecret(spec).getEncoded()
+
+        return ow.format.toBase64(hash)
+      }
+
+      var pass = aPassword
+      var salt = generateSalt()
+      var iterations = 50000
+      var keyLength = 256
+
+      var hashedPass = hashPassword(pass, salt, iterations, keyLength)
+      var res = {
+        type: "password",
+        secretData: stringify({ value: hashedPass, salt: ow.format.toBase64(salt) }, __, ""),
+        credentialData: "{\"hashIterations\":50000,\"algorithm\":\"pbkdf2-sha256\"}"
+      }
+      return res
+    }
+
+    if (isUnDef(args.password)) {
+      args.password = ow.format.string.genPass(16)
+    }
+
+    ow.oJob.output({ password: args.password, keycloak: [ genKeycloakCred(args.password) ] }, args)
