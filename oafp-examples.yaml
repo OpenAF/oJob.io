@@ -1133,3 +1133,11 @@ data:
   e: |-
     # export OAFP_MODEL="(type: ollama, model: 'deepseek-r1:8b', url: 'https://ollama.local', timeout: 10000000, temperature: 0)"
     oafp in=ls data="." path="[].{path:canonicalPath,size:size}" llmcontext="list of local files with path and size" llmprompt="output a json array with the suggestion of 5 data files that would be interesting to use to test an ETL tool" getlist=true out=ctable
+- c: Kubernetes
+  s: Kubectl
+  d: Build a table of the images 'cached' in all Kubernetes nodes using Kubectl and, additionally, provide a summary of the total size per node.
+  e: |-
+    # Master table with all nodes
+    oafp cmd="kubectl get nodes -o json" path="items[].amerge(status.images,{node:metadata.name})[].{node:node,image:names[1],sizeBytes:sizeBytes}" 
+    # Summary table of total images size per node
+    oafp cmd="kubectl get nodes -o json" path="items[].amerge(status.images,{node:metadata.name})[].{node:node,image:names[1],sizeBytes:sizeBytes}" sql='select "node", sum("sizeBytes") "totalSize" group by "node"' out=json | oafp field2byte=totalSize out=ctable
