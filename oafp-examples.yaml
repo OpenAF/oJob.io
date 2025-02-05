@@ -1141,3 +1141,8 @@ data:
     oafp cmd="kubectl get nodes -o json" path="items[].amerge(status.images,{node:metadata.name})[].{node:node,image:names[1],sizeBytes:sizeBytes}" 
     # Summary table of total images size per node
     oafp cmd="kubectl get nodes -o json" path="items[].amerge(status.images,{node:metadata.name})[].{node:node,image:names[1],sizeBytes:sizeBytes}" sql='select "node", sum("sizeBytes") "totalSize" group by "node"' out=json | oafp field2byte=totalSize out=ctable
+- c: AWS
+  s: Inspector
+  d: Given an AWS ECR repository and image tag retrieve the AWS Inspector vulnerabilities and list a quick overview in an Excel spreadsheet
+  e: |-
+    REPO=my/image && TAG=1.2.3 && aws inspector2 list-findings --filter "{\"ecrImageRepositoryName\":[{\"comparison\":\"EQUALS\",\"value\":\"$REPO\"}],\"ecrImageTags\":[{\"comparison\":\"EQUALS\",\"value\":\"$TAG\"}]}" --output json | oafp path="findings[].{title:title,severity:severity,lastObservedAt:lastObservedAt,firstObservedAt:firstObservedAt,lastObservedAt:lastObservedAt,fixAvailable:fixAvailable,where:join(', ',(packageVulnerabilityDetails.vulnerablePackages[].nvl(filePath, name)))}" out=xls
