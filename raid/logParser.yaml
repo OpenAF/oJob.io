@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Reads a ndjson logs file and converts it to readable human logs (version 20230319a)
+  text   : Reads a ndjson logs file and converts it to readable human logs (version 20250204a)
   expects:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
@@ -34,10 +34,14 @@ help:
     desc     : "Boolean to determine if output should be in JSON format"
     example  : "true"
     mandatory: false
+  - name     : alltypes
+    desc     : "Boolean to determine if all types should be output"
+    example  : "true"
+    mandatory: false
 
 init:
-  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{{activityDescr}}}, {{{result}}}, {{errorCode}}, {{{failureDescr}}}, {{operationTime}} {{stack_trace}}"
-  templateRegular: "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} [{{executionId}}] - {{{message}}} {{{stack_trace}}}"
+  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} {{logger_name}} - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{{activityDescr}}}, {{{result}}}, {{errorCode}}, {{{failureDescr}}}, {{operationTime}} {{stack_trace}}"
+  templateRegular: "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} {{logger_name}} - {{{message}}} {{{stack_trace}}}"
   templateDefault: "{{_time}} | {{level }} | {{{message}}}"
 
 todo:
@@ -55,7 +59,7 @@ ojob:
 jobs:
 # -----------
 - name : Init
-  exec : |
+  exec : | 
     ow.loadTemplate()
     ow.template.addFormatHelpers()
     ow.template.addOpenAFHelpers()
@@ -85,6 +89,7 @@ jobs:
       icase    : toBoolean.isBoolean.default(true)
       inception: toBoolean.isBoolean.default(true)
       injson   : toBoolean.isBoolean.default(false)
+      alltypes : toBoolean.isBoolean.default(false)
   exec : |
     var is = __, os = __, metrics = {
       auditLines: 0,
@@ -127,30 +132,20 @@ jobs:
         if (line.length != 0 && !line.trim().endsWith("}")) { buf += line.trim(); metrics.multiLine++; return }
         if (buf.length > 0) { line = buf + line; buf = __ }
       }
-      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") {
-        if (!args.injson) {
-          if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type)) global._p(line, os)
-          buf = __
-          metrics.nonJson++
-          return
-        }
+      if (line.length == 0 || line.length > 0 && line.trim().substring(0, 1) != "{") { 
+        if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type) && !args.injson) global._p(line, os) 
+        buf = __
+        metrics.nonJson++
+        return 
       }
 
       var data, go = true
-      try {
+      try { 
         data = jsonParse(line)
         // Test for "inception"
-        if (args.inception) {
-           while(isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) { data = jsonParse(data.message) }
-        }
-      } catch(e) {
-        sprintErr(e)
-      }
-      if (args.injson) {
-        if (!isMap(data))
-          data = { message: data }
-        else
-          if (Object.keys(data).length == 0) return
+        if (args.inception && isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) data = jsonParse(data.message)
+      } catch(e) { 
+        sprintErr(e) 
       }
       if (!isMap(data)) { if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type) && !args.injson) global._p(data, os); return }
       if (isString(args.filter)) {
@@ -180,39 +175,48 @@ jobs:
         }
       }
 
-      if (isDef(args.type) && data.logger_name != args.type) go = false
+      if (isDef(args.type) && data.logger_name != args.type) go = false 
       if (isUnDef(args.type) && data.logger_name == "AuditLogger") { metrics.auditLines++; go = false }
 
+      if (args.alltypes) go = true
       if (go) {
+        var _fnT = _d => {
+          var _tD = isDef(_d["@timestamp"]) ? _d["@timestamp"] : _d.parse_timestamp
+          if (_tD.endsWith("Z") && _tD.indexOf(".") > 0 && _tD.length < 24) _tD = [_tD.substring(0, 19), ".", _tD.substring(20, _tD.length-1), "0".repeat(24 - _tD.length), "Z"].join("")
+          if (_tD.indexOf("+") > 0) _tD = [_tD.substring(0, 23), "Z"].join("")
+          if (_tD.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}\d+Z$/)) _tD = [_tD.substring(0, 23), "Z"].join("")
+          return _tD ? ow.format.fromDate(new Date(_tD), "yyyy-MM-dd HH:mm:ss,SSS") : _tD
+        }
+
         if (isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         switch(data.logger_name) {
         case "AuditLogger":
-          try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
+          data._time = _fnT(data)
           data.thread_name = data.thread_name.substr(-20)
-          if (args.injson)
+          if (args.injson) 
             ow.oJob.output(data, args)
-          else
+          else 
             global._p(tmplAudit(data), os)
           metrics.auditLines++
           metrics.convertedLines++
           break;
         default           :
           try {
-            try { data._time = ow.format.fromDate(new Date(isDef(data.parse_timestamp) ? data.parse_timestamp : data["@timestamp"]), "yyyy-MM-dd HH:mm:ss,SSS") } catch(e2) { data._time = data.parse_timestamp }
-            if (isUnDef(data._time)) delete data._time
             if (isUnDef(data.code) || isUnDef(data.thread_name)) {
+              data._time = _fnT(data)
               if (isDef(data["thread_name"])) data.message = "[" + data["thread_name"] + "] " + data.message
-              if (args.injson)
+              if (args.injson) 
                 ow.oJob.output(data, args)
-              else
+              else 
                 global._p(tmplDefault(data), os)
               metrics.defaultLines++
               metrics.convertedLines++
             } else {
+              data._time = _fnT(data)
               data.thread_name = data.thread_name.substr(-20)
-              if (args.injson)
+              if (args.injson) 
                 ow.oJob.output(data, args)
-              else
+              else 
                 global._p(tmplRegular(data), os)
               metrics.regularLines++
               metrics.convertedLines++
@@ -223,6 +227,13 @@ jobs:
         }
       } else {
         metrics.filteredLines++
+        if (args.alltypes) {
+          if (isMap(data)) {
+            print(af.toSLON(data))
+          } else {
+            print(data)
+          }
+        }
       }
     }
 
@@ -233,7 +244,7 @@ jobs:
       $set("metrics_" + args.file, metrics)
     } else {
       io.pipeLn(parseLine)
-    }
+    } 
 
 # -------------------
 - name : Main process
