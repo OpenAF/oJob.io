@@ -1146,3 +1146,8 @@ data:
   d: Given an AWS ECR repository and image tag retrieve the AWS Inspector vulnerabilities and list a quick overview in an Excel spreadsheet
   e: |-
     REPO=my/image && TAG=1.2.3 && aws inspector2 list-findings --filter "{\"ecrImageRepositoryName\":[{\"comparison\":\"EQUALS\",\"value\":\"$REPO\"}],\"ecrImageTags\":[{\"comparison\":\"EQUALS\",\"value\":\"$TAG\"}]}" --output json | oafp path="findings[].{title:title,severity:severity,lastObservedAt:lastObservedAt,firstObservedAt:firstObservedAt,lastObservedAt:lastObservedAt,fixAvailable:fixAvailable,where:join(', ',(packageVulnerabilityDetails.vulnerablePackages[].nvl(filePath, name)))}" out=xls
+- c: Generic
+  s: Reverse
+  d: Given a text file revert the line ordering
+  e: |-
+    cat somefile.txt | oafp in=lines linesjoin=true path="reverse([]).join('\n',@)"
