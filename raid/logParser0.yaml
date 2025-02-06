@@ -148,7 +148,7 @@ jobs:
       }
       if (args.injson) {
         if (!isMap(data))
-          data = { message: data }
+          data = { message: data }
         else
           if (Object.keys(data).length == 0) return
       }

@@ -40,8 +40,8 @@ help:
     mandatory: false
 
 init:
-  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} {{logger_name}} - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{{activityDescr}}}, {{{result}}}, {{errorCode}}, {{{failureDescr}}}, {{operationTime}} {{stack_trace}}"
-  templateRegular: "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{code}} {{logger_name}} - {{{message}}} {{{stack_trace}}}"
+  templateAudit  : "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{logger_name}} {{code}} - {{clientType}}, {{clientVersion}}, {{clientUsername}}, {{remoteIP}}, {{remoteHostname}}, {{clientIP}}, {{clientHostname}}, {{referrer}}, {{username}}, {{sessionId}}, {{activityType}}, {{activityName}}, {{{activityDescr}}}, {{{result}}}, {{errorCode}}, {{{failureDescr}}}, {{operationTime}} {{stack_trace}}"
+  templateRegular: "{{_time}} [{{$f '%-20.20s' thread_name}}] {{$f '%-5s' level}} {{logger_name}} {{code}} [{{executionId}}] - {{{message}}} {{{stack_trace}}}"
   templateDefault: "{{_time}} | {{level }} | {{{message}}}"
 
 todo:
