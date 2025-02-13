@@ -1,0 +1,39 @@
+# Author: Nuno Aguiar
+help:
+  text   : Launch a docker container to test a SNMP client by starting a SNMP server
+  expects: 
+  - name     : expose
+    desc     : If defined the SNMP port to be exposed (usually 161)
+    example  : "161"
+    mandatory: false
+
+todo:
+- Launch snmp
+
+ojob:
+  opacks      :
+  - openaf: 20241117
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ------------------
+- name : Launch snmp
+  check:
+    in:
+      expose: toNumber.isNumber.default(__)
+  exec : |
+    var cmds = "sudo apk add --no-cache net-snmp net-snmp-tools && sudo /bin/sh -c \\\"echo 'agentAddress udp:161' > /etc/snmp/snmpd.conf\\\" && sudo /bin/sh -c \\\"echo 'rocommunity public 0.0.0.0/0' >> /etc/snmp/snmpd.conf\\\" && sudo snmpd -f -Le"
+    var cmd = [ "docker", 
+                "run", 
+                "--rm", 
+                "-ti", 
+                "-p",
+                isDef(args.expose) ? args.expose + ":161/udp" : "161:161/udp", 
+                "openaf/oaf", 
+                "-c", 
+                "$sh(\"" + cmds + "\").exec()" 
+              ]
+
+    $sh(cmd).prefix("docker").exec()
