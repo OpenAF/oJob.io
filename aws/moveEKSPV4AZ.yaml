@@ -22,6 +22,10 @@ help:
     desc     : Boolean flag that if true and if auto=true will try to delete the original EBS volume in the end
     example  : "true"
     mandatory: false
+  - name     : keepsnaps
+    desc     : Boolean flag that if true will keep the snapshots created during the process
+    example  : "true"
+    mandatory: false
 
 todo:
 - Get current PVC and PV
@@ -200,11 +204,16 @@ jobs:
         log(`Target volume ${targetVolume} created.`)
 
         // Deleting source snapshot
-        _r = $sh(`aws ec2 delete-snapshot --snapshot-id ${sourceSnapshot}`).getJson(0)
-        if (_r.exitcode == 0) {
-          log(`Snapshot ${sourceSnapshot} deleted.`)
+        if (args.keepsnaps) {
+          logWarn(`Keeping source snapshot ${sourceSnapshot}`)
         } else {
-          throw `Problem deleting snapshot ${sourceSnapshot}: ${_r.stderr}`
+          log(`Deleting source snapshot ${sourceSnapshot}`)
+          _r = $sh(`aws ec2 delete-snapshot --snapshot-id ${sourceSnapshot}`).getJson(0)
+          if (_r.exitcode == 0) {
+            log(`Snapshot ${sourceSnapshot} deleted.`)
+          } else {
+            throw `Problem deleting snapshot ${sourceSnapshot}: ${_r.stderr}`
+          }
         }
       } else {
         throw `Problem creating target volume fpr snapshot ${sourceSnapshot}: ${_r.stderr}`
