@@ -22,7 +22,7 @@ help:
     desc     : Boolean flag that if true and if auto=true will try to delete the original EBS volume in the end
     example  : "true"
     mandatory: false
-  - name     : keepsnaps
+  - name     : keepsnap
     desc     : Boolean flag that if true will keep the snapshots created during the process
     example  : "true"
     mandatory: false
@@ -204,7 +204,7 @@ jobs:
         log(`Target volume ${targetVolume} created.`)
 
         // Deleting source snapshot
-        if (args.keepsnaps) {
+        if (args.keepsnap) {
           logWarn(`Keeping source snapshot ${sourceSnapshot}`)
         } else {
           log(`Deleting source snapshot ${sourceSnapshot}`)
