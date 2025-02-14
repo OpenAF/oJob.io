@@ -22,30 +22,30 @@ ojob:
         
 init:
   bash: |-
+    source ~/.openaf_completion_bash.sh > /dev/null 2>&1
     if [ ! -e ~/.openaf_completion_bash.sh ] || [ $(find ~/.openaf_completion_bash.sh -mtime +1) ]; then
       {{#if detail}}
-      {{path}}oaf --bashcompletion oaf > ~/.openaf_completion_bash.sh
-      {{path}}oaf --bashcompletion oafp >> ~/.openaf_completion_bash.sh
-      {{path}}oaf --bashcompletion ojob >> ~/.openaf_completion_bash.sh
-      {{path}}oaf --bashcompletion opack >> ~/.openaf_completion_bash.sh
+      {{path}}oaf --bashcompletion oaf > ~/.openaf_completion_bash.sh & disown
+      {{path}}oaf --bashcompletion oafp >> ~/.openaf_completion_bash.sh & disown
+      {{path}}oaf --bashcompletion ojob >> ~/.openaf_completion_bash.sh & disown
+      {{path}}oaf --bashcompletion opack >> ~/.openaf_completion_bash.sh & disown
       {{else}}
-      {{path}}oaf --bashcompletion all > ~/.openaf_completion_bash.sh
+      {{path}}oaf --bashcompletion all > ~/.openaf_completion_bash.sh & disown
       {{/if}}
     fi
-    source ~/.openaf_completion_bash.sh
 
   zsh : |-
+    source ~/.openaf_completion_zsh.sh > /dev/null 2>&1
     if [ ! -e ~/.openaf_completion_zsh.sh ] || [ $(find ~/.openaf_completion_zsh.sh -mtime +1) ]; then
       {{#if detail}}
-      {{path}}oaf --zshcompletion oaf > ~/.openaf_completion_zsh.sh
-      {{path}}oaf --zshcompletion oafp >> ~/.openaf_completion_zsh.sh
-      {{path}}oaf --zshcompletion ojob >> ~/.openaf_completion_zsh.sh
-      {{path}}oaf --zshcompletion opack >> ~/.openaf_completion_zsh.sh
+      {{path}}oaf --zshcompletion oaf > ~/.openaf_completion_zsh.sh & disown
+      {{path}}oaf --zshcompletion oafp >> ~/.openaf_completion_zsh.sh & disown
+      {{path}}oaf --zshcompletion ojob >> ~/.openaf_completion_zsh.sh & disown
+      {{path}}oaf --zshcompletion opack >> ~/.openaf_completion_zsh.sh & disown
       {{else}}
-      {{path}}oaf --zshcompletion all > ~/.openaf_completion_zsh.sh
+      {{path}}oaf --zshcompletion all > ~/.openaf_completion_zsh.sh & disown
       {{/if}}
     fi
-    source ~/.openaf_completion_zsh.sh
 
 jobs:
 # --------------------------
