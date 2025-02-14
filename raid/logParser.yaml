@@ -126,6 +126,7 @@ jobs:
     var buf = __
     var parseLine = (line, os) => {
       line = String(line)
+
       metrics.origLines++
       if (isUnDef(buf) && line.length != 0 && line.trim().startsWith("{")) buf = ""
       if (isDef(buf)) {
@@ -182,13 +183,13 @@ jobs:
       if (go) {
         var _fnT = _d => {
           var _tD = isDef(_d["@timestamp"]) ? _d["@timestamp"] : _d.parse_timestamp
-          if (_tD.endsWith("Z") && _tD.indexOf(".") > 0 && _tD.length < 24) _tD = [_tD.substring(0, 19), ".", _tD.substring(20, _tD.length-1), "0".repeat(24 - _tD.length), "Z"].join("")
-          if (_tD.indexOf("+") > 0) _tD = [_tD.substring(0, 23), "Z"].join("")
-          if (_tD.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}\d+Z$/)) _tD = [_tD.substring(0, 23), "Z"].join("")
+          if (isString(_tD) && _tD.endsWith("Z") && _tD.indexOf(".") > 0 && _tD.length < 24) _tD = [_tD.substring(0, 19), ".", _tD.substring(20, _tD.length-1), "0".repeat(24 - _tD.length), "Z"].join("")
+          if (isString(_tD) && _tD.indexOf("+") > 0) _tD = [_tD.substring(0, 23), "Z"].join("")
+          if (isString(_tD) && _tD.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}\d+Z$/)) _tD = [_tD.substring(0, 23), "Z"].join("")
           return _tD ? ow.format.fromDate(new Date(_tD), "yyyy-MM-dd HH:mm:ss,SSS") : _tD
         }
 
-        if (isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        if (isDef(data["@timestamp"]) && isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         switch(data.logger_name) {
         case "AuditLogger":
           data._time = _fnT(data)
