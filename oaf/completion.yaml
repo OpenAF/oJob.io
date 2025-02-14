@@ -38,12 +38,12 @@ init:
     source ~/.openaf_completion_zsh.sh > /dev/null 2>&1
     if [ ! -e ~/.openaf_completion_zsh.sh ] || [ $(find ~/.openaf_completion_zsh.sh -mtime +1) ]; then
       {{#if detail}}
-      {{path}}oaf --zshcompletion oaf > ~/.openaf_completion_zsh.sh & disown
-      {{path}}oaf --zshcompletion oafp >> ~/.openaf_completion_zsh.sh & disown
-      {{path}}oaf --zshcompletion ojob >> ~/.openaf_completion_zsh.sh & disown
-      {{path}}oaf --zshcompletion opack >> ~/.openaf_completion_zsh.sh & disown
+      {{path}}oaf --zshcompletion oaf > ~/.openaf_completion_zsh.sh &!
+      {{path}}oaf --zshcompletion oafp >> ~/.openaf_completion_zsh.sh &!
+      {{path}}oaf --zshcompletion ojob >> ~/.openaf_completion_zsh.sh &!
+      {{path}}oaf --zshcompletion opack >> ~/.openaf_completion_zsh.sh &!
       {{else}}
-      {{path}}oaf --zshcompletion all > ~/.openaf_completion_zsh.sh & disown
+      {{path}}oaf --zshcompletion all > ~/.openaf_completion_zsh.sh &!
       {{/if}}
     fi
 
