@@ -22,6 +22,10 @@ help:
     desc     : If defined, the container json file will be saved to the specified path.
     example  : container.json
     mandatory: false
+  - name     : file
+    desc     : If defined, only a specific file will be extracted
+    example  : /etc/myconfig.conf
+    mandatory: false
 
 todo:
 - Save container layers
@@ -65,8 +69,10 @@ jobs:
   from : Get container manifest
   to   :
   - Get container info
-  - (output): args
-    ((path)): info
+  - (if    ): isUnDef(args.file)
+    ((then)):
+    - (output): args
+      ((path)): info
   check:
     in:
       image : isString
@@ -74,6 +80,7 @@ jobs:
       json  : isString.default(__)
       layers: toBoolean.isBoolean.default(__)
       usetar: toBoolean.isBoolean.default(__)
+      file  : isString.default(__)
   exec : |
     // Determine if tar can be used
     if (isUnDef(args.usetar)) args.usetar = ($sh("tar --help").get(0).exitcode == 0 ? true : false)
@@ -89,21 +96,28 @@ jobs:
         var _f = io.createTempFile("layer", ".tar")
         var os = io.writeFileStream(_f)
         io.readFileTARStream(args.image, l, args.image.endsWith(".gz"), s => ioStreamCopy(os, s))
-        printErr("Writing layer " + l.replace(/\/layer\.tar$/, "") + "...")
+        printErr("Writing from layer " + l.replace(/\/layer\.tar$/, "") + "...")
         os.close() 
 
         if (args.usetar) {
-          if (args.layers) {
-            io.mkdir(args.output + "/" + i)
-            $sh("tar xf " + _f)
-            .pwd(args.output + "/" + i)
+          if (isDef(args.file)) {
+            var rr = $sh("tar xf " + _f + " " + args.file.replace(/^\//, ""))
+            .pwd(args.output)
             .get()
           } else {
-            $sh("tar xf " + _f)
-            .pwd(args.output)
-            .get() 
+            if (args.layers) {
+              io.mkdir(args.output + "/" + i)
+              $sh("tar xf " + _f)
+              .pwd(args.output + "/" + i)
+              .get()
+            } else {
+              $sh("tar xf " + _f)
+              .pwd(args.output)
+              .get() 
+            }
           }
         } else {
+          if (isDef(args.file)) throw "File extraction not supported without tar"
           if (args.layers) {
             io.mkdir(args.output + "/" + i)
           }
