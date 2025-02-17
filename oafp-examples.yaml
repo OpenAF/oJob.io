@@ -1151,3 +1151,18 @@ data:
   d: Given a text file revert the line ordering
   e: |-
     cat somefile.txt | oafp in=lines linesjoin=true path="reverse([]).join('\n',@)"
+- c: Kubernetes
+  s: Helm
+  d: Given an Helm release name and the corresponding namespace will produce a table with the timestamps when the corresponding Helm chart hooks have started and completed for the lastest execution and the corresponding phase.
+  e: |- 
+     RELEASE=myrelease && NS=my-namespace && oafp cmd="helm status $RELEASE -n $NS -o json" out=ctable path="hooks[].{hookName:name,started_at:to_date(last_run.started_at),completed_at:to_date(last_run.completed_at),elapsed:from_ms(sub(to_number(to_ms(to_date(last_run.completed_at))),to_number(to_ms(to_date(last_run.started_at)))),''),phase:last_run.phase}"
+- c: nAttrMon
+  s: Plugs
+  d: Given a nAttrMon config folder, with YAML files, produce a summary table with the each plug (yaml file) execFrom definition.
+  e: |-
+    oafp cmd="grep -R execFrom" in=lines path="[].split(@,':').{plug:[0],execFrom:[2]}" linesjoin=true out=ctable sql="select execFrom, plug where plug <> '' order by execFrom"
+- c: Kubernetes
+  s: Base64
+  d: Given a Kubernetes Config Map or Secret with binary data, retrieves it and stores it locally in a binary file.
+  e: |-
+    FILE=config.zip && kubectl get cm my-configs -n kube-system -o json | oafp path="binaryData.\"$FILE\"" | base64 -d > $FILE
