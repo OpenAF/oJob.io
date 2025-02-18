@@ -1,7 +1,7 @@
 # Author: Nuno Aguiar
 help:
   text   : Build skopeo for Amazon Linux
-  expects: 
+  expects:
   - name     : tag
     desc     : Instead of the latest Amazon Linux use a specific tag
     example  : "2"
@@ -23,7 +23,7 @@ ojob:
   - openaf: 20231222
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   # to change when finished
-        
+
 init:
   cmds:
   - dnf update -y
@@ -32,6 +32,10 @@ init:
   - cd skopeo
   - go install github.com/cpuguy83/go-md2man/v2@latest
   - mv $(go env GOPATH)/bin/go-md2man /usr/local/bin/
+  - go install golang.org/dl/go1.22.8@latest
+  - /root/go/bin/go1.22.8 download
+  - ln -s /root/go/bin/go1.22.8 /root/go/bin/go
+  - export PATH=/root/go/bin:$PATH
   - make
   - make install
   - bin/skopeo --version
