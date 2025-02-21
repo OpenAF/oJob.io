@@ -1166,3 +1166,8 @@ data:
   d: Given a Kubernetes Config Map or Secret with binary data, retrieves it and stores it locally in a binary file.
   e: |-
     FILE=config.zip && kubectl get cm my-configs -n kube-system -o json | oafp path="binaryData.\"$FILE\"" | base64 -d > $FILE
+- c: Kubernetes
+  s: Kubectl
+  d: Using kubectl with the appropriate permissions check the filesystem available, capacity and used bytes and inodes on each node of the Kubernetes cluster.
+  e: |-
+    oafp cmd="kubectl get nodes -o json" in=json path="items[].metadata.name" out=cmd outcmd="kubectl get --raw '/api/v1/nodes/{}/proxy/stats/summary' | oafp out=json path=\"node.fs.insert(@,'node','{}')\"" outcmdparam=true | oafp in=ndjson ndjsonjoin=true  out=ctable
