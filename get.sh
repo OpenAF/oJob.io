@@ -113,7 +113,7 @@ if java -version >/dev/null 2>&1; then
 else
   echo -------------------
   echo Downloading java...
-  url=http://openaf.io/java/java17_$TARCH.tgz
+  url=http://openaf.io/java/java21_$TARCH.tgz
   output=jre.tgz
   downloadURL
 fi
