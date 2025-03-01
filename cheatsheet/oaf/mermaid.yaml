@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Prints a cheatsheet with examples of use of mermaid
+  text   : Prints a cheatsheet with tips on to use Mermaid charts in HTML
 
 ojob:
   opacks:
@@ -10,7 +10,15 @@ ojob:
 todo:
 - (printmd): |
     # Mermaid cheat sheet
-    
+
+    You can see the results be writing a _file.md_ and then generating HTML from it. For example, using oafp:
+
+    ```bash
+    oafp file.md out=html
+    ```
+
+    ---
+
     | Type | Link | Example |
     |------|------|---------|
     | Flowchart | https://mermaid.js.org/syntax/flowchart.html | [Flowchart example](#flowchart-example) |
@@ -26,7 +34,7 @@ todo:
     | Gitgraph Diagram | https://mermaid.js.org/syntax/gitgraph.html | [GitGraph Diagram](#gitgraph-diagram) |
     | C4 Diagram | https://mermaid.js.org/syntax/c4.html | |
     | Mindmap | https://mermaid.js.org/syntax/mindmap.html | [Mindmap](#mindmap-example) |
-    | Timeline | https://mermaid.js.org/syntax/timeline.html | [Timeline](#timeline-example) | 
+    | Timeline | https://mermaid.js.org/syntax/timeline.html | [Timeline](#timeline-example) |
     | ZenUML | https://mermaid.js.org/syntax/zenuml.html |  |
     | Sankey | https://mermaid.js.org/syntax/sankey.html | [Sankey](#sankey-example) |
     | XY Chart | https://mermaid.js.org/syntax/xyChart.html | [XY Chart](#xy-chart) |
@@ -434,4 +442,3 @@ todo:
         disk1:T -- B:server
         disk2:T -- B:db
     ```
-  ```
