@@ -6,10 +6,33 @@ help:
     desc     : 'Choose an operation between: list, all, set, unset and sample'
     example  : 'list'
     mandatory: false
+    options  :
+    - list
+    - all
+    - set
+    - unset
+    - sample
   - name     : theme
     desc     : 'Choose a theme to set'
     example  : 'default'
     mandatory: false
+    options  :
+    - basic
+    - default
+    - mono
+    - mono2
+    - redmono
+    - blue
+    - jeans
+    - thin
+    - thin-intense
+    - thin-intense-bold
+    - thin-light
+    - thin-italic
+    - thin-light-italic
+    - thin-bold
+    - thin-light-bold
+    - yellow
 
 todo:
 - (optionOn   ): op
