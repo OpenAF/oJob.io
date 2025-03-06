@@ -112,7 +112,7 @@ data:
   s: List
   d: List all OpenAF's oPack pre-prepared JDBC drivers
   e: |-
-    oaf -c "sprint(getOPackRemoteDB())" | oafp maptoarray=true opath="[].{name:name,description:description,version:version}" sql="select * where name like 'jdbc-%' order by name" out=ctable
+    oafp in=oaf data="getOPackRemoteDB()" maptoarray=true opath="[].{name:name,description:description,version:version}" from="sort(name)" out=ctable
 # Generic / Docker
 - c: Docker
   s: Containers
