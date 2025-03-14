@@ -1171,3 +1171,29 @@ data:
   d: Using kubectl with the appropriate permissions check the filesystem available, capacity and used bytes and inodes on each node of the Kubernetes cluster.
   e: |-
     oafp cmd="kubectl get nodes -o json" in=json path="items[].metadata.name" out=cmd outcmd="kubectl get --raw '/api/v1/nodes/{}/proxy/stats/summary' | oafp out=json path=\"node.fs.insert(@,'node','{}')\"" outcmdparam=true | oafp in=ndjson ndjsonjoin=true  out=ctable
+- c: QR
+  s: URL
+  d: Generate a QR-code for a provided URL.
+  e: |-
+    # opack install qr
+    oafp libs=qr in=raw data="https://oafp.io" out=qr qrfile=qr.png
+- c: QR
+  s: Read QR-code
+  d: Given a QR-code png file output the corresponding contents.
+  e: |-
+    # opack install qr
+    oafp libs=qr in=qr data=qr.png out=raw
+- c: QR
+  s: Encode JSON
+  d: Given a JSON input encode and decote it from a QR-code png file.
+  e: |-
+    # opack install qr
+    # Encoding an input into qr.png
+    oafp in=ls data="." out=json sql="select filepath, size limit 20" | oafp libs=qr in=raw out=qr qrfile=qr.png
+    # Decoding a qr.png back to json
+    oafp libs=qr in=qr data=qr.png out=raw | oafp in=json out=ctable
+- c: OpenAF
+  s: oPacks
+  d: Given a folder of expanded oPacks folders will process each folder .package.yaml file and join each corresponding oPack name and dependencies into a sinlge output map.
+  e: |-
+    oafp in=oafp data="(in:ls,data:.,path:'[?isDirectory].concat(canonicalPath,\`/.package.yaml\`)')" out=cmd outcmd="oafp {} out=json" outcmdparam=true | oafp in=ndjson ndjsonjoin=true path="[].{name:name,deps:dependencies}"
