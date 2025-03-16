@@ -14,6 +14,9 @@ help:
     desc     : If list=true will output a list of the available fonts (if str is defined it will use it as examples for each font)
     example  : "true"
     mandatory: false
+    options  :
+    - "false"
+    - "true"
 
 todo:
 - Check options
