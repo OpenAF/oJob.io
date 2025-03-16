@@ -18,6 +18,9 @@ help:
     desc     : Boolean flag that if true will prevent from downloading and just compare head metadata
     example  : "true"
     mandatory: false
+    options  :
+    - "false"
+    - "true"
 
 todo:
 - HTTP S3 Check

@@ -10,6 +10,12 @@ help:
     desc     : Force the architecture for which to download the minio client
     example  : linux-amd64
     mandatory: false
+    options  :
+    - windows
+    - macos
+    - macosarm
+    - linuxarm
+    - linux
 
 todo:
 - Get MC
@@ -28,7 +34,7 @@ jobs:
     in:
       path: isString.default(".")
       arch: isString.default(__)
-  exec : |
+  exec : | #js
     if (isUnDef(args.arch)) {
       ow.loadFormat()
       var tos = String(java.lang.System.getProperty("os.name"))

@@ -71,6 +71,24 @@ help:
     desc     : The operation to perform
     example  : help
     mandatory: true
+    options  :
+    - buckets
+    - mkbucket
+    - rmbucket
+    - ls
+    - put
+    - get
+    - mput
+    - mget
+    - sput
+    - cp
+    - mv
+    - rm
+    - rmdir
+    - sync
+    - syncLocal
+    - syncRemote
+    - stat
 
 todo:
 - S3
@@ -91,7 +109,7 @@ include:
 jobs:
 # -----------------
 - name : S3 connect
-  exec : |
+  exec : | #js
     if (isDef(args.secEnv)) args.secEnv = toBoolean(args.secEnv)
     if (isDef(args.secKey)) args = $job("ojob sec get", args)
     if (isDef(args._args)) {
@@ -114,7 +132,7 @@ jobs:
 
 # -------------------
 - name: S3 disconnect
-  exec: |
+  exec: | #js
     if (isDef(global.s3.close)) global.s3.close()
     global.s3 = __
 
@@ -122,7 +140,7 @@ jobs:
 - name: S3 list buckets
   from: S3 connect
   to  : S3 disconnect
-  exec: |
+  exec: | #js
     $set("out", global.s3.listBuckets())
 
 # --------------
@@ -135,7 +153,7 @@ jobs:
       remote   : isString.default("")
       full     : toBoolean.isBoolean.default(false) 
       recursive: toBoolean.isBoolean.default(false) 
-  exec : |
+  exec : | #js
     var out = {}
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -166,7 +184,7 @@ jobs:
       bucket: isString
       remote: isString
       local : isString
-  exec : |
+  exec : | #js
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist."
@@ -184,7 +202,7 @@ jobs:
       bucket: isString
       remote: isString
       local : isString
-  exec : |
+  exec : | #js
     var out = {}
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -220,7 +238,7 @@ jobs:
     in:
       target: isString
       source: isString
-  exec : |
+  exec : | #js
     try {
       if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found."
@@ -244,7 +262,7 @@ jobs:
     in:
       target: isString
       source: isString
-  exec : |
+  exec : | #js
     try {
       if (isDef(args.bucket) && !global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (isDef(args.sourceBucket) && !global.s3.bucketExists(args.sourceBucket)) throw "Bucket '" + args.sourceBucket + "' not found."
@@ -270,7 +288,7 @@ jobs:
       bucket: isString
       remote: isString.default("")
       local : isString
-  exec : |
+  exec : | #js
     try {
       if (!io.fileExists(args.local)) throw "File '" + args.local + "' doesn't exists."
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -288,7 +306,7 @@ jobs:
       bucket: isString
       remote: isString.default("")
       local : isString
-  exec : |
+  exec : | #js
     var out = {}
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -324,7 +342,7 @@ jobs:
       bucket: isString
       remote: isString.default("")
       local : isString
-  exec : |
+  exec : | #js
     var out = {}
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -348,7 +366,7 @@ jobs:
     in:
       bucket: isString
       remote: isString
-  exec : |
+  exec : | #js
     var out
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -368,7 +386,7 @@ jobs:
     in:
       bucket: isString
       remote: isString
-  exec : |
+  exec : | #js
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (!global.s3.objectExists(args.bucket, args.remote)) throw "Object '" + args.remote + "' in bucket '" + args.bucket + "' doesn't exist."
@@ -385,7 +403,7 @@ jobs:
     in: 
       bucket: isString
       remote: isString.default("")
-  exec : |
+  exec : | #js
     var out
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
@@ -406,7 +424,7 @@ jobs:
   check:
     in:
       bucket: isString
-  exec : |
+  exec : | #js
     try {
       if (global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' already exists."
       global.s3.makeBucket(args.bucket)
@@ -421,7 +439,7 @@ jobs:
   check:
     in:
       bucket: isString
-  exec : |
+  exec : | #js
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       global.s3.removeBucket(args.bucket)
@@ -439,7 +457,7 @@ jobs:
       local : isString
       remote: isString.default("")
       go    : toBoolean.isBoolean.default(false)
-  exec : |
+  exec : | #js
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (args.go) {
@@ -461,7 +479,7 @@ jobs:
       local : isString
       remote: isString.default("")
       go    : toBoolean.isBoolean.default(false)
-  exec : |
+  exec : | #js
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (args.go) {
@@ -483,7 +501,7 @@ jobs:
       local : isString
       remote: isString.default("")
       go    : toBoolean.isBoolean.default(false)
-  exec : |
+  exec : | #js
     try {
       if (!global.s3.bucketExists(args.bucket)) throw "Bucket '" + args.bucket + "' not found."
       if (args.go) {
@@ -497,7 +515,7 @@ jobs:
 
 # -----------------------
 - name : Set format table
-  exec : |
+  exec : | #js
     if (args.op.toLowerCase() == "lsbuckets" ||
         args.op.toLowerCase() == "buckets" || 
         args.op.toLowerCase() == "ls") args.__format = _$(args.__format).isString().default("table")
