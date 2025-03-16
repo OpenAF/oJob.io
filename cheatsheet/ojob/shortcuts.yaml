@@ -33,6 +33,8 @@ todo:
     | Input         | (get)            | Retrieves a global value from a key                        |
     | Input         | (fileget)        | Retrieves arguments from a file                            |
     | Input         | (convert)        | Converts string content into an internal object (map/array) |
+    | Input         | (ask)            | Asks for user input                                        |
+    | Input         | (llm)            | Interacts with an external supported LLM                    |
     | Query         | (query)          | Queries a list of elements                                  |
     | Output        | (set)            | Sets a global value given a key                             |
     | Output        | (unset)          | Unsets a global value given a key                           |
@@ -425,6 +427,31 @@ todo:
         ((outPath  )): out
 
     ```
+
+    ### 🔖 (ask)
+    
+    Retrieves a specific map of answers from user input.
+
+    Expects:
+
+      * **(ask)**       : A map of answers to store into args. Each value should on the form of "type.slonOptionsArray.size" (e.g. text, encrypt, password, char.['y'|'n'], option.['op1'|'op2'|'op3'].3, moption.['op1'|'op2'|'op3'].3)
+      * **((question))**: The question prompt to ask
+      * **((force))**   : Boolean flag to force asking for an args value even if not defined.
+
+    ### 🔖 (llm)
+    
+    Executes a LLM (Local Language Model) prompt using $llm.
+
+    Expects:
+
+      * **(llm)**      : The prompt to send to the LLM model
+      * **((context))**: The context of the input data (determined by __llmInPath)
+      * **((inPath))** : The path to consider from __llmInKey (mandatory for using context)
+      * **((outPath))**: The path to store the result
+      * **((options))**: The options to consider for $llm
+      * **((inKey))**  : The key for an existing list or 'args'
+      * **((env))**    : The environment variable to consider for $llm options
+      * **((debug))**  : Boolean to indicate that the job execution parameters should be printed before executing
 
     ---
 
