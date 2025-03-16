@@ -6,6 +6,11 @@ help:
     desc     : "The operation to perform op: list, update, pull, delete"
     example  : list
     mandatory: true
+    options  :
+    - list
+    - update
+    - pull
+    - delete
   - name     : url
     desc     : The Ollama URL to access the API
     example  : http://ollama:8080
@@ -43,7 +48,7 @@ jobs:
     in:
       url  : isString
       model: isString
-  exec : |
+  exec : | #js
     printErr("Deleting model " + args.model + "...")
     var _data = $rest().delete(args.url + "/api/delete", { name: args.model })
     ow.oJob.output(_data, args)
@@ -54,7 +59,7 @@ jobs:
     in:
       url  : isString
       model: isString
-  exec : |
+  exec : | #js
     var _data = $rest().post(args.url + "/api/pull", { name: args.model })
     ow.oJob.output(_data.split("\n").filter(rr => rr.length > 0).map(rr => "[" + model + "] " + af.toSLON(jsonParse(rr), true)).join("\n"), args)
 
@@ -64,7 +69,7 @@ jobs:
     in:
       url  : isString
       model: isString.default(__)
-  exec : |
+  exec : | #js
     var lst
     if (isDef(args.model)) {
       lst = [ args.model ]
@@ -91,6 +96,6 @@ jobs:
   check:
     in:
       url  : isString
-  exec : |
+  exec : | #js
     var _data = $rest().get(args.url + "/api/tags")
     ow.oJob.output(_data.models, args)
