@@ -5,12 +5,17 @@ help:
   - name   : op
     desc   : The operation to be performed (e.g. list; install; build; builddir)
     example: list
+    options:
+    - list
+    - install
+    - build
+    - builddir
   - name   : db
     desc   : The db to install or build (use op=list to check the possible values)
     example: mysql
 
 init:
-  code: |
+  code: | #js
     (function() {
       var LIB_PATH = (isDef(getOPackPaths()["jdbc-{{name}}"]) ? getOPackPaths()["jdbc-{{name}}"]+"/" : ".");
       if (Object.keys(Packages.{{class}}).length <= 2) {
@@ -266,7 +271,7 @@ ojob:
 jobs:
 # ------------------
 - name : Build oPack
-  exec : |
+  exec : | #js
     _$(args.db, "db")
     .oneOf(args.init.data.drivers.map(r => r.name), "Please choose on of the listed dbs (use op=list)")
     .$_()
@@ -349,7 +354,7 @@ jobs:
   check:
     in: 
       op: oneOf(["list", "install", "build", "builddir"])
-  exec : |
+  exec : | #js
     var res = {};
 
     switch(args.op.trim().toLowerCase()) {
