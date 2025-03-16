@@ -52,7 +52,7 @@ jobs:
       linuxFont  : toBoolean.isBoolean.default(false)
       color      : isString.default(__)
       rainbow    : toBoolean.isBoolean.default(false)
-  exec : |
+  exec : | #javascript
     var options = []
     if (args.useBold) options.push("-b")
     if (args.allBold) options.push("-B")

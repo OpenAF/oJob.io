@@ -1,0 +1,37 @@
+# Author: Nuno Aguiar
+help:
+  text   : Starts a nudoku game
+  # expects: 
+  # - name     : something
+  #   desc     : To do something
+  #   example  : aValueExample
+  #   mandatory: false
+
+include:
+- ojob.io/docker/_common
+
+todo:
+- Check for docker
+- Start nudoku
+
+ojob:
+  opacks      :
+  - openaf: 20250315
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+jobs:
+# -------------------
+- name : Start nudoku
+  exec : | # javascript
+    $sh([
+      "docker",
+      "run",
+      "--rm", 
+      "-ti",
+      "--pull",
+      "always",
+      "openaf/oaf:deb",
+      "-c",
+      "$sh('sudo apt-get update && sudo apt-get install -y nudoku && /usr/games/nudoku').exec()"
+    ]).exec()

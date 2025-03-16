@@ -31,7 +31,7 @@ jobs:
     in:
       cmd: isString.default("")
       force: toBoolean.isBoolean.default(false)
-  exec : |
+  exec : | #javascript
     var res 
     if (!args.force) res = $sh("docker start tetris && docker attach tetris").exec(0)
     if (isDef(res) && res.exitcode != 0) args.force = true
