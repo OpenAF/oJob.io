@@ -8,15 +8,26 @@ help:
   - name   : op
     desc   : "The operation to perform (e.g: genkey, listkeys, getpubkey, sign, verify, encrypt, decrypt)"
     example: listkeys
+    options:
+    - genkey
+    - listkeys
+    - getpubkey
+    - sign
+    - verify
+    - encrypt
+    - decrypt
   - name   : gpgvol
     desc   : The volume to store the gpg secure information
     example: gnupg
   - name   : input
     desc   : The input file to sign or encrypt
+    example: somefile.txt
   - name   : output
     desc   : The output file to verify or decrypt
+    example: somefile.txt.asc
   - name   : recipient
     desc   : When encrypting or getting the public key the intended email address of the recipient of the message or owner of the private key.
+    example: "abc@xyz.com"
 
 todo:
 - Check for docker
@@ -34,7 +45,7 @@ include:
 jobs:
 # --------------------
 - name: Execute docker
-  exec: |
+  exec: | #js
     _$(args.cmds, "cmds").isArray().$_();
    
     var cmds = ["docker", "run", "--rm", "-ti", "-v", args.gpgvol + ":/root/.gnupg"];
@@ -61,7 +72,7 @@ jobs:
 # ------------------------
 - name: GPG Get public key
   to  : Execute docker
-  exec: |
+  exec: | #js
     _$(args.recipient, "recipient").$_();
 
     args.cmds = [ "gpg2 --batch --yes --armor --export " + args.recipient ];
@@ -76,7 +87,7 @@ jobs:
 # --------------
 - name: GPG Sign
   to  : Execute docker
-  exec: |
+  exec: | #js
     _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
 
     args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
@@ -90,7 +101,7 @@ jobs:
 # -----------------
 - name: GPG Decrypt
   to  : Execute docker
-  exec: |
+  exec: | #js
     _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
 
     args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
@@ -105,7 +116,7 @@ jobs:
 # -----------------
 - name: GPG Encrypt
   to  : Execute docker
-  exec: |
+  exec: | #js
     _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
     _$(args.recipient, "recipient").$_();
 
@@ -119,7 +130,7 @@ jobs:
 # ----------------
 - name: GPG Verify
   to  : Execute docker
-  exec: |
+  exec: | #js
     _$(args.input, "input").check(io.fileExists, "can't find the input file provided").$_();
 
     args.volume = io.fileInfo(args.input).canonicalPath.replace(/\\/g, "/");
@@ -129,7 +140,7 @@ jobs:
 
 # ----------------------
 - name: Choose operation
-  exec: |
+  exec: | #js
     _$(args.gpgvol, "gpgvol").$_();
 
     args.op = _$(args.op, "op").default("listkeys");
