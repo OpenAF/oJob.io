@@ -1197,3 +1197,8 @@ data:
   d: Given a folder of expanded oPacks folders will process each folder .package.yaml file and join each corresponding oPack name and dependencies into a sinlge output map.
   e: |-
     oafp in=oafp data="(in:ls,data:.,path:'[?isDirectory].concat(canonicalPath,\`/.package.yaml\`)')" out=cmd outcmd="oafp {} out=json" outcmdparam=true | oafp in=ndjson ndjsonjoin=true path="[].{name:name,deps:dependencies}"
+- c: VSCode
+  s: Extensions
+  d: Check a Visual Studio Code (vscode) extension (vsix) manifest.
+  e: |-
+    oafp in=xml file="Org.my-extension.vsix::extension.vsixmanifest" out=ctree
