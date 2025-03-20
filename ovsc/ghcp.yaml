@@ -1,0 +1,98 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a local Open VS Code server tries to download and install GitHub Copilot extensions
+
+todo:
+- Determine VSCode Server Version
+- Install GitHub Copilot
+- Adapt downloaded packages if needed
+- Installing extensions into Open VS Code Server
+
+ojob:
+  opacks      :
+  - openaf: 20250315
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  async       : true
+      
+init:
+  coPilot_URL    : https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot/latest/vspackage
+  coPilotChat_URL: https://marketplace.visualstudio.com/_apis/public/gallery/publishers/GitHub/vsextensions/copilot-chat/latest/vspackage
+
+jobs:
+# --------------------------------------
+- name : Determine VSCode Server Version
+  exec : | #js
+    var _res = $sh("openvscode-server -v").get(0)
+    if (_res.exitcode != 0) {
+      throw new Error("openvscode-server not found")
+    } else {
+      global.ovsc_version = _res.stdout.split("\n")[0]
+      log("openvscode-server version: " + global.ovsc_version)
+    }
+
+# ------------------------------------------
+- name : Adapt downloaded packages if needed
+  deps :
+  - Determine VSCode Server Version
+  - Install GitHub Copilot
+  exec : | #js
+    pForEach([ 
+      "GitHub.copilot.vsix",
+      "GitHub.copilot-chat.vsix"
+    ], file => {
+      log(`Checking extension ${file}...`)
+      var _currentVersion = io.readFileJSON(file + "::extension/package.json")
+      if (_currentVersion.engines.vscode.indexOf(global.ovsc_version) < 0) {
+        log(`Adapting ${file} to version ${global.ovsc_version}...`)
+        _currentVersion.engines.vscode = "^" + global.ovsc_version
+        
+        plugin("ZIP")
+        var zip = new ZIP()
+        zip.streamPutFile(file, "extension/package.json", af.fromString2Bytes(stringify(_currentVersion, __, "")))
+      } else {
+        log(`No adaptation needed for ${file}`)
+      }
+    })
+
+# -----------------------------------------------------
+- name : Installing extensions into Open VS Code Server
+  deps :
+  - Adapt downloaded packages if needed
+  lang : shell
+  typeArgs:
+    shellPrefix: install
+  exec : | #shell
+    echo "Installing GitHub Copilot extensions into Open VS Code Server..."
+
+    echo "Installing GitHub Copilot..."
+    openvscode-server --install-extension GitHub.copilot.vsix
+    echo "Installing GitHub Copilot Chat..."
+    openvscode-server --install-extension GitHub.copilot-chat.vsix
+
+# -----------------------------
+- name : Install GitHub Copilot
+  lang : shell
+  typeArgs:
+    shellPrefix: download
+  exec : | #shell
+    #!/bin/bash
+
+    COPILOT_URL="{{init.coPilot_URL}}"
+    COPILOT_CHAT_URL="{{init.coPilotChat_URL}}"
+
+    # Define output file names
+    COPILOT_OUTPUT="GitHub.copilot.vsix"
+    COPILOT_CHAT_OUTPUT="GitHub.copilot-chat.vsix"
+
+    # Download the VSIX files using curl
+    echo "Downloading GitHub Copilot..."
+    curl -Ls "$COPILOT_URL" -o "$COPILOT_OUTPUT"
+    echo "Downloading GitHub Copilot Chat..."
+    curl -Ls "$COPILOT_CHAT_URL" -o "$COPILOT_CHAT_OUTPUT"
+
+    mv GitHub.copilot-chat.vsix GitHub.copilot-chat.vsix.gz
+    mv GitHub.copilot.vsix GitHub.copilot.vsix.gz
+    gunzip GitHub.copilot-chat.vsix.gz
+    gunzip GitHub.copilot.vsix.gz
+

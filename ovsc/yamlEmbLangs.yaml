@@ -1,0 +1,36 @@
+# Author: Nuno Aguiar
+help:
+  text   : Given a local Open VS Code server tries to download and install the harrydowning's YAML embedded languages
+
+todo:
+- Installing extension into Open VS Code Server
+
+ojob:
+  opacks      :
+  - openaf: 20250315
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+  async       : true
+    
+jobs:
+# -----------------------------------------------------
+- name : Installing extension into Open VS Code Server
+  lang : shell
+  typeArgs:
+    shellPrefix: install
+  exec : | #shell
+    #!/bin/bash
+
+    echo "Determining the latest version..."
+    YAML_EMBEDDED_LANGUAGES_VERSION=$(curl -s "https://api.github.com/repos/harrydowning/vscode-yaml-embedded-languages/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/')
+
+    echo "Downloading..."
+    wget https://github.com/harrydowning/vscode-yaml-embedded-languages/releases/download/v$YAML_EMBEDDED_LANGUAGES_VERSION/yaml-embedded-languages-$YAML_EMBEDDED_LANGUAGES_VERSION.vsix -O yaml-embedded-languages.vsix\
+
+    echo "Installing..." 
+    openvscode-server --install-extension yaml-embedded-languages.vsix
+
+    echo "Cleaning up..."
+    rm yaml-embedded-languages.vsix
+
+    echo "Done."
