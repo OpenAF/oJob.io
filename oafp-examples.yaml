@@ -1202,3 +1202,8 @@ data:
   d: Check a Visual Studio Code (vscode) extension (vsix) manifest.
   e: |-
     oafp in=xml file="Org.my-extension.vsix::extension.vsixmanifest" out=ctree
+- c: Unix
+  s: Threads
+  d: Given an unix process id (pid) loop a table with its top 25 most cpu active threads
+  e: |-
+    JPID=12345 && oafp cmd="ps -L -p $JPID -o tid,pcpu,comm|tail +2" in=lines linesjoin=true path="[].split_re(@,'\s+').{tid:[0],thread:join(' ',[2:]),cpu:to_number(nvl([1],\`-1\`)),cpuPerc:progress(nvl(to_number([1]),\`0\`), \`100\`, \`0\`, \`50\`, __, __)}" sql='select * order by cpu desc limit 25' out=ctable loop=1 loopcls=true
