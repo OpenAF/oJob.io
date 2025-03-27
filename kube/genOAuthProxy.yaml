@@ -1,0 +1,148 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a skeleton for a side proxy job to handle oauth authentication through reverse proxy
+  expects: 
+  - name     : app
+    desc     : The name of the app
+    example  : myapp
+    mandatory: true
+  - name     : ns
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: true
+  - name     : port
+    desc     : The port to listen to
+    example  : "8080"
+    mandatory: true
+  - name     : target
+    desc     : The target to reverse proxy comma-separated
+    example  : "http://myapp:80,http://myapp2:80/abc"
+    mandatory: true
+  - name     : config
+    desc     : The oauth2-proxy configuration file (creates a sample if not exists)
+    example  : "oauth2-proxy.cfg"
+    mandatory: true
+
+todo:
+- Generate side oauth proxy
+
+ojob:
+  opacks      :
+  - openaf: 20250315
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  config: | 
+    # https://oauth2-proxy.github.io/oauth2-proxy/configuration/providers/
+    provider = "oidc"
+    redirect_url = "https://example.corp.com/oauth2/callback"
+    oidc_issuer_url = "https://corp.oidc.com/oauth2/abCd1234"
+    email_domains = [ "corp.com" ]
+    client_id = "XXXXX"
+    client_secret = "YYYYY"
+    pass_access_token = true
+    cookie_secret = "ZZZZZ"
+    skip_provider_button = true
+
+_data:
+  tmpl: &TMPL | #yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: oauth2-proxy
+      namespace: {{ns}}
+    data:
+      oauth2-proxy.cfg: {{secret}}
+
+    ---
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: {{app}}
+      name: {{app}}
+      namespace: {{ns}}
+    spec:
+      selector:
+        matchLabels:
+          app: {{app}}
+      template:
+        metadata:
+          labels:
+            app: {{app}}
+        spec:
+          containers:
+          - image: quay.io/oauth2-proxy/oauth2-proxy:latest
+            imagePullPolicy: IfNotPresent
+            name: oauth2-proxy
+            ports:
+            - containerPort: {{port}}
+            resources: {}
+            command:
+            - oauth2-proxy
+            - --config=/etc/oauth2-proxy/oauth2-proxy.cfg
+            {{#each target}}
+            - --upstream={{this}}
+            {{/each}}
+            - --http-address=http://0.0.0.0:{{port}}
+            - --reverse-proxy=true
+            - --pass-user-headers=true
+            volumeMounts:
+            - name: oauth2-proxy
+              mountPath: /etc/oauth2-proxy
+              readOnly: true
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          securityContext: {}
+          volumes:
+          - name: oauth2-proxy
+            secret:
+              secretName: oauth2-proxy
+
+    ---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: {{app}}
+      name: {{app}}
+      namespace: {{ns}}
+    spec:
+      ports:
+      - port: {{port}}
+        protocol: TCP
+        targetPort: {{port}}
+      selector:
+        app: {{app}}
+      type: ClusterIP
+
+jobs:
+# --------------------------------
+- name : Generate side oauth proxy
+  check:
+    in:
+      app   : isString
+      ns    : isString
+      port  : toNumber.isNumber
+      target: isString
+      config: isString.default("oauth2-proxy.cfg")
+  from :
+  exec : | #js
+    // Secret handling
+    if (!io.fileExists(args.config)) {
+      io.writeFileString(args.config, args.init.config)
+    }
+    var secret = io.readFileString(args.config)
+    args.secret = af.fromBytes2String(af.toBase64Bytes(secret))
+
+    // Target handling
+    args.target = args.target.split(',')
+  to   :
+  - (template): *TMPL
+    ((key   )): args
+    ((out   )): side-proxy
+  - (print): |
+      {{{$path ($get 'side-proxy') 'output'}}}

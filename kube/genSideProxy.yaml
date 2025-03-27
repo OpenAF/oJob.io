@@ -1,0 +1,138 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a skeleton for a side proxy job to reverse proxy a service with a provided path
+  expects: 
+  - name     : app
+    desc     : The name of the app
+    example  : myapp
+    mandatory: true
+  - name     : ns
+    desc     : The kubernetes namespace to use
+    example  : default
+    mandatory: true
+  - name     : path
+    desc     : The path to reverse proxy
+    example  : /myapp
+    mandatory: true
+  - name     : port
+    desc     : The port to listen to
+    example  : "8080"
+    mandatory: true
+  - name     : targetPort
+    desc     : The port to forward to
+    example  : "80"
+    mandatory: true
+
+todo:
+- Generate side proxy
+
+ojob:
+  opacks      :
+  - openaf: 20250315
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+        
+_data:
+  tmpl: &TMPL | #yaml
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: nginx-{{app}}-config
+      namespace: {{ns}}
+    data:
+      default.conf: |
+        server {
+            listen {{port}};
+            server_name _;
+            location {{path}}/ {
+                proxy_pass http://localhost:{{targetPort}}/;
+                proxy_set_header Host $host;
+                proxy_set_header X-Real-IP $remote_addr;
+            }
+        }
+  
+    ---
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app: {{app}}
+      name: {{app}}
+      namespace: {{ns}}
+    spec:
+      selector:
+        matchLabels:
+          app: {{app}}
+      template:
+        metadata:
+          labels:
+            app: {{app}}
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:latest
+            ports:
+            - containerPort: {{port}}
+            volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d
+          - image: openaf/oaf
+            imagePullPolicy: IfNotPresent
+            name: {{app}}
+            resources: {}
+            env:
+            - name : OJOB
+              value: ojob.io/httpServers/EchoHTTPd
+            - name : port
+              value: "{{targetPort}}"
+            ports:
+            - containerPort: {{targetPort}}
+            startupProbe:
+              httpGet:
+                path: {{path}}/
+                port: {{port}}
+              failureThreshold: 30
+              periodSeconds: 10
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          volumes:
+          - name: nginx-config
+            configMap:
+              name: nginx-{{app}}-config
+
+    ---
+
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app: {{app}}
+      name: {{app}}
+      namespace: {{ns}}
+    spec:
+      ports:
+      - port: {{port}}
+        protocol: TCP
+        targetPort: {{port}}
+      selector:
+        app: {{app}}
+      type: ClusterIP
+
+jobs:
+# --------------------------
+- name : Generate side proxy
+  check:
+    in:
+      app       : isString
+      ns        : isString
+      path      : isString
+      port      : toNumber.isNumber
+      targetPort: toNumber.isNumber
+  from :
+  - (template): *TMPL
+    ((key   )): args
+    ((out   )): side-proxy
+  to   :
+  - (print): |
+      {{{$path ($get 'side-proxy') 'output'}}}
