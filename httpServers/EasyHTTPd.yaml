@@ -10,13 +10,14 @@ init:
   pid : &PID  easyHTTPd.pid
 
 ojob:
-  daemon    : true
-  sequential: true
-  opacks    :
+  daemon      : true
+  sequential  : true
+  opacks      :
   - oJob-common: 20210425
-  unique    :
+  unique      :
     pidFile     : *PID
     killPrevious: false
+  argsFromEnvs: true
 
 include:
   - oJobHTTPd.yaml
