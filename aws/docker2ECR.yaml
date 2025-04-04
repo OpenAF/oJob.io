@@ -18,6 +18,10 @@ help:
     desc     : The AWS secret key
     example  : wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
     mandatory: false
+  - name     : assumeRole
+    desc     : The role to assume
+    example  : arn:aws:iam::123456789012:role/demo
+    mandatory: false
 
 todo:
 - (httpdStart  ): 8080
@@ -32,10 +36,18 @@ todo:
   ((execURI   )): |
     try {
       var aws = new AWS(args.accessKey, args.secretKey, __, args.region)
+      if (isDef(args.assumeRole)) {
+        log("Assuming role " + args.assumeRole + "...")
+        aws = aws.assumeRole(args.assumeRole)
+      }
       $cache("authToken")
       .ttl(3600 * 1000)
       .fn(k => {
         var _aws = new AWS(args.accessKey, args.secretKey, __, args.region)
+        if (isDef(args.assumeRole)) {
+          log("Assuming role " + args.assumeRole + "...")
+          _aws = _aws.assumeRole(args.assumeRole)
+        }
         var _t = _aws.ECR_GetAuthorizationToken(args.region)
         var _creds = ow.format.fromBase64(_t.authorizationToken).split(":")
         return merge(_t, { username: _creds[0], password: _creds[1] })
@@ -145,10 +157,11 @@ jobs:
 - name : Docker proxy to ECR
   check:
     in:
-      ecr      : isString
-      region   : isString.default(__)
-      accessKey: isString.default(__)
-      secretKey: isString.default(__)
+      ecr       : isString
+      region    : isString.default(__)
+      accessKey : isString.default(__)
+      secretKey : isString.default(__)
+      assumeRole: isString.default(__)
   to   :
   - ojob debug
   exec : |
