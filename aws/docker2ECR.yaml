@@ -142,7 +142,7 @@ todo:
           })
         }).get(_creds.proxyEndpoint + request.uri)
 
-        var _hdrs = hs.responseHeaders()
+        var _hdrs = global.hs.responseHeaders()
         var _mime = isBlob ? "application/octet-stream" : "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"
         delete _hdrs["content-length"]
         delete _hdrs["sizes"]
