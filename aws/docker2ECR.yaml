@@ -121,41 +121,48 @@ todo:
         var _creds = $cache("authToken").get({})
 
         // Create a new HTTP client if not already created
-        if (isUnDef(global._hs)) {
-          log("Creating HTTP client connection...")
+        var hs
+        try {
           ow.loadObj()
-          global.hs = new ow.obj.http()
+          hs = new ow.obj.http()
           var clt = new Packages.okhttp3.OkHttpClient.Builder()
           clt = clt.followSslRedirects(false)
           clt = clt.followRedirects(false)
-          global.hs.client = clt.build()
-        }
+          hs.client = clt.build()
 
-        var isBlob = request.uri.indexOf("/blobs/") > 0
+          var isBlob = request.uri.indexOf("/blobs/") > 0
 
-        var _r = $rest({
-          httpClient: global.hs,
-          login: _creds.username, 
-          pass: _creds.password,
-          requestHeaders: merge(isBlob ? {} : request.header, { 
-            Host: _creds.proxyEndpoint.replace(/https?:\/\//,"")
+          var _r = $rest({
+            httpClient: hs,
+            login: _creds.username, 
+            pass: _creds.password,
+            requestHeaders: merge(isBlob ? {} : request.header, { 
+              Host: _creds.proxyEndpoint.replace(/https?:\/\//,"")
+            })
+          }).get(_creds.proxyEndpoint + request.uri)
+
+          var _hdrs = hs.responseHeaders()
+          var _mime = isBlob ? "application/octet-stream" : "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"
+          delete _hdrs["content-length"]
+          delete _hdrs["sizes"]
+          delete _hdrs["content-type"]
+          delete _hdrs["transfer-encoding"]
+          _hdrs["X-Content-Type-Options"] = "nosniff"
+          _hdrs["Docker-Content-Digest"] = "sha256:" + sha256(stringify(_r, __, ""))
+          _hdrs["Etag"] = '"' + _hdrs["Docker-Content-Digest"] + '"'
+
+          if (isBlob && isDef(_hdrs["location"])) {
+            return ow.server.httpd.reply($rest().get(_hdrs["location"]))
+          }
+          return ow.server.httpd.reply(_r, 200, _mime, _hdrs)
+        } catch (ee) {
+          return ow.server.httpd.reply("Error: " + ee.message, 500, "text/plain", {
+            "Content-Type": "text/plain",
+            "X-Content-Type-Options": "nosniff"
           })
-        }).get(_creds.proxyEndpoint + request.uri)
-
-        var _hdrs = global.hs.responseHeaders()
-        var _mime = isBlob ? "application/octet-stream" : "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"
-        delete _hdrs["content-length"]
-        delete _hdrs["sizes"]
-        delete _hdrs["content-type"]
-        delete _hdrs["transfer-encoding"]
-        _hdrs["X-Content-Type-Options"] = "nosniff"
-        _hdrs["Docker-Content-Digest"] = "sha256:" + sha256(stringify(_r, __, ""))
-        _hdrs["Etag"] = '"' + _hdrs["Docker-Content-Digest"] + '"'
-
-        if (isBlob && isDef(_hdrs["location"])) {
-          return ow.server.httpd.reply($rest().get(_hdrs["location"]))
+        } finally {
+          if (isDef(hs)) hs.close()
         }
-        return ow.server.httpd.reply(_r, 200, _mime, _hdrs)
       }
     } catch(ee) {
       logErr(ee)
