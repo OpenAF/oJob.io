@@ -28,7 +28,6 @@ todo:
 - (httpdService): 8080
   ((uri       )): /
   ((execURI   )): | #js
-    sprint(request)
     return stringify(request,__,"")
 - (httpdMetrics): 8080
   ((uri       )): /metrics
