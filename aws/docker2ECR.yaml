@@ -27,95 +27,122 @@ todo:
 - (httpdStart  ): 8080
 - (httpdService): 8080
   ((uri       )): /
-  ((execURI   )): |
-    cprint(request)
+  ((execURI   )): | #js
+    sprint(request)
     return stringify(request,__,"")
+- (httpdMetrics): 8080
+  ((uri       )): /metrics
 - (httpdService): 8080
   ((uri       )): /v2
   ((error     )): true
-  ((execURI   )): |
+  ((execURI   )): | #js
     try {
-      var aws = new AWS(args.accessKey, args.secretKey, __, args.region)
-      if (isDef(args.assumeRole)) {
-        log("Assuming role " + args.assumeRole + "...")
-        aws = aws.assumeRole(args.assumeRole)
-      }
-      $cache("authToken")
-      .ttl(3600 * 1000)
-      .fn(k => {
-        var _aws = new AWS(args.accessKey, args.secretKey, __, args.region)
-        if (isDef(args.assumeRole)) {
-          log("Assuming role " + args.assumeRole + "...")
-          _aws = _aws.assumeRole(args.assumeRole)
-        }
-        var _t = _aws.ECR_GetAuthorizationToken(args.region)
-        var _creds = ow.format.fromBase64(_t.authorizationToken).split(":")
-        return merge(_t, { username: _creds[0], password: _creds[1] })
-      })
-      .create()
+      // Check if first request
+      if (isUnDef(global.__notFirst)) {
+        // Cache AWS ECR credentials
+        $cache("aws")
+        .ttl(3000 * 1000)
+        .fn(k => {
+          log("Creating AWS ECR client connection.")
+          var _aws = new AWS(args.accessKey, args.secretKey, __, args.region)
+          if (isDef(args.assumeRole)) {
+            log("Assuming role " + args.assumeRole + "...")
+            _aws = _aws.assumeRole(args.assumeRole)
+          }
+          return _aws
+        })
+        .create()
 
+        // Cache AWS ECR token
+        $cache("authToken")
+        .ttl(3600 * 1000)
+        .fn(k => {
+          var _aws = $cache("aws").get({})
+          log("Creating AWS ECR authorization token.")
+          var _t = _aws.ECR_GetAuthorizationToken(args.region)
+          var _creds = ow.format.fromBase64(_t.authorizationToken).split(":")
+          return merge(_t, { username: _creds[0], password: _creds[1] })
+        })
+        .create()
+
+        // Cache AWS ECR ListImages
+        $cache("listImages")
+        .ttl(_$(args.cache, "cache").isNumber().default(15 * 1000))
+        .fn(k => {
+          var _aws = $cache("aws").get({})
+          log("Listing repositories...")
+          return _aws.ECR_ListImages(k.region, k.repo)
+        })
+        .create()
+
+        // Cache AWS ECR DescribeRepositories
+        $cache("describeRepo")
+        .ttl(_$(args.cache, "cache").isNumber().default(15 * 1000))
+        .fn(k => {
+          var _aws = $cache("aws").get({})
+          log("Listing repositories...")
+          return _aws.ECR_DescribeRepositories(k.region)
+        })
+        .create()
+
+        global.__notFirst = true
+      }
+
+      var aws = $cache("aws").get({})
+
+      // Handle /tags/list
       if (request.uri.endsWith("/tags/list")) {
-        // tags/list
-        //
         var _r = request.uri.match(/\/v2\/(.+)\/tags\/list$/)
         var repo = _r[1]
         log("Listing tags for " + repo + "...")
-        var res = aws.ECR_ListImages(args.region, repo)
-        return ow.server.httpd.reply({
+        var res = $cache("listImages").get({ region: args.region, repo: repo })
+        var _r = ow.server.httpd.reply({
           name: repo,
           tags: res.map(r => r.imageTag).filter(isDef).map(r => String(r))
         })
+        res = __
+
+        return _r
       } else if (request.uri.endsWith("/_catalog")) {
-        // _catalog
-        //
-        log("Listing repositories...")
-        var res = aws.ECR_DescribeRepositories(args.region)
-        return ow.server.httpd.reply({
+        // Handle /_catalog
+        
+        var res = $cache("describeRepo").get({ region: args.region })
+        var _r = ow.server.httpd.reply({
           repositories: res.map(r => r.repositoryName).filter(isDef)
         })
-      } /*else if (request.uri.match(/\/manifests\/[^\/]+$/)) {
-        // manifests
-        //
-        cprint(request)
-        var _r = request.uri.match(/\/v2\/(.*)\/manifests\/([^\/]+)$/)
-        var repo = _r[1], tag = _r[2]
-        log("Getting manifest for " + repo + ":" + tag + "...")
-        var res = aws.ECR_BatchGetImage(args.region, repo, tag)
-        var _creds = $cache("authToken").get({})
-        cprint(res)
-        request.header.host = _creds.proxyEndpoint.replace(/https?:\/\//,"")
-        return ow.server.httpd.reply([ 
-        $rest({ 
-            login: _creds.username, 
-            pass: _creds.password,
-            requestHeaders: merge(request.header, { Accept: "application/vnd.oci.image.manifest.v1+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" })
-        }).get(_creds.proxyEndpoint + "/v2/" + repo + "/manifests/" + tag)
-        , $rest({ 
-            login: _creds.username, 
-            pass: _creds.password,
-            requestHeaders: merge(request.header, { Accept: "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" })
-        }).get(_creds.proxyEndpoint + "/v2/" + repo + "/manifests/" + tag)])
-      } */ else {
+        res = __
+
+        return _r
+      } else {
+        // If ping answer immediately
+        if (request.uri.endsWith("/v2/") || request.uri.endsWith("/v2")) {
+          return ow.server.httpd.reply({ status: "OK" })
+        }
+
         var _creds = $cache("authToken").get({})
 
-        ow.loadObj()
-        var hs = new ow.obj.http()
-        var clt = new Packages.okhttp3.OkHttpClient.Builder()
-        //clt = clt.sslSocketFactory(global.__httpSSLSocketFactory, global.__httpX509TrustManager)
-        clt = clt.followSslRedirects(false)
-        clt = clt.followRedirects(false)
-        hs.client = clt.build()
+        // Create a new HTTP client if not already created
+        if (isUnDef(global._hs)) {
+          log("Creating HTTP client connection...")
+          ow.loadObj()
+          global.hs = new ow.obj.http()
+          var clt = new Packages.okhttp3.OkHttpClient.Builder()
+          clt = clt.followSslRedirects(false)
+          clt = clt.followRedirects(false)
+          global.hs.client = clt.build()
+        }
 
         var isBlob = request.uri.indexOf("/blobs/") > 0
 
         var _r = $rest({
-          httpClient: hs,
+          httpClient: global.hs,
           login: _creds.username, 
           pass: _creds.password,
           requestHeaders: merge(isBlob ? {} : request.header, { 
             Host: _creds.proxyEndpoint.replace(/https?:\/\//,"")
           })
         }).get(_creds.proxyEndpoint + request.uri)
+
         var _hdrs = hs.responseHeaders()
         var _mime = isBlob ? "application/octet-stream" : "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json"
         delete _hdrs["content-length"]
@@ -152,17 +179,17 @@ ojob:
 include:
 - oJobHTTPd.yaml
 
-jobs:
-# --------------------------
-- name : Docker proxy to ECR
-  check:
-    in:
-      ecr       : isString
-      region    : isString.default(__)
-      accessKey : isString.default(__)
-      secretKey : isString.default(__)
-      assumeRole: isString.default(__)
-  to   :
-  - ojob debug
-  exec : |
-    //
+# jobs:
+# # --------------------------
+# - name : Docker proxy to ECR
+#   check:
+#     in:
+#       ecr       : isString
+#       region    : isString.default(__)
+#       accessKey : isString.default(__)
+#       secretKey : isString.default(__)
+#       assumeRole: isString.default(__)
+#   to   :
+#   - ojob debug
+#   exec : | #js
+#     //
