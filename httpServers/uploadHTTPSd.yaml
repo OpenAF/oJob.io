@@ -20,7 +20,8 @@ init:
 ojob:
   daemon: true
   opacks:
-  - oJob-common: 20210425
+  - oJob-common: 20250405
+  - openaf     : 20250315
   unique: 
     pidFile     : *PIDDIR
     killPrevious: false
@@ -110,7 +111,9 @@ jobs:
       args = merge(args,
          ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
             "path": (isDef(args.path) ? String(args.path) : global.args.init.path),
-            "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri) })
+            "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri),
+            "incURI" : false,
+            "sortTab": true })
       );
 
   # Provides a upload uri

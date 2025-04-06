@@ -13,7 +13,8 @@ ojob:
   daemon      : true
   sequential  : true
   opacks      :
-  - oJob-common: 20210425
+  - oJob-common: 20250405
+  - openaf     : 20250315
   unique      :
     pidFile     : *PID
     killPrevious: false
@@ -48,6 +49,8 @@ todo:
 
   - name: HTTP File Browse
     args: |
-      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
-         "path": (isDef(args.path) ? String(args.path) : global.args.init.path),
-         "uri" : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri) })
+      ({ "port"   : (isDef(args.port) ? Number(args.port) : global.args.init.port),
+         "path"   : (isDef(args.path) ? String(args.path) : global.args.init.path),
+         "uri"    : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri),
+         "incURI" : false,
+         "sortTab": true })
