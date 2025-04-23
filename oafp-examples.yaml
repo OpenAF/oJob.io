@@ -1025,14 +1025,30 @@ data:
   s: BedRock
   d: Place a prompt to get a list of data using AWS BedRock titan express model.
   e: |-
+    # opack install AWS
     export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'amazon.titan-text-express-v1', temperature: 0, params: (textGenerationConfig: (maxTokenCount: 1024))))"
     oafp in=llm libs="@AWS/aws.js" data="list of primary color names" getlist=true out=ctable
 - c: AI
   s: BedRock
   d: Place a prompt to get a list of data using an AWS BedRock Llama model.
   e: |-
+    # opack install AWS
     export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'eu.meta.llama3-2-3b-instruct-v1:0', region: eu-central-1, temperature: 0.1, params: ('top_p': 0.9, 'max_gen_len': 512)))"
     oafp in=llm libs="@AWS/aws.js" data="produce a list of european countries with the country name and capital" getlist=true out=ctable
+- c: AI
+  s: BedRock
+  d: Using AWS BedRock Mistral model to place a prompt
+  e: |-
+    # opack install AWS
+    export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'mistral.mistral-7b-instruct-v0:2', region: eu-west-1, temperature: 0.7, params: ('top_p': 0.9, 'max_tokens': 8192)))"
+    oafp in=llm libs="@AWS/aws.js" data="why is the sky blue?" out=md path="outputs[0].text"
+- c: AI
+  s: BedRock
+  d: Using AWS BedRock to place a prompt to an AWS Nova model to get an Unix command to find all javascript files older than 1 day
+  e: |-
+    # opack install AWS
+    export OAFP_MODEL="(type: bedrock, timeout: 900000, options: (model: 'amazon.nova-micro-v1:0', temperature: 0))"
+    oafp in=llm libs="@AWS/aws.js" data="unix command to find all .js files older than 1 day" path=command
 - c: Docker
   s: Volumes
   d: Given a list of docker volumes will remove all of them, if not in use, in parallel for faster execution.
@@ -1223,3 +1239,8 @@ data:
   e: |-
     # export OAFP_MODEL="(type: gemini, model: gemini-2.0-flash-thinking-exp, key: ..., timeout: 900000, temperature: 0)"
     ojob ojob.io/news/bbc -json | oafp path="[].title|{title:@}" out=json | oafp llmcontext="news titles" llmprompt="add emojis to each news title" getlist=true out=ctable
+- c: Kubernetes
+  s: Kubectl
+  d: Given a pod on a namespace loop through kubectl top and show a grid of two charts with the corresponding cpu and memory values.
+  e: |-
+    NS=my-namespace && POD=my-pod-123dbf4dcb-d6jcc && oafp cmd="kubectl top -n $NS pod $POD" in=lines linesvisual=true path="[].{name:NAME,cpu:from_siAbbr(\"CPU(cores)\"),mem:from_bytesAbbr(\"MEMORY(bytes)\")}" out=grid grid="[[(title: cpu, type: chart, obj: 'dec3 cpu:blue:cpu -min:0')|(title: mem, type: chart, obj: 'bytes mem:green:mem -min:0')]]" loop=2 loopcls=true
