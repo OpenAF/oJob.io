@@ -26,7 +26,7 @@ jobs:
         
     # -------------------
     - name: Update badges
-      uses: openaf/ojob-action@v6
+      uses: openaf/ojob-action@v7
       with:
         ojob: .github/ojobs/genBadge.yaml
         dist: t8
@@ -35,7 +35,7 @@ jobs:
     - name: Checkin
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      uses: openaf/ojob-action@v6
+      uses: openaf/ojob-action@v7
       with:
         ojob: 'ojob.io/git/hub/contentIn'
         args: 'message="Update\ badge\ {{date}}/{{time}}" title="Update\ badge" paths=.github/'

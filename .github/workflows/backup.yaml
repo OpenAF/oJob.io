@@ -23,7 +23,7 @@ jobs:
 
     # --------------------
     - name: Backup oJob.io
-      uses: openaf/ojob-action@v6
+      uses: openaf/ojob-action@v7
       env :
         OS_OJOBIO: ${{ secrets.OS_OJOBIO }}
       with:
