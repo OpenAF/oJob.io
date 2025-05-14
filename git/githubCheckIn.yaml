@@ -67,7 +67,7 @@ jobs:
     .get()
     
     // Determines if there is anything to commit
-    var res = $sh("git status --porcelain").get(0).stdout.split("\n").filter(r => !r.endsWith(" .github/action/")).join("\n")
+    var res = $sh("git status --porcelain").get(0).stdout.split("\n").filter(r => !r.includes(" .github/action/")).join("\n")
     
     if (res != "") {
       log("Identified to commit:\n" + res)
