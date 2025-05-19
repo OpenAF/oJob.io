@@ -1,0 +1,57 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prepare a docker image with OpenAI Codex installed and ready to use with GIT
+  # expects: 
+  # - name     : repo
+  #   desc     : The GIT repo to use
+  #   example  : openaf/codex
+  #   mandatory: true
+
+todo:
+- Build a codex docker image
+- (printmd): | #markdown
+    # OpenAF + OpenAI Codex
+
+    ## ⚙️  Usage
+
+    ```bash
+    docker run -it --rm -e OPENAI_API_KEY=your_api_key openaf/codex
+    ```
+
+    ## ℹ️ Example
+
+    ```bash
+    # gh auth login
+    git clone https://github.com/my/repo
+    cd repo
+    codex
+    ```
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init: 
+  docker: | #dockerfile
+    FROM openaf/oaf:edge
+
+    USER root
+    RUN apk add git npm github-cli\
+     && npm install -g @openai/codex
+
+    USER openaf
+
+jobs:
+# ---------------------------------
+- name : Build a codex docker image
+  exec : | #js
+    const dir = io.createTempDir("Dockerfile")
+
+    io.writeFileString(dir + "/Dockerfile", args.init.docker)
+
+    $sh("docker build -t openaf/codex .")
+    .pwd(dir)
+    .prefix("build")
+    .exec()
