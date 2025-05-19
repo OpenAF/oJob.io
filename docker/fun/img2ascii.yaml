@@ -1,16 +1,16 @@
 # Author: Nuno Aguiar
 help:
-  text   : Prepares a docker container to generate an ascii art from an image file (wrapper for ascii-image-converter)
+  text   : Prepares a docker container to generate an ascii art from an image file (wrapper for chafa)
 
 todo:
-- Create a docker image with the ascii-image-converter
+- Create a docker image with the chafa
 - (printmd): | #markdown
-    # OpenAF + ascii-image-converter
+    # OpenAF + chafa
 
     ## ⚙️  Usage
 
     ```bash
-    docker run -it --rm -v $(pwd):/work openaf/ascii-image-converter /work/image.png -cC
+    docker run -it --rm -v $(pwd):/work openaf/chafa /work/image.png -c
     ```
 
 ojob:
@@ -24,23 +24,20 @@ init:
     FROM openaf/oaf:edge
 
     USER root
-    RUN apk add go\
-     && go install github.com/TheZoraiz/ascii-image-converter@latest\
-     && ln -s /root/go/bin/ascii-image-converter /usr/bin/ascii-image-converter\
-     && chmod a+x /root/go/bin/ascii-image-converter
+    RUN apk add chafa
 
     USER openaf
-    ENTRYPOINT ["/usr/bin/ascii-image-converter"]
+    ENTRYPOINT ["/usr/bin/chafa"]
 
 jobs:
-# ----------------------------------------------------------
-- name: Create a docker image with the ascii-image-converter
+# ------------------------------------------
+- name: Create a docker image with the chafa
   exec : | #js
     const dir = io.createTempDir("Dockerfile")
 
     io.writeFileString(dir + "/Dockerfile", args.init.docker)
 
-    $sh("docker build -t openaf/ascii-image-converter .")
+    $sh("docker build -t openaf/chafa .")
     .pwd(dir)
     .prefix("build")
     .exec()
