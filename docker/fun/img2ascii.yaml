@@ -1,0 +1,46 @@
+# Author: Nuno Aguiar
+help:
+  text   : Prepares a docker container to generate an ascii art from an image file (wrapper for ascii-image-converter)
+
+todo:
+- Create a docker image with the ascii-image-converter
+- (printmd): | #markdown
+    # OpenAF + ascii-image-converter
+
+    ## ⚙️  Usage
+
+    ```bash
+    docker run -it --rm -v $(pwd):/work openaf/ascii-image-converter /work/image.png -cC
+    ```
+
+ojob:
+  opacks      :
+  - openaf: 20250315
+  catch       : $err(exception)
+  logToConsole: false   # to change when finished
+
+init: 
+  docker: | #dockerfile
+    FROM openaf/oaf:edge
+
+    USER root
+    RUN apk add go\
+     && go install github.com/TheZoraiz/ascii-image-converter@latest\
+     && ln -s /root/go/bin/ascii-image-converter /usr/bin/ascii-image-converter\
+     && chmod a+x /root/go/bin/ascii-image-converter
+
+    USER openaf
+    ENTRYPOINT ["/usr/bin/ascii-image-converter"]
+
+jobs:
+# ----------------------------------------------------------
+- name: Create a docker image with the ascii-image-converter
+  exec : | #js
+    const dir = io.createTempDir("Dockerfile")
+
+    io.writeFileString(dir + "/Dockerfile", args.init.docker)
+
+    $sh("docker build -t openaf/ascii-image-converter .")
+    .pwd(dir)
+    .prefix("build")
+    .exec()
