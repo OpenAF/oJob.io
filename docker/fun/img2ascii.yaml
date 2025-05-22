@@ -10,7 +10,7 @@ todo:
     ## ⚙️  Usage
 
     ```bash
-    docker run -it --rm -v $(pwd):/work openaf/chafa /work/image.png -c
+    docker run -it --rm -v $(pwd):/work openaf/chafa /work/image.png
     ```
 
 ojob:
