@@ -81,7 +81,7 @@ jobs:
           if (l.indexOf(" " + p) >= 0) _l = l
         })
         return l
-      }).filter(r => isDef(r)).join("\n")
+      }).filter(r => isDef(r)).filter(r => !r.includes(" .github/action/")).join("\n")
     }
     
     if (res != "") {
