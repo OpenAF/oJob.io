@@ -1,0 +1,278 @@
+# Author: Nuno Aguiar
+help:
+  text   : Syncs a source S3 bucket with a target S3 bucket.
+  expects: 
+  - name     : sourceBucket
+    desc     : The source S3 bucket to sync from.
+    example  : my-source-bucket
+    mandatory: true
+  - name     : targetBucket
+    desc     : The target S3 bucket to sync to.
+    example  : my-target-bucket
+    mandatory: true
+  - name     : sourcePrefix
+    desc     : The prefix in the source bucket to sync from.
+    example  : my-prefix/
+    mandatory: false
+  - name     : targetPrefix
+    desc     : The prefix in the target bucket to sync to.
+    example  : my-target-prefix/
+    mandatory: false
+  - name     : sourceRegion
+    desc     : The AWS region of the source bucket.
+    example  : us-west-2
+    mandatory: false
+  - name     : targetRegion
+    desc     : The AWS region of the target bucket.
+    example  : us-east-1
+    mandatory: false
+  - name     : sourceURL
+    desc     : The URL of the source S3 bucket.
+    example  : https://s3.us-west-2.amazonaws.com/my-source-bucket
+    mandatory: false
+  - name     : targetURL
+    desc     : The URL of the target S3 bucket.
+    example  : https://s3.us-east-1.amazonaws.com/my-target-bucket
+    mandatory: false
+  - name     : sourceAccessKey
+    desc     : The AWS access key for the source bucket.
+    example  : AKIAIOSFODNN7EXAMPLE
+    mandatory: false
+  - name     : sourceSecretKey
+    desc     : The AWS secret key for the source bucket.
+    example  : wJalrXUtnFEMI/K7MDENG/bQR9zv3rXU
+    mandatory: false
+  - name     : targetAccessKey
+    desc     : The AWS access key for the target bucket.
+    example  : AKIAIOSFODNN7EXAMPLE
+    mandatory: false
+  - name     : targetSecretKey
+    desc     : The AWS secret key for the target bucket.
+    example  : wJalrXUtnFEMI/K7MDENG/bQR9zv3rXU
+    mandatory: false
+  - name     : dryRun
+    desc     : If true, the job will only simulate the sync without making any changes (default is false).
+    example  : "true"
+    mandatory: false
+  - name     : useETag
+    desc     : If true, the job will use ETag to determine if files need to be copied or overwritten (default is false).
+    example  : "true"
+    mandatory: false
+  - name     : useModified
+    desc     : If true, the job will use last modified date to determine if files need to be copied or overwritten (default is false).
+    example  : "true"
+    mandatory: false
+  - name     : noFinalList
+    desc     : If true, the job will not output the final list of items processed (default is false).
+    example  : "true"
+    mandatory: false
+  - name     : noS3Copy
+    desc     : If true, the job will not perform any S3 copy operations and fallback for get/put operations (default is false).
+    example  : "true"
+    mandatory: false
+  - name     : noDelete
+    desc     : If true, the job will not delete any objects in the target bucket (default is false).
+    example  : "true"
+    mandatory: false
+
+todo:
+- Sync between two S3 buckets
+
+ojob:
+  opacks      :
+  - openaf: 20250610
+  - S3    : 20250615
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, false, __, job.exec)
+  logToConsole: true   # to change when finished
+  loadLibs    :
+  - s3.js  
+
+jobs:
+# ----------------------
+- name : Source S3 login
+  check:
+    in:
+      sourceBucket   : isString.default(__)
+      sourceURL      : isString.default(__)
+      sourceRegion   : isString.default(__)
+      sourceAccessKey: isString.default(__)
+      sourceSecretKey: isString.default(__)
+  exec : | #js
+    log("📡 Connecting to source S3 bucket: " + args.sourceBucket)
+    global.sourceS3 = new S3(args.sourceURL, args.sourceAccessKey, args.sourceSecretKey, args.sourceRegion)
+
+# ----------------------
+- name : Target S3 login
+  check:
+    in:
+      targetBucket   : isString.default(__)
+      targetURL      : isString.default(__)
+      targetRegion   : isString.default(__)
+      targetAccessKey: isString.default(__)
+      targetSecretKey: isString.default(__)
+  exec : | #js
+    log("📡 Connecting to target S3 bucket: " + args.targetBucket)
+    global.targetS3 = new S3(args.targetURL, args.targetAccessKey, args.targetSecretKey, args.targetRegion)
+
+# ------------------------
+- name : Close connections
+  exec : | #js
+    log("🔌 Closing S3 connections...")
+    if (isDef(global.sourceS3)) global.sourceS3.close()
+    if (isDef(global.targetS3)) global.targetS3.close()
+
+# -------------------------------------------------
+- name : Get listing from source and target buckets
+  check:
+    in:
+      sourceBucket : isString.default(__)
+      sourcePrefix : isString.default("")
+      targetBucket : isString.default(__)
+      targetPrefix : isString.default("")
+  exec : | #js
+    if (!isDef(global.sourceS3)) throw new Error("Source S3 connection is not defined.")
+    if (!isDef(global.targetS3)) throw new Error("Target S3 connection is not defined.")
+
+    var sourceLst, targetLst
+    /*$doWait($doAll([
+      $do(() => { sourceLst = global.sourceS3.listObjects(args.sourceBucket, args.sourcePrefix, __, true) }).catch(e => $err(e)),
+      $do(() => { targetLst = global.targetS3.listObjects(args.targetBucket, args.targetPrefix, __, true) }).catch(e => $err(e))
+    ]))*/
+    sourceLst = global.sourceS3.listObjects(args.sourceBucket, args.sourcePrefix, __, true)
+    targetLst = global.targetS3.listObjects(args.targetBucket, args.targetPrefix, __, true)
+    args.sourceLst = sourceLst
+    args.targetLst = targetLst
+
+# -----------------------------------------
+- name : Compare source and target listings
+  check:
+    in:
+      sourceLst  : isArray.default(__)
+      targetLst  : isArray.default(__)
+      useETag    : toBoolean.isBoolean.default(false)
+      useModified: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (!isDef(args.sourceLst) || !isDef(args.targetLst)) throw new Error("Source or target listing is not defined.")
+    
+    var _fixPrefix = prefix => {
+      prefix = prefix.replace(/^\/+/, "")
+      prefix = prefix.replace(/\/\/+/, "/")
+      return prefix
+    }
+
+    log("📂 Comparing source and target listings...")
+    args.resultLst = pForEach(args.sourceLst, item => {
+      var _filename = item.filename.replace(new RegExp("^" + args.sourcePrefix), "")
+      var targetItem = args.targetLst.find(t => t.filename.replace(new RegExp("^" + args.targetPrefix), "") === _filename)
+      if (!targetItem) {
+        return { source: _fixPrefix(args.sourcePrefix + _filename), target: _fixPrefix(args.targetPrefix + _filename), size: item.size, op: "copy", reason: "missing-in-target" }
+      } else if (args.useETag && item.ETag !== targetItem.ETag) {
+        return { source: _fixPrefix(args.sourcePrefix + _filename), target: _fixPrefix(args.targetPrefix + _filename), size: item.size, op: "overwrite", reason: "etag" }
+      } else if (item.size !== targetItem.size) {
+        return { source: _fixPrefix(args.sourcePrefix + _filename), target: _fixPrefix(args.targetPrefix + _filename), size: item.size, op: "overwrite", reason: "size" }
+      } else if (item.useModified && targetItem.lastModified && item.lastModified !== targetItem.lastModified) {
+        return { source: _fixPrefix(args.sourcePrefix + _filename), target: _fixPrefix(args.targetPrefix + _filename), size: item.size, op: "overwrite", reason: "last-modified" }
+      } else {
+        return { source: _fixPrefix(args.sourcePrefix + _filename), target: _fixPrefix(args.targetPrefix + _filename), size: item.size, op: "skip", reason: "identical" }
+      }
+    })
+    // Find items to delete in target that are not in source
+    args.resultLst = args.resultLst.concat(args.targetLst.map(item => {
+      var _filename = item.filename.replace(new RegExp("^" + args.targetPrefix), "")
+      if (!args.sourceLst.find(s => s.filename.replace(args.sourcePrefix, "") === _filename)) {
+        return { source: "", target: _fixPrefix(args.targetPrefix + _filename), size: item.size, op: "delete", reason: "missing-in-source" }
+      }
+    }).filter(Boolean))
+
+    log(`📊 Comparison complete. Found ${args.resultLst.length} items to process from #${args.sourceLst.length} source items and #${args.targetLst.length} target items.`)
+
+# -------------------------
+- name : Output result list
+  check:
+    in:
+      resultLst: isArray.default(__)
+      __format : isString.default("table")
+  exec : | #js
+    if (args.resultLst.length > 0) {
+      log("📋 Result list:")
+      ow.oJob.output(args.resultLst, { __format: args.__format })
+    } else {
+      log("✅ No items to process.")
+    }
+
+# ----------------------------------
+- name : Sync between two S3 buckets
+  from :
+  - Source S3 login
+  - Target S3 login
+  - Get listing from source and target buckets
+  - Compare source and target listings
+  to   :
+  - Close connections
+  - Output result list
+
+  catch: | #js
+    printErrnl("[" + job.name + "] ")
+    $err(exception, false, __, job.exec)
+    $job("Close connections")
+
+  check:
+    in:
+      dryRun     : toBoolean.isBoolean.default(false)
+      noFinalList: toBoolean.isBoolean.default(false)
+      noS3Copy   : toBoolean.isBoolean.default(false)
+      noDelete   : toBoolean.isBoolean.default(false)
+
+  exec : | #js
+    if (args.dryRun) {
+      logWarn("⚠️  Dry run mode: No changes will be made.")
+    } else {
+      log("🔄 Syncing source S3 bucket to target S3 bucket...")
+      // Iterate over the result list and perform the necessary operations
+      pForEach(args.resultLst, item => {
+        // Skip items that are marked as "skip"
+        if (item.op === "copy") {
+          // If the operation is "copy", we copy the object from source to target
+          log("  copying " + item.source + " -> " + item.target + ` (size: ${ow.format.toBytesAbbreviation(item.size) || "unknown"})`)
+          // If no S3 copy is requested or the source and target are different, we fallback to get/put operations
+          if (!args.noS3Copy && args.sourceURL == args.targetURL) {
+            global.targetS3.copyObject(args.sourceBucket, item.source, args.targetBucket, item.target)
+          } else {
+            // Use getObjectStream and putObjectStream to copy the object
+            var inS
+            try {
+              inS = global.sourceS3.getObjectStream(args.sourceBucket, item.source)
+              global.targetS3.putObjectStream(args.targetBucket, item.target, inS)
+            } catch(e) {
+              throw(e)
+            } finally {
+              if (isDef(inS)) inS.close()
+            }
+          }
+        } else if (item.op === "overwrite") {
+          // If the operation is "overwrite", we overwrite the object in target
+          log("  overwriting " + item.source + " -> " + item.target + ` (size: ${ow.format.toBytesAbbreviation(item.size) || "unknown"})`)
+          // If no S3 copy is requested or the source and target are different, we fallback to get/put operations
+          if (!args.noS3Copy && args.sourceURL == args.targetURL) {
+            global.targetS3.copyObject(args.sourceBucket, item.source, args.targetBucket, item.target)
+          } else {
+            // Use getObjectStream and putObjectStream to copy the object
+            var inS
+            try {
+              inS = global.sourceS3.getObjectStream(args.sourceBucket, item.source)
+              global.targetS3.putObjectStream(args.targetBucket, item.target, inS)
+            } catch(e) {
+              throw(e)
+            } finally {
+              if (isDef(inS)) inS.close()
+            }
+          }
+        } else if (!args.noDelete && item.op === "delete") {
+          // If the operation is "delete", we delete the object in target
+          log("  deleting " + item.target)
+          global.targetS3.removeObject(args.targetBucket, item.target)
+        }
+      })
+    }
+
+    log("✅ Sync complete.")
