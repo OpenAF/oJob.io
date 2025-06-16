@@ -138,9 +138,9 @@ jobs:
       $do(() => { sourceLst = global.sourceS3.listObjects(args.sourceBucket, args.sourcePrefix, __, true) }).catch(e => $err(e)),
       $do(() => { targetLst = global.targetS3.listObjects(args.targetBucket, args.targetPrefix, __, true) }).catch(e => $err(e))
     ]))*/
-    log("📂 Getting listing from source bucket: " + args.sourceBucket + " with prefix: " + args.sourcePrefix)
+    log("📂 Getting listing from source bucket: '" + args.sourceBucket + "' with prefix: '" + args.sourcePrefix + "'")
     sourceLst = global.sourceS3.listObjects(args.sourceBucket, args.sourcePrefix, __, true)
-    log("📂 Getting listing from target bucket: " + args.targetBucket + " with prefix: " + args.targetPrefix)
+    log("📂 Getting listing from target bucket: '" + args.targetBucket + "' with prefix: '" + args.targetPrefix + "'")
     targetLst = global.targetS3.listObjects(args.targetBucket, args.targetPrefix, __, true)
     args.sourceLst = sourceLst
     args.targetLst = targetLst
