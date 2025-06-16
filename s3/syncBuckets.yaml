@@ -229,48 +229,56 @@ jobs:
     } else {
       log("🔄 Syncing source S3 bucket to target S3 bucket...")
       // Iterate over the result list and perform the necessary operations
-      pForEach(args.resultLst, item => {
-        // Skip items that are marked as "skip"
-        if (item.op === "copy") {
-          // If the operation is "copy", we copy the object from source to target
-          log("  copying " + item.source + " -> " + item.target + ` (size: ${ow.format.toBytesAbbreviation(item.size) || "unknown"})`)
-          // If no S3 copy is requested or the source and target are different, we fallback to get/put operations
-          if (!args.noS3Copy && args.sourceURL == args.targetURL) {
-            global.targetS3.copyObject(args.sourceBucket, item.source, args.targetBucket, item.target)
-          } else {
-            // Use getObjectStream and putObjectStream to copy the object
-            var inS
-            try {
-              inS = global.sourceS3.getObjectStream(args.sourceBucket, item.source)
-              global.targetS3.putObjectStream(args.targetBucket, item.target, inS)
-            } catch(e) {
-              throw(e)
-            } finally {
-              if (isDef(inS)) inS.close()
+      args.resultLst = pForEach(args.resultLst, item => {
+        try {
+          // Skip items that are marked as "skip"
+          if (item.op === "copy") {
+            // If the operation is "copy", we copy the object from source to target
+            log("  copying " + item.source + " -> " + item.target + ` (size: ${ow.format.toBytesAbbreviation(item.size) || "unknown"})`)
+            // If no S3 copy is requested or the source and target are different, we fallback to get/put operations
+            if (!args.noS3Copy && args.sourceURL == args.targetURL) {
+              global.targetS3.copyObject(args.sourceBucket, item.source, args.targetBucket, item.target)
+            } else {
+              // Use getObjectStream and putObjectStream to copy the object
+              var inS
+              try {
+                inS = global.sourceS3.getObjectStream(args.sourceBucket, item.source)
+                global.targetS3.putObjectStream(args.targetBucket, item.target, inS)
+              } catch(e) {
+                throw(e)
+              } finally {
+                if (isDef(inS)) inS.close()
+              }
             }
-          }
-        } else if (item.op === "overwrite") {
-          // If the operation is "overwrite", we overwrite the object in target
-          log("  overwriting " + item.source + " -> " + item.target + ` (size: ${ow.format.toBytesAbbreviation(item.size) || "unknown"})`)
-          // If no S3 copy is requested or the source and target are different, we fallback to get/put operations
-          if (!args.noS3Copy && args.sourceURL == args.targetURL) {
-            global.targetS3.copyObject(args.sourceBucket, item.source, args.targetBucket, item.target)
-          } else {
-            // Use getObjectStream and putObjectStream to copy the object
-            var inS
-            try {
-              inS = global.sourceS3.getObjectStream(args.sourceBucket, item.source)
-              global.targetS3.putObjectStream(args.targetBucket, item.target, inS)
-            } catch(e) {
-              throw(e)
-            } finally {
-              if (isDef(inS)) inS.close()
+          } else if (item.op === "overwrite") {
+            // If the operation is "overwrite", we overwrite the object in target
+            log("  overwriting " + item.source + " -> " + item.target + ` (size: ${ow.format.toBytesAbbreviation(item.size) || "unknown"})`)
+            // If no S3 copy is requested or the source and target are different, we fallback to get/put operations
+            if (!args.noS3Copy && args.sourceURL == args.targetURL) {
+              global.targetS3.copyObject(args.sourceBucket, item.source, args.targetBucket, item.target)
+            } else {
+              // Use getObjectStream and putObjectStream to copy the object
+              var inS
+              try {
+                inS = global.sourceS3.getObjectStream(args.sourceBucket, item.source)
+                global.targetS3.putObjectStream(args.targetBucket, item.target, inS)
+              } catch(e) {
+                throw(e)
+              } finally {
+                if (isDef(inS)) inS.close()
+              }
             }
+          } else if (!args.noDelete && item.op === "delete") {
+            // If the operation is "delete", we delete the object in target
+            log("  deleting " + item.target)
+            global.targetS3.removeObject(args.targetBucket, item.target)
           }
-        } else if (!args.noDelete && item.op === "delete") {
-          // If the operation is "delete", we delete the object in target
-          log("  deleting " + item.target)
-          global.targetS3.removeObject(args.targetBucket, item.target)
+          item.status = "ok"
+        } catch(ee) {
+          logErr("❌ Error processing item: " + item.source + " -> " + item.target + " (" + ee.message + ")")
+          item.status = "error: " + ee.message
+        } finally {
+          return item
         }
       })
     }
