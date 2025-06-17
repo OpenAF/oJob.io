@@ -1260,3 +1260,20 @@ data:
   e: |-
     # export OAFP_MODEL="(type: gemini, model: gemini-2.5-flash-preview-05-20, key: ..., timeout: 900000, temperature: 0, params: (tools: [(googleSearch: ())]))"
     oafp in=llm data="produce me a json list of the current top 10 news titles around the world" out=ctable getlist=true
+- c: AI
+  s: Perplexity
+  d: Basic example to use Perplexity AI API with oafp
+  e: |-
+    # export OAFP_MODEL="(type: openai, model: sonar, key: ..., url: 'https://api.perplexity.ai', timeout: 900000, temperature: 0, noSystem: false, noResponseFormat: true, apiVersion: '')"
+    oafp in=llm data="Say hi to me"
+- c: AI
+  s: GitHub models
+  d: Basic example to use GitHub Models inference with oafp
+  e: |-
+    # export OAFP_MODEL="(type: openai, url: 'https://models.github.ai/inference', model: openai/gpt-4.1-nano, key: $(gh auth token), timeout: 900000, temperature: 0, apiVersion: '')"
+    oafp in=llm data="say hi to me"
+- c: AWS
+  s: AMIs
+  d: List Amazon Linux 2023 available EC2 AMI images for a specific AWS region
+  e: |-
+    REGION=eu-west-1 && oafp cmd="aws ec2 describe-images --owners amazon --filter \"Name=name,Values=al2023-*\" \"Name=state,Values=available\" --region $REGION" path="Images[].{name:Name,arch:Architecture,platform:PlatformDetails,description:Description,creationDate:CreationDate,deprecationTime:DeprecationTime}" sql="select * order by creationDate desc limit 25" out=ctable
