@@ -1,6 +1,6 @@
 # Author: Nuno Aguiar
 help:
-  text   : Reads a ndjson logs file and converts it to readable human logs (version 20250204a)
+  text   : Reads a ndjson logs file and converts it to readable human logs (version 20250630a)
   expects:
   - name     : file
     desc     : "The file path to the ndjson log files (either .ndjson or .ndjson.gz)"
@@ -59,7 +59,7 @@ ojob:
 jobs:
 # -----------
 - name : Init
-  exec : | 
+  exec : | #js
     ow.loadTemplate()
     ow.template.addFormatHelpers()
     ow.template.addOpenAFHelpers()
@@ -90,7 +90,7 @@ jobs:
       inception: toBoolean.isBoolean.default(true)
       injson   : toBoolean.isBoolean.default(false)
       alltypes : toBoolean.isBoolean.default(false)
-  exec : |
+  exec : | #js
     var is = __, os = __, metrics = {
       auditLines: 0,
       regularLines: 0,
@@ -141,12 +141,14 @@ jobs:
       }
 
       var data, go = true
-      try { 
+      try {
         data = jsonParse(line)
         // Test for "inception"
-        if (args.inception && isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) data = jsonParse(data.message)
-      } catch(e) { 
-        sprintErr(e) 
+        while (args.inception && isMap(data) && isString(data.message) && data.message.startsWith("{") && data.message.endsWith("}")) {
+          data = jsonParse(data.message)
+        }
+      } catch(e) {
+        sprintErr(e)
       }
       if (!isMap(data)) { if (isUnDef(args.filter) && isUnDef(args.notfilter) && isUnDef(args.type) && !args.injson) global._p(data, os); return }
       if (isString(args.filter)) {
@@ -189,7 +191,7 @@ jobs:
           return _tD ? ow.format.fromDate(new Date(_tD), "yyyy-MM-dd HH:mm:ss,SSS") : _tD
         }
 
-        if (isDef(data["@timestamp"]) && isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+        //if (isDef(data["@timestamp"]) && isString(data["@timestamp"]) && data["@timestamp"].indexOf("T") > 0 && data["@timestamp"].indexOf(".") > 0 && data["@timestamp"].endsWith("Z")) data["@timestamp"] = ow.format.toDate(data["@timestamp"], "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
         switch(data.logger_name) {
         case "AuditLogger":
           data._time = _fnT(data)
@@ -206,22 +208,16 @@ jobs:
             if (isUnDef(data.code) || isUnDef(data.thread_name)) {
               data._time = _fnT(data)
               if (isDef(data["thread_name"])) data.message = "[" + data["thread_name"] + "] " + data.message
-              if (args.injson) 
-                ow.oJob.output(data, args)
-              else 
-                global._p(tmplDefault(data), os)
-              metrics.defaultLines++
-              metrics.convertedLines++
             } else {
               data._time = _fnT(data)
               data.thread_name = data.thread_name.substr(-20)
-              if (args.injson) 
-                ow.oJob.output(data, args)
-              else 
-                global._p(tmplRegular(data), os)
-              metrics.regularLines++
-              metrics.convertedLines++
             }
+            if (args.injson) 
+              ow.oJob.output(data, args)
+            else 
+              global._p(tmplRegular(data), os)
+            metrics.regularLines++
+            metrics.convertedLines++
           } catch(e) {
             printErr("ERROR | " + e + " | record = " + af.toSLON(data))
           }
@@ -254,7 +250,7 @@ jobs:
     in:
       file     : isString.default(__)
       folder   : isString.default(__)
-  exec : |
+  exec : | #js
     if (isDef(args.folder)) {
       if (io.fileExists(args.folder)) {
         tlog("Finding .ndjson.gz and .ndjson files in '{{folder}}'...", args)
