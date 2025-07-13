@@ -1277,3 +1277,18 @@ data:
   d: List Amazon Linux 2023 available EC2 AMI images for a specific AWS region
   e: |-
     REGION=eu-west-1 && oafp cmd="aws ec2 describe-images --owners amazon --filter \"Name=name,Values=al2023-*\" \"Name=state,Values=available\" --region $REGION" path="Images[].{name:Name,arch:Architecture,platform:PlatformDetails,description:Description,creationDate:CreationDate,deprecationTime:DeprecationTime}" sql="select * order by creationDate desc limit 25" out=ctable
+- c: Generic
+  s: File listing
+  d: How to get the total abbreviated size of specific files using a SQL query
+  e: |-
+    DPATH=. && oafp in=ls data=$DPATH sql="select sum(\"size\") total where \"filename\" like 'test%'" opath="[0].to_bytesAbbr(TOTAL)"
+- c: AI
+  s: Template
+  d: Convert oAFp llmconversation JSON file into a terminal readable template of the LLM conversation
+  e: |-
+    oafp conversation.json out=template templatetmpl=true template="{{#each this}}*{{role}}*: {{{content}}}\n---\n{{/each}}" pipe="(in: md, out: md)"
+- c: AI
+  s: Template
+  d: Convert oAFp llmconversation JSON file into a HTML of the LLM conversation
+  e: |-
+    oafp conversation.json out=template templatetmpl=true template="{{#each this}}*{{role}}*: {{{content}}}\n\n---\n{{/each}}" | oafp in=md out=html htmlopen=false > conversation.html
