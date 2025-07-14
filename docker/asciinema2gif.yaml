@@ -1,0 +1,83 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds a docker image to convert asciinema recordings to GIFs.
+  expects: 
+  - name     : name
+    desc     : Docker image name
+    example  : agg
+    mandatory: false
+
+include:
+- ojob.io/docker/_common
+
+todo:
+- Check for docker
+- Build asciinema2gif docker image
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+        
+jobs:
+# -----------------------------
+- name : Clonning asciinema/agg
+  exec : | #js
+    // Check if docker args.name exists
+    var result = $sh("docker image inspect " + args.name).getJson(0)
+    if (isMap(result.stderr)) {
+      print("🔎 Docker image " + args.name + " already exists. Skipping clone.")
+    } else {
+      args.tmpf = io.createTempDir("asciinema2gif")
+
+      plugin("GIT")
+      var git = new GIT()
+      print("📋 Cloning asciinema/agg into " + args.tmpf + "...")
+      git.clone("https://github.com/asciinema/agg", args.tmpf)
+    }
+
+# ---------------------------------
+- name : Build docker asciinema2gif
+  exec : | #js
+    // Check if docker args.name exists
+    var result = $sh("docker image inspect " + args.name).getJson(0)
+    if (isMap(result.stderr)) {
+      print("🔎 Docker image " + args.name + " already exists. Skipping build.")
+    } else {
+      print("🔨 Building docker image " + args.name + "...")
+      var cmds = ["docker", "build", "-t", args.name, args.tmpf];
+      var res = $sh(cmds).prefix("build").pwd(args.tmpf).get(0)
+      if (!isMap($sh("docker image inspect " + args.name).getJson(0).stderr)) {
+        printErrnl("❌ Error building docker image " + args.name + ": " + res.stderr);
+        throw new Error("Docker build failed: " + res.stderr);
+      } else {
+        print("✅ Docker image " + args.name + " built successfully.")
+      }
+    }
+
+# ---------------------------------------
+- name : Build asciinema2gif docker image
+  from : 
+  - Clonning asciinema/agg
+  - Build docker asciinema2gif
+  to   :
+  - (printmd): |
+      ---
+
+      🚀 To use the `asciinema2gif` docker image, run:
+
+      ```bash
+      docker run --rm -ti -v $(pwd):/data {{name}} /data/my_recording.cast /data/my_output.gif
+      ```
+      
+      ---
+
+      🔎 You can check more options by running:
+
+      ```bash
+      docker run --rm -ti {{name}} --help
+      ```
+  check:
+    in:
+      name: isString.default("agg")
