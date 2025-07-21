@@ -1292,3 +1292,19 @@ data:
   d: Convert oAFp llmconversation JSON file into a HTML of the LLM conversation
   e: |-
     oafp conversation.json out=template templatetmpl=true template="{{#each this}}*{{role}}*: {{{content}}}\n\n---\n{{/each}}" | oafp in=md out=html htmlopen=false > conversation.html
+- c: AWS
+  s: VPC
+  d: On an AWS account go through all AWS regions and produce an output table with each VPC CIDR
+  e: |-
+    cat <<EOF | oafp -f -
+    cmd         : aws ec2 describe-regions --output json
+    out         : template
+    template    : |
+      [{{#each Regions}}(cmd: aws ec2 describe-vpcs --region {{RegionName}} --output json, path: 'Vpcs[].{RegionName: \'{{RegionName}}\', VpcId:VpcId, CidrBlock:CidrBlock}') {{#unless @last}}|{{/unless}} {{/each}}]
+    templatetmpl: true
+    pipe        :
+      in      : oafp
+      path    : "[][]" 
+      out     : ctable
+      sql     : select * order by CidrBlock
+    EOF
