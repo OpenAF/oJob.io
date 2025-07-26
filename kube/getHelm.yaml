@@ -36,7 +36,7 @@ jobs:
       path: isString.default(".")
       os  : isString.default(__)
       arch: isString.default(__)
-  exec : |
+  exec : | #js
     // Check OS and arch
     var os, arch
     if (isDef(args.os)) {
@@ -61,7 +61,7 @@ jobs:
 
     // Get the tgz
     var rels = $rest().get("https://api.github.com/repos/helm/helm/releases")
-    var version = $from(rels).equals("draft", false).equals("prerelease", false).sort("-published_at").at(0).tag_name
+    var version = $from(rels).equals("draft", false).equals("prerelease", false).select(r => r.tag_name).sort((a,b) => ow.format.semver(a.substring(1)).lowerEquals(b.substring(1)) ? 1 : -1)[0]
     var tmp = io.createTempFile("helm_", ".tgz")
     var url = "https://get.helm.sh/helm-" + version + "-" + os + "-" + arch + ".tar.gz"
     log("Downloading " + url + "...")
@@ -79,7 +79,7 @@ jobs:
 
 # ---------------
 - name : Get HELM
-  exec : |
+  exec : | #js
     if (isDef(args.path)) {
       $job("Get HELM binary", args)
     } else {
