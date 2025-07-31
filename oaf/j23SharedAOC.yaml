@@ -17,10 +17,7 @@ jobs:
 # ---------------------
 - name : Build AOC file
   exec : | #js
-    $sh([getOpenAFPath() + "/oaf", "-c", "ow.loadOJob();loadOAFP();ow.loadFormat();ow.loadObj();ow.loadServer();loadJSYAML();ow.loadTemplate();loadHandlebars();loadCompiledLib('jmespath_js');oJobRunFile('ojob.io/echo')"])
-    .envs({
-      "OAF_JARGS": "-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=" + getOpenAFPath() + ".shared.oaf"
-    }, true)
+    $sh("OAF_JARGS=\"-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=" + getOpenAFPath() + ".shared.oaf\" " + getOpenAFPath() + "/oaf -c \"ow.loadOJob();loadOAFP();ow.loadFormat();ow.loadObj();ow.loadServer();loadJSYAML();ow.loadTemplate();loadHandlebars();loadCompiledLib('jmespath_js')\"")
     .prefix(" ☕️ ")
     .get(0)
 
