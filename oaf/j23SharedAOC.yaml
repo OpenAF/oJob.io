@@ -1,0 +1,32 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds a Java shared AOC (Application Object Class) file and adds the option to the current installation
+
+todo:
+- Build AOC file
+- Add AOC to scripts
+
+ojob:
+  opacks      :
+  - openaf: 20250731
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, job.exec)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# ---------------------
+- name : Build AOC file
+  exec : | #js
+    $sh([getOpenAFPath() + "/oaf", "-c", "ow.loadOJob();loadOAFP();ow.loadFormat();ow.loadObj();ow.loadServer();loadJSYAML();ow.loadTemplate();loadHandlebars();loadCompiledLib('jmespath_js');oJobRunFile('ojob.io/echo')"])
+    .envs({
+      "OAF_JARGS": "-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=" + getOpenAFPath() + ".shared.oaf"
+    }, true)
+    .prefix(" ☕️ ")
+    .get(0)
+
+# -------------------------
+- name : Add AOC to scripts
+  exec : | #js
+    $sh([getOpenAFPath() + "/oaf", "--install", "args=\"-XX:SharedArchiveFile=$DIR/.shared.oaf\""])
+    .prefix(" 📦 ")
+    .get(0)
