@@ -17,9 +17,21 @@ jobs:
 # ---------------------
 - name : Build AOC file
   exec : | #js
-    $sh("OAF_JARGS=\"-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=" + getOpenAFPath() + ".shared.oaf\" " + getOpenAFPath() + "/oaf -c \"ow.loadOJob();loadOAFP();ow.loadFormat();ow.loadObj();ow.loadServer();loadJSYAML();ow.loadTemplate();loadHandlebars();loadCompiledLib('jmespath_js')\"")
-    .prefix(" ☕️ ")
-    .get(0)
+    const ver = Number(ow.format.getJavaVersion().replace(/(\d+).+$/g, "$1"))
+    const deleteSec = !io.fileExists(__gHDir() + "/.openaf-sec")
+    if (ver >= 21 && ver < 23) {
+      $sh(ow.format.getJavaHome() + "/bin/java -XX:ArchiveClassesAtExit=" + getOpenAFPath() + ".shared.oaf -jar " + getOpenAFJar() + " -c \"ow.loadOJob();loadOAFP();ow.loadSec();loadLodash();loadFuse();ow.loadFormat();ow.loadObj();ow.loadServer();loadUnderscore();ow.loadMetrics();loadJSYAML();ow.loadPython();ow.loadTemplate();loadHandlebars();loadCompiledLib('jmespath_js');oafp({data:'()'});oJobRun({todo:[]})\"")
+      .prefix(" ☕️ ")
+      .get(0)
+    } else if (ver >= 23) {
+      $sh("OAF_JARGS=\"-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=" + getOpenAFPath() + ".shared.oaf\" " + getOpenAFPath() + "/oaf -c \"ow.loadOJob();loadOAFP();ow.loadSec();loadLodash();loadFuse();ow.loadFormat();ow.loadObj();ow.loadServer();loadUnderscore();ow.loadMetrics();loadJSYAML();ow.loadPython();ow.loadTemplate();loadHandlebars();loadCompiledLib('jmespath_js');oafp({data:'()'});oJobRun({todo:[]})\"")
+      .prefix(" ☕️ ")
+      .get(0)
+    } else {
+      printErrnl("[" + job.name + "] Java version " + ver + " is not supported for AOC generation with OpenAF. Please use Java >= 21.")
+      return
+    }
+    if (deleteSec) io.rm(__gHDir() + "/.openaf-sec")
 
 # -------------------------
 - name : Add AOC to scripts
