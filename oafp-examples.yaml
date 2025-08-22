@@ -1308,3 +1308,16 @@ data:
       out     : ctable
       sql     : select * order by CidrBlock
     EOF
+- c: Net
+  s: ASN
+  d: Create a Internet IP ASNs local database and then query it.
+  e: |
+    oafp in=oaf data="return ow.loadNet().getIP2ASNCache()" out=db dbjdbc="jdbc:h2:./ip2asn"
+    oafp in=db indbjdbc="jdbc:h2:./ip2asn" data="select * from \"data\" where \"name\" = 'GOOGLE'" out=ctable
+    IP=8.8.8.8 && INTIP=$(oaf -c "af.p(ow.loadFormat().IP2int('$IP'))") && oafp in=db indbjdbc="jdbc:h2:./ip2asn" data="select * from \"data\" where \"istart\" <= $INTIP and \"iend\" >= $INTIP" out=ctable
+- c: Generic
+  s: Badge
+  d: Generate a simple rounded yellow transparent SVG with the word 'beta'
+  e: |
+    # opack install badgen
+    oafp libs=badgen out=badgen data="(status: beta, transparent: true, textColor: FFC107, borderColor: FFC107, style: rounded, shadow: false)" path="insert(@, 'label', __)" > beta.svg
