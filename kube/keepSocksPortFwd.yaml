@@ -1,0 +1,97 @@
+# Author: Nuno Aguiar
+help:
+  text   : Starts a kubectl port-forward to a nmaguiar/socksd and keeps it running
+  expects: 
+  - name     : port
+    desc     : Port to expose in this host
+    example  : "31080"
+    mandatory: false
+  - name     : deploy
+    desc     : The nmaguiar/socksd deploy name
+    example  : "socksd"
+    mandatory: false
+  - name     : ns
+    desc     : Kubernetes namespace where nmaguiar/socksd is running
+    example  : default
+    mandatory: false
+
+todo:
+- Start port forward
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+  daemon      : true
+  unique      :
+    pidFile     : .keepPortFwd.pid
+    killPrevious: false
+  owraps      :
+  - Net
+  - Obj
+  - Java
+
+jobs:
+# -----------------
+- name : Check port
+  check:
+    in:
+      port  : toNumber.isNumber.default(31080)
+  exec : | #js
+    const _res = ow.net.testPort("127.0.0.1", args.port)
+    if (_res) throw new Error(`Port ${args.port} already in use.`)
+
+# -------------------------
+- name : Start port forward
+  from :
+  - Check port
+  check:
+    in:
+      port  : toNumber.isNumber.default(31080)
+      deploy: isString.default("socksd")
+      ns    : isString.default("default")
+  exec : | #js
+    do {
+      log("Hit Ctrl-C to stop. Starting...")
+      $tb(() => {
+        // Start port-forward
+        $sh(`kubectl port-forward deploy/${args.deploy} -n ${args.ns} --address 0.0.0.0 ${args.port}:1080`)
+        .cb((o, e) => {
+          // Callback just to print the necessary stdio and stderr from kubectl
+          $doWait(
+            $doAll([
+              $do(() => ioStreamReadLines(o, f => {
+                // Get stdout
+                var _s = af.toEncoding(String(f.replace(/[\n\r]+/g, "")), __)
+                // If the usual Handling connection, ignore
+                if (!_s.startsWith("Handling connection for ")) print(_s)
+              }, __, false, __)),
+              $do(() => ioStreamReadLines(e, f => {
+                // Get stderr
+                printErr(af.toEncoding(String(f.replace(/[\n\r]+/g, "")), __))
+              }, __, false, __))
+            ])
+          )
+        })
+        .get()
+      }).stopWhen(() => {
+        // Periodically check if it needs to stop
+        sleep(2500, true)
+
+        // Check if port is reachable
+        const _resPort = ow.net.testPort("127.0.0.1", args.port)
+
+        // Connect through the socks proxy to reach Kubernetes
+        ow.obj.setSOCKSProxy("127.0.0.1", args.port)
+        ow.java.setIgnoreSSLDomains()
+        const _res = $rest().get("https://kubernetes.default.svc/healthz")
+        // Since we didn't authenticate with K8S API it should return unauthorized
+        var _resKube = isDef(_res.error) && _res.error.responseCode == 401
+
+        // Check if kubectl needs to stop
+        return !(_resPort && _resKube)
+      }).exec()
+      
+      log("Restarting...")
+    } while(1)
