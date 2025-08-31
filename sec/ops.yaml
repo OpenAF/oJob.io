@@ -22,13 +22,10 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20210327
+  - openaf: 20250725
   - oJob-common
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
-
-include:
-- ojob.yaml
 
 jobs:
 # -----------------

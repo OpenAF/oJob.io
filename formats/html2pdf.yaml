@@ -22,13 +22,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20230325
+  - openaf: 20250725
   - oJob-common
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: true   
         
 include:
-- ojob.yaml
 - ojob.io/docker/_common
 
 jobs:

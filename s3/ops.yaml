@@ -95,16 +95,13 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20221216
+  - openaf: 20250725
   - S3
   - oJob-common
   loadLibs    :
   - s3.js
   catch       : logErr(exception);
   logToConsole: false   # to change when finished
-
-include:
-- ojob.yaml
 
 jobs:
 # -----------------
