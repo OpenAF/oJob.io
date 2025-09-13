@@ -1,0 +1,382 @@
+# Author: Nuno Aguiar
+help:
+  text   : A mini autonomous agent that uses an LLM (use OAF_MODEL environment variable) and shell commands to achieve a specified goal in small steps. 
+  expects: 
+  - name     : goal
+    desc     : Goal for the agent to achieve
+    example  : aValueExample
+    mandatory: true
+  - name     : mcp
+    desc     : A MCP connection object using OpenAF's $mcp() function in SLON or JSON format
+    example  : "(url: 'http://127.0.0.1:17879/mcp', type: remote, debug: false)"
+    mandatory: false
+  - name     : verbose
+    desc     : Whether to print detailed logs
+    example  : "true"
+    mandatory: false
+  - name     : maxsteps
+    desc     : Maximum number of steps to take
+    example  : "10"
+    mandatory: false
+  - name     : rtm
+    desc     : Rate of messages per minute
+    example  : "20"
+    mandatory: false
+  - name     : readwrite
+    desc     : Allow read-write commands without confirmation (dangerous)
+    example  : "false"
+    mandatory: false
+  - name     : checkall
+    desc     : Check all commands for banned operations (may ask for confirmation)
+    example  : "true"
+    mandatory: false
+  - name     : debug
+    desc     : Enable debug mode
+    example  : "false"
+    mandatory: false
+
+todo:
+- Mini Agent
+
+ojob:
+  opacks      :
+  - openaf: 20250725
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+
+init:
+  SYSTEM_PROMPT: | #handlebars
+    You are a compact goal-oriented agent. Work in small steps.
+    You can perform {{actionsWordNumber}} kinds of actions, and you MUST reply as a single JSON object:
+
+    {
+      "thought": "brief reasoning for the next step",
+      "action": "think | shell {{#if actionsList}}| {{actionsList}} {{/if}}| final",
+      "command": "only when action = shell; a short POSIX command to run",
+      "answer": "only when action = final; the final answer to the user",
+      "params": "only when action IS NOT 'think', 'final' neither 'shell'; a JSON object with parameters for the action"
+    }
+
+    Rules:
+    - Prefer 'think' for intermediate planning (no tools).
+    - Use the all actions, besides 'think' and 'final', only if necessary (e.g., querying local files, simple curl, grep, wc).
+    - When the goal is met, use 'final' with a concise answer.
+    - Keep every response under ~120 tokens. JSON only, no extra text.
+
+  STEP_PROMPT_TEMPLATE: | #handlebars
+    # Goal
+    {{{goal}}}
+
+    # Context you have so far
+    {{{context}}}
+
+    # Guidance
+    Think step-by-step but answer ONLY with a single JSON object per the schema
+
+  FINAL_PROMPT: | #handlebars
+    You reached the maximum step budget. Summarize your best possible final answer now.
+
+    # Goal
+    {{{goal}}}
+
+    # Context you have so far
+    {{{context}}}
+
+    Respond as a single JSON object with:
+    {"thought":"brief","action":"final","answer":"your best final answer"}
+
+    Example for action 'shell':
+    {"thought":"brief","action":"shell","command":"the command"}
+
+jobs:
+# ------------------
+- name : Run command
+  check:
+    in:
+      command  : isString
+      readwrite: toBoolean.isBoolean.default(false)
+      checkall : toBoolean.isBoolean.default(false)
+    out:
+      output : isString
+  exec : | #js 
+    const banned = [
+        "rm","sudo","chmod","chown","mv","scp","ssh","docker","podman","kubectl",
+        "dd","mkfs","mkfs.ext4","mkfs.xfs","mount","umount","apt","yum","brew",
+        "apt-get","apk","rpm","cp","rsync","truncate","ln","passwd","useradd",
+        "userdel","groupadd","groupdel","shutdown","reboot","poweroff","halt",
+        "systemctl","service","fdisk","sfdisk","parted","losetup","mkswap",
+        "swapoff","swapon","iptables","nft","grub-install","update-grub",
+        "curl","wget","perl","python","ruby","node","npm","yarn","pip","pip3","gem"
+    ]
+
+    var exec = false
+    var lcCmd = (args.command || "").toString().toLowerCase()
+    var tokens = lcCmd.split(/\s+/).filter(Boolean)
+
+    // detect banned tokens or tokens that start with banned entries (e.g., "docker-compose")
+    var hasBannedToken = tokens.some(t => banned.includes(t) || banned.some(b => t === b || t.startsWith(b + "-") || t.startsWith(b + ".")))
+
+    // detect redirections, pipes or shell control operators which can perform write/replace operations
+    var hasRedirectionOrPipe = /[<>|&;]/.test(lcCmd)
+
+    // collect what was detected to show to user
+    var detected = []
+    if (hasBannedToken) {
+      detected = detected.concat(tokens.filter(t => banned.includes(t) || banned.some(b => t === b || t.startsWith(b + "-") || t.startsWith(b + "."))))
+    }
+    if (hasRedirectionOrPipe) detected.push("redirection/pipe")
+
+    if (!global.alwaysExec && (hasBannedToken || hasRedirectionOrPipe || args.checkall)) {
+      var note = detected.length ? " Detected: " + detected.join(", ") : ""
+      var _r = askChoose("Can I execute '" + ansiColor("italic,red", args.command) + "'?" + note, ["No", "Yes", "Always"])
+      if (_r == 2) {
+        exec = true
+        global.alwaysExec = true
+      } else {
+        if (_r == 1) {
+          exec = true
+        } else {
+          args.output = `[blocked] Command contains banned operation${note}: ${args.command}`
+        }
+      }
+    } else {
+      exec = true
+    }
+
+    if (exec) {
+      log("⚙️  Executing '" + args.command + "'...")
+      var _r = $sh(args.command).get(0)
+      args.output = _r.stdout + (isDef(_r.stderr) && _r.stderr.length > 0 ? "\n[stderr] " + _r.stderr : "")
+    }
+
+# -----------------
+- name : Mini Agent
+  check:
+    in:
+      goal     : isString
+      mcp      : isString.default(__)
+      verbose  : toBoolean.isBoolean.default(false)
+      rtm      : toNumber.isNumber.default(__)
+      maxsteps : toNumber.isNumber.default(10)
+      readwrite: toBoolean.isBoolean.default(false)
+      debug    : toBoolean.isBoolean.default(false)
+  exec : | #js
+    // Mini autonomous agent to achieve a goal using an LLM and shell commands
+    var calls = 0, startTime 
+
+    global.alwaysExec = args.readwrite
+
+    // Helper to convert numbers to words (0-50)
+    const numberInWords = num => {
+        const words = ["zero","one","two","three","four","five","six","seven","eight","nine","ten",
+                      "eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen",
+                      "eighteen","nineteen","twenty"]
+        const tens = { 20: "twenty", 30: "thirty", 40: "forty", 50: "fifty" }
+
+        if (num >= 0 && num <= 20) return words[num]
+        if (num > 20 && num <= 50) {
+            const ten = Math.floor(num / 10) * 10
+            const one = num % 10
+            return one === 0 ? tens[ten] : `${tens[ten]}-${words[one]}`
+        }
+        return num.toString()
+    }
+
+    // Rate limiting helper
+    var addCall = () => {
+      if (isUnDef(args.rtm)) return
+      if (calls == 0) {
+        startTime = now()
+        calls++
+      } else {
+        if (calls >= args.rtm) {
+          var wait = Math.ceil((60 / args.rtm) * 1000)
+          log(`⏳ Rate limit: waiting ${wait}ms before next LLM call...`)
+          sleep(wait, true)
+          calls = 1
+          startTime = now()
+        } else if (calls < args.rtm && (now() - startTime) < 60000) {
+          startTime = now()
+          calls = 1
+        } else {
+          calls++
+        }
+      }
+    }
+
+    // Using OAF_MODEL env var for model selection
+    if (isUnDef(getEnv("OAF_MODEL"))) {
+      logErr("OAF_MODEL environment variable not set. Please set it to your desired LLM model.")
+      return
+    }
+    var _oaf_model = af.fromJSSLON(getEnv("OAF_MODEL"))
+    var llm = $llm(_oaf_model)
+    log(`ℹ️  Using model: ${_oaf_model.model} (${_oaf_model.type})`)
+
+    // Using MCP
+    var mcp, mcpTools = [], mcpToolNames = []
+    if (isDef(args.mcp)) {
+      log("🤖 Initializing MCP connection...")
+      mcp = $mcp(af.fromJSSLON(args.mcp))
+      mcp.initialize()
+      sleep(100, true)
+      mcpTools = mcp.listTools()
+      if (isDef(mcpTools) && isDef(mcpTools.tools)) {
+        mcpTools = mcpTools.tools
+      } else {
+        throw new Error("MCP connection failed or returned no tools.")
+      }
+      mcpToolNames = mcpTools.map(r => r.name)
+      log(`✅ MCP connected. Found #${mcpTools.length} tools.`)
+    }
+
+    // Provide system prompt instructions
+    var _systemInst = $t(args.init.SYSTEM_PROMPT, {
+      actionsWordNumber: numberInWords(1 + mcpTools.length),
+      actionsList      : mcpTools.map(r => r.name).join(" | ")
+    })
+    llm = llm.withInstructions(_systemInst)
+    log("📏 System prompt size " + ow.format.toBytesAbbreviation(_systemInst.length))
+
+    var context = [], maxSteps = args.maxsteps
+    // Context will hold the history of thoughts, actions, and observations
+    // We will iterate up to maxSteps to try to achieve the goal
+    for(var step = 0; step < maxSteps; step++) {
+      // TODO: Improve by summarizing context to fit in prompt if needed
+      var prompt = $t(args.init.STEP_PROMPT_TEMPLATE, {
+        goal   : args.goal,
+        context: step == 0 ? "" : context.join("\n")
+      })
+
+      log(`➡️  Interacting with model (context size ${ow.format.toBytesAbbreviation(context.join("").length)})...`)
+      // Get model response and parse as JSON
+      addCall()
+      if (args.debug) {
+        print( ow.format.withSideLine(">>>\n" + prompt + ">>>", __, "FG(220)", "BG(230),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
+      }
+      var rmsg = llm.prompt(prompt)
+      // if more than on JSON object, ignore all except the last
+      var msg
+      if (isString(rmsg)) {
+        rmsg = rmsg.replace(/.+\n(\{.+)/m, "$1")
+        msg = jsonParse(rmsg, __, __, true)
+      } else {
+        msg = rmsg
+      }
+
+      log("⬅️  Model responded.")
+      if (args.debug) {
+        print( ow.format.withSideLine("<<<\n" + colorify(msg, { bgcolor: "BG(230),BLACK"}) + "\n<<<", __, "FG(220)", "BG(230),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
+      }
+
+      // Extract fields from model response
+      origAction = (msg.action || msg.think || "").trim()
+      action  = (msg.action || msg.think || "").trim().toLowerCase()
+      thought = jsonParse((msg.thought || "").trim())
+      command = (msg.command || "").trim()
+      answer  = (msg.answer || "").trim()
+
+      if (isUnDef(action) || action.length == 0) {
+        context.push(`[OBS ${step + 1}] (error) missing 'action' from model.`)
+        continue
+      }
+      if (isUnDef(thought) || thought.length == 0) {
+        context.push(`[OBS ${step + 1}] (error) missing 'thought' from model.`)
+        continue
+      }
+
+      if (args.verbose) {
+        log(`--- step ${step + 1} ---`)
+        log(`\n${isObject(msg) ? printTree(msg) : msg}`)
+      }
+      if (isMap(msg) || isArray(msg)) {
+        var _msg = thought || msg.think || af.toCSLON(msg) || "(no thought)"
+        if (isObject(_msg)) _msg = af.toCSLON(_msg)
+        log(`🧠 Thought: ${_msg}`)
+      } else {
+        log(`🧠 ${msg}`)
+      }
+
+      // Handle actions
+      // --------------
+
+      // Action 'think': just add thought to context
+      if (action == "think") {
+        log(`💡 Thinking: ${thought || "(no thought)"}`)
+        context.push(`[THOUGHT ${step + 1}] ${thought || "no thought"}`)
+        continue
+      }
+
+      // Action 'shell': run command and add observation to context
+      if (action == "shell") {
+        if (!command) {
+          context.push(`[OBS ${step + 1}] (shell) missing 'command' from model.`)
+          continue
+        }
+        var shellOutput = $job("Run command", { command: command, readwrite: args.readwrite, checkall: args.checkall }).output
+        context.push(`[ACT ${step + 1}] shell: ${command}`)
+        context.push(`[OBS ${step + 1}] ${shellOutput || "(no output)"}`)
+        continue
+      }
+
+      if (mcpToolNames.indexOf(origAction) >= 0) {
+        if (isDef(msg.params) && !isMap(msg.params)) {
+          context.push(`[OBS ${step + 1}] (${origAction}) missing or invalid 'params' from model.`)
+          continue
+        }
+        log(`⚙️  Executing action '${origAction}' with params: ${af.toCSLON(msg.params)}`)
+        var tool = mcpTools.find(t => t.name == origAction)
+        var toolOutput = mcp.callTool(origAction, msg.params)
+        if (isDef(toolOutput) && isArray(toolOutput.content) && isDef(toolOutput.content[0]) && isDef(toolOutput.content[0].text)) {
+          //toolOutput = toolOutput.content.map(r => jsonParse(r.text, __, __, true))
+          toolOutput = jsonParse(toolOutput.content[0].text, __, __, true)
+          if (args.debug) {
+            print( ow.format.withSideLine("<<<\n" + colorify(toolOutput, { bgcolor: "BG(230),BLACK"}) + "\n<<<", __, "FG(220)", "BG(230),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
+          }
+        } else if (isDef(toolOutput) && isMap(toolOutput) && isDef(toolOutput.text)) {
+          toolOutput = toolOutput.text
+        } else if (isDef(toolOutput) && isString(toolOutput)) {
+          // keep as is
+        } else {
+          toolOutput = af.toCSLON(toolOutput)
+        }
+        log(`✅ Action '${origAction}' completed (${ow.format.toBytesAbbreviation(stringify(toolOutput, __, "").length)}).`)
+        context.push(`[ACT ${step + 1}] ${origAction}: ${af.toCSLON(msg.params)}`)
+        context.push(`[OBS ${step + 1}] ${stringify(toolOutput, __, "") || "(no output)"}`)
+        continue
+      }
+
+      // Action 'final': print answer and exit
+      if (action == "final") {
+        if (args.verbose && thought) {
+          log(`[THOUGHT ${step + 1}] ${thought}`)
+        }
+        
+        if (answer.trim().startsWith("```") && answer.trim().endsWith("```")) {
+          // Remove code block markers if present
+          answer = answer.replace(/^```+[\w]*\n/, "").replace(/```+$/, "").trim()
+        }
+        ow.oJob.output("\n" + answer + "\n" || "\n(no answer)", { __format: "md" })
+        return
+      }
+
+      // Unknown action: just add thought to context
+      context.push(`[THOUGHT ${step + 1}] ((unknown action -> think) ${thought || "no thought"})`)
+    }
+
+    // If max steps hit without final action
+    var finalPrompt = $t(args.init.FINAL_PROMPT, {
+      goal   : args.goal,
+      context: context.join("\n")
+    })
+
+    log("⚠️  Reached max steps. Asking for final answer...")
+    // Get final answer from model
+    addCall()
+    var res = jsonParse(llm.prompt(finalPrompt), __, __, true)
+    
+    if (isDef(res.answer) && res.answer.trim().startsWith("```") && res.answer.trim().endsWith("```")) {
+      // Remove code block markers if present
+      res.answer = res.answer.replace(/^```+[\w]*\n/, "").replace(/```+$/, "").trim()
+    }
+    ow.oJob.output("\n" + res.answer || "\n(no final answer)", { __format: "md" })
