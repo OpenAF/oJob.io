@@ -17,7 +17,6 @@ todo:
 
 include:
 - ojob.io/docker/_common
-- ojob.io/common/ojob
 
 init:
   dc  : &DC |
@@ -48,7 +47,7 @@ init:
 
 ojob:
   opacks      :
-  - openaf: 20221216
+  - openaf: 20250725
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
 
