@@ -64,12 +64,12 @@ todo:
 
 ojob:
   opacks      :
-  - openaf: 20211229
+  - openaf: 20250725
   catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   logToConsole: false   # to change when finished
         
-include:
-- ojob.io/common/ojob
+#include:
+#- ojob.io/common/ojob
 
 jobs:
 # -----------------
