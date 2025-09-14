@@ -16,7 +16,7 @@ help:
     mandatory: false
   - name     : maxsteps
     desc     : Maximum number of steps to take
-    example  : "10"
+    example  : "25"
     mandatory: false
   - name     : rtm
     desc     : Rate of messages per minute
@@ -29,6 +29,14 @@ help:
   - name     : checkall
     desc     : Check all commands for banned operations (may ask for confirmation)
     example  : "true"
+    mandatory: false
+  - name     : useshell
+    desc     : "Whether to allow shell commands (default: true)"
+    example  : "true"
+    mandatory: false
+  - name     : knowledge
+    desc     : Additional knowledge or context to provide to the agent (in the form of a string or a path to a text file)
+    example  : "You have access to a Linux shell and can run commands like ls, cat, grep, wc, curl, etc."
     mandatory: false
   - name     : debug
     desc     : Enable debug mode
@@ -45,23 +53,36 @@ ojob:
   logToConsole: false   # to change when finished
 
 init:
-  SYSTEM_PROMPT: | #handlebars
+  SYSTEM_PROMPT: |- #handlebars
     You are a compact goal-oriented agent. Work in small steps.
     You can perform {{actionsWordNumber}} kinds of actions, and you MUST reply as a single JSON object:
 
     {
       "thought": "brief reasoning for the next step",
-      "action": "think | shell {{#if actionsList}}| {{actionsList}} {{/if}}| final",
-      "command": "only when action = shell; a short POSIX command to run",
+      "action": "think {{#if useshell}}| shell {{/if}}{{#if actionsList}}| {{actionsList}} {{/if}}| final",
+      {{#if useshell}}"command": "only when action = shell; a short POSIX command to run",{{/if~}}
       "answer": "only when action = final; the final answer to the user",
-      "params": "only when action IS NOT 'think', 'final' neither 'shell'; a JSON object with parameters for the action"
+      "params": "only when action IS NOT 'think' OR 'final'{{#if useshell}} OR 'shell'{{/if}}; a JSON object with parameters for the action"
     }
+
+    {{#if actionsList}}
+    Params for actions:
+    
+    | Action | Description | Example | 
+    |--------|-------------|---------|
+    {{#each actionsdesc}}
+    | {{name}} | {{description}} | {{name}}({{#each ($keys inputSchema.properties)}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}) |
+    {{/each}}
+
+    {{/if~}}
 
     Rules:
     - Prefer 'think' for intermediate planning (no tools).
     - Use the all actions, besides 'think' and 'final', only if necessary (e.g., querying local files, simple curl, grep, wc).
     - When the goal is met, use 'final' with a concise answer.
     - Keep every response under ~120 tokens. JSON only, no extra text.
+
+    {{{knowledge}}}
 
   STEP_PROMPT_TEMPLATE: | #handlebars
     # Goal
@@ -157,9 +178,11 @@ jobs:
       mcp      : isString.default(__)
       verbose  : toBoolean.isBoolean.default(false)
       rtm      : toNumber.isNumber.default(__)
-      maxsteps : toNumber.isNumber.default(10)
+      maxsteps : toNumber.isNumber.default(25)
       readwrite: toBoolean.isBoolean.default(false)
       debug    : toBoolean.isBoolean.default(false)
+      useshell : toBoolean.isBoolean.default(false)
+      knowledge: isString.default("")
   exec : | #js
     // Mini autonomous agent to achieve a goal using an LLM and shell commands
     var calls = 0, startTime 
@@ -231,12 +254,20 @@ jobs:
     }
 
     // Provide system prompt instructions
+    if (args.knowledge.indexOf("\n") < 0 && io.fileExists(args.knowledge)) args.knowledge = io.readFileString(args.knowledge)
+
     var _systemInst = $t(args.init.SYSTEM_PROMPT, {
       actionsWordNumber: numberInWords(1 + mcpTools.length),
-      actionsList      : mcpTools.map(r => r.name).join(" | ")
+      actionsList      : mcpTools.map(r => r.name).join(" | "),
+      useshell         : args.useshell,
+      knowledge        : args.knowledge.trim(),
+      actionsdesc      : mcpTools
     })
     llm = llm.withInstructions(_systemInst)
     log("📏 System prompt size " + ow.format.toBytesAbbreviation(_systemInst.length))
+    if (args.debug) {
+      print( ow.format.withSideLine(">>>\n" + _systemInst + "\n>>>", __, "FG(196)", "BG(52),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
+    }
 
     var context = [], maxSteps = args.maxsteps
     // Context will hold the history of thoughts, actions, and observations
@@ -274,7 +305,7 @@ jobs:
       action  = (msg.action || msg.think || "").trim().toLowerCase()
       thought = jsonParse((msg.thought || "").trim())
       command = (msg.command || "").trim()
-      answer  = (msg.answer || "").trim()
+      answer  = ((isObject(msg.answer) ? stringify(msg.answer,__,"") : msg.answer) || "").trim()
 
       if (isUnDef(action) || action.length == 0) {
         context.push(`[OBS ${step + 1}] (error) missing 'action' from model.`)
@@ -331,7 +362,7 @@ jobs:
           //toolOutput = toolOutput.content.map(r => jsonParse(r.text, __, __, true))
           toolOutput = jsonParse(toolOutput.content[0].text, __, __, true)
           if (args.debug) {
-            print( ow.format.withSideLine("<<<\n" + colorify(toolOutput, { bgcolor: "BG(230),BLACK"}) + "\n<<<", __, "FG(220)", "BG(230),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
+            print( ow.format.withSideLine("<<<\n" + colorify(toolOutput, { bgcolor: "BG(22),BLACK"}) + "\n<<<", __, "FG(46)", "BG(22),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
           }
         } else if (isDef(toolOutput) && isMap(toolOutput) && isDef(toolOutput.text)) {
           toolOutput = toolOutput.text
@@ -379,4 +410,6 @@ jobs:
       // Remove code block markers if present
       res.answer = res.answer.replace(/^```+[\w]*\n/, "").replace(/```+$/, "").trim()
     }
-    ow.oJob.output("\n" + res.answer || "\n(no final answer)", { __format: "md" })
+
+    if (isUnDef(args.__format)) args.__format = "md"
+    ow.oJob.output("\n" + res.answer || "\n(no final answer)", args)
