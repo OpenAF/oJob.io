@@ -54,60 +54,58 @@ ojob:
 
 init:
   SYSTEM_PROMPT: |- #handlebars
-    You are a compact goal-oriented agent. Work in small steps.
-    You can perform {{actionsWordNumber}} kinds of actions, and you MUST reply as a single JSON object:
+    You are a goal-oriented agent. Work step-by-step toward your goal.
 
+    RESPONSE FORMAT: Always respond with exactly one valid JSON object:
     {
-      "thought": "brief reasoning for the next step",
-      "action": "think {{#if useshell}}| shell {{/if}}{{#if actionsList}}| {{actionsList}} {{/if}}| final",
-      {{#if useshell}}"command": "only when action = shell; a short POSIX command to run",{{/if~}}
-      "answer": "only when action = final; the final answer to the user",
-      "params": "only when action IS NOT 'think' OR 'final'{{#if useshell}} OR 'shell'{{/if}}; a JSON object with parameters for the action"
+      "thought": "your reasoning for this step",
+      "action": "think{{#if useshell}} | shell{{/if}}{{#if actionsList}} | {{actionsList}}{{/if}} | final",{{#if useshell}}
+      "command": "required when action=shell: POSIX command to execute",{{/if}}
+      "answer": "required when action=final: your complete answer {{#if isMachine}}as JSON{{/if}}",
+      "params": "required when action={{#if actionsList}}{{actionsList}}{{/if}}: JSON object with action parameters"
     }
 
     {{#if actionsList}}
-    Params for actions:
-    
-    | Action | Description | Example | 
-    |--------|-------------|---------|
+    AVAILABLE ACTIONS:
     {{#each actionsdesc}}
-    | {{name}} | {{description}} | {{name}}({{#each ($keys inputSchema.properties)}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}) |
+    • {{name}}: {{description}}
+      {{#if inputSchema.properties}}Parameters: {{#each ($keys inputSchema.properties)}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}{{/if}}
     {{/each}}
 
     {{/if~}}
+    ACTION USAGE:
+    • "think" - Plan your next step (no external tools needed){{#if useshell}}
+    • "shell" - Execute POSIX commands (ls, cat, grep, curl, etc.){{/if}}{{#if actionsList}}
+    • Use available actions only when essential for achieving your goal{{/if}}
+    • "final" - Provide your complete answer when goal is achieved
 
-    Rules:
-    - Prefer 'think' for intermediate planning (no tools).
-    - Use the all actions, besides 'think' and 'final', only if necessary (e.g., querying local files, simple curl, grep, wc).
-    - When the goal is met, use 'final' with a concise answer.
-    - Keep every response under ~120 tokens. JSON only, no extra text.
+    RULES:
+    1. Always include "thought" and "action" fields
+    2. Be concise - keep responses under 120 tokens
+    3. Use tools only when necessary
+    4. Work incrementally toward your goal
+    5. Respond with valid JSON only - no extra text
 
+    {{#if knowledge}}
+    CONTEXT:
     {{{knowledge}}}
+    {{/if}}
 
   STEP_PROMPT_TEMPLATE: | #handlebars
-    # Goal
-    {{{goal}}}
+    GOAL: {{{goal}}}
 
-    # Context you have so far
+    {{#if context}}PROGRESS SO FAR:
     {{{context}}}
 
-    # Guidance
-    Think step-by-step but answer ONLY with a single JSON object per the schema
+    {{/if}}What's your next step? Respond with a single JSON object following the schema.
 
   FINAL_PROMPT: | #handlebars
-    You reached the maximum step budget. Summarize your best possible final answer now.
+    GOAL: {{{goal}}}
 
-    # Goal
-    {{{goal}}}
+    PROGRESS: {{{context}}}
 
-    # Context you have so far
-    {{{context}}}
-
-    Respond as a single JSON object with:
-    {"thought":"brief","action":"final","answer":"your best final answer"}
-
-    Example for action 'shell':
-    {"thought":"brief","action":"shell","command":"the command"}
+    Maximum steps reached. Provide your best final answer now.
+    Respond as JSON: {"thought":"reasoning","action":"final","answer":"your complete answer"}
 
 jobs:
 # ------------------
@@ -149,7 +147,7 @@ jobs:
 
     if (!global.alwaysExec && (hasBannedToken || hasRedirectionOrPipe || args.checkall)) {
       var note = detected.length ? " Detected: " + detected.join(", ") : ""
-      var _r = askChoose("Can I execute '" + ansiColor("italic,red", args.command) + "'?" + note, ["No", "Yes", "Always"])
+      var _r = askChoose("Can I execute '" + ansiColor("italic,red,bold", args.command) + "'? " + ansiColor("faint","(" + note + " )"), ["No", "Yes", "Always"])
       if (_r == 2) {
         exec = true
         global.alwaysExec = true
@@ -261,7 +259,8 @@ jobs:
       actionsList      : mcpTools.map(r => r.name).join(" | "),
       useshell         : args.useshell,
       knowledge        : args.knowledge.trim(),
-      actionsdesc      : mcpTools
+      actionsdesc      : mcpTools,
+      isMachine        : (isDef(args.__format))
     })
     llm = llm.withInstructions(_systemInst)
     log("📏 System prompt size " + ow.format.toBytesAbbreviation(_systemInst.length))
@@ -286,16 +285,20 @@ jobs:
         print( ow.format.withSideLine(">>>\n" + prompt + ">>>", __, "FG(220)", "BG(230),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
       }
       var rmsg = llm.prompt(prompt)
-      // if more than on JSON object, ignore all except the last
+      log("⬅️  Model responded.")
+      
       var msg
       if (isString(rmsg)) {
         rmsg = rmsg.replace(/.+\n(\{.+)/m, "$1")
         msg = jsonParse(rmsg, __, __, true)
+        if (isUnDef(msg) || !(isMap(msg) || isArray(msg))) {
+          context.push(`[OBS ${step + 1}] (error) invalid JSON from model.`)
+          continue
+        }
       } else {
         msg = rmsg
       }
 
-      log("⬅️  Model responded.")
       if (args.debug) {
         print( ow.format.withSideLine("<<<\n" + colorify(msg, { bgcolor: "BG(230),BLACK"}) + "\n<<<", __, "FG(220)", "BG(230),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
       }
