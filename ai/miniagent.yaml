@@ -34,6 +34,10 @@ help:
     desc     : "Whether to allow shell commands (default: true)"
     example  : "true"
     mandatory: false
+  - name     : outfile
+    desc     : Output file path to save the final answer (if not provided, prints to console)
+    example  : "/path/to/output.txt"
+    mandatory: false
   - name     : knowledge
     desc     : Additional knowledge or context to provide to the agent (in the form of a string or a path to a text file)
     example  : "You have access to a Linux shell and can run commands like ls, cat, grep, wc, curl, etc."
@@ -181,11 +185,14 @@ jobs:
       debug    : toBoolean.isBoolean.default(false)
       useshell : toBoolean.isBoolean.default(false)
       knowledge: isString.default("")
+      outfile  : isString.default(__)
   exec : | #js
     // Mini autonomous agent to achieve a goal using an LLM and shell commands
     var calls = 0, startTime 
 
     global.alwaysExec = args.readwrite
+    if (isDef(args.outfile) && isUnDef(args.__format)) args.__format = "json"
+    if (isUnDef(args.__format)) args.__format = "md"
 
     // Helper to convert numbers to words (0-50)
     const numberInWords = num => {
@@ -390,7 +397,13 @@ jobs:
           // Remove code block markers if present
           answer = answer.replace(/^```+[\w]*\n/, "").replace(/```+$/, "").trim()
         }
-        ow.oJob.output("\n" + answer + "\n" || "\n(no answer)", { __format: "md" })
+
+        if (isDef(args.outfile)) {
+          io.writeFileString(args.outfile, answer || "(no answer)")
+          log(`✅ Final answer written to ${args.outfile}`)
+        } else {
+          ow.oJob.output("\n" + answer + "\n" || "\n(no answer)", { __format: "md" })
+        }
         return
       }
 
@@ -414,5 +427,10 @@ jobs:
       res.answer = res.answer.replace(/^```+[\w]*\n/, "").replace(/```+$/, "").trim()
     }
 
-    if (isUnDef(args.__format)) args.__format = "md"
-    ow.oJob.output("\n" + res.answer || "\n(no final answer)", args)
+    if (isDef(args.outfile)) {
+      io.writeFileString(args.outfile, res.answer || "(no final answer)")
+      log(`✅ Final answer written to ${args.outfile}`)
+      return
+    } else {
+      ow.oJob.output("\n" + res.answer || "\n(no final answer)", args)
+    }
