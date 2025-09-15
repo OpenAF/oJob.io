@@ -4,15 +4,19 @@ help:
     A mini autonomous agent that uses an LLM (use OAF_MODEL environment variable) and shell commands to achieve a specified goal in small steps.
 
     Examples:
+      # Single MCP connection
       ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/dockerhub', timeout: 5000)" rtm=20
       ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/wikipedia-mcp', timeout: 5000)" rtm=20 knowledge="give final answer in markdown"
+      
+      # Multiple MCP connections
+      ojob ojob.io/ai/miniagent goal="..." mcp="[(cmd: 'docker run --rm -i mcp/dockerhub', timeout: 5000), (cmd: 'docker run --rm -i mcp/wikipedia-mcp', timeout: 5000)]" rtm=20
   expects: 
   - name     : goal
     desc     : Goal for the agent to achieve
     example  : aValueExample
     mandatory: true
   - name     : mcp
-    desc     : A MCP connection object using OpenAF's $mcp() function in SLON or JSON format
+    desc     : A MCP connection object (or array of objects) using OpenAF's $mcp() function in SLON or JSON format
     example  : "(url: 'http://127.0.0.1:17879/mcp', type: remote, debug: false)"
     mandatory: false
   - name     : verbose
@@ -46,6 +50,10 @@ help:
   - name     : knowledge
     desc     : Additional knowledge or context to provide to the agent (in the form of a string or a path to a text file)
     example  : "You have access to a Linux shell and can run commands like ls, cat, grep, wc, curl, etc."
+    mandatory: false
+  - name     : libs
+    desc     : Comma-separated list of additional OJob libraries to load (e.g., "lib1,lib2")
+    example  : "lib1,lib2"
     mandatory: false
   - name     : debug
     desc     : Enable debug mode
@@ -191,6 +199,7 @@ jobs:
       useshell : toBoolean.isBoolean.default(false)
       knowledge: isString.default("")
       outfile  : isString.default(__)
+      libs     : isString.default("")
   exec : | #js
     // Mini autonomous agent to achieve a goal using an LLM and shell commands
     var calls = 0, startTime 
@@ -237,6 +246,12 @@ jobs:
       }
     }
 
+    // Load additional libraries if specified
+    args.libs.split(",").map(r => r.trim()).filter(r => r.length > 0).forEach(lib => {
+      log(`📚 Loading library: ${lib}...`)
+      loadLib(lib)
+    })
+
     // Using OAF_MODEL env var for model selection
     if (isUnDef(getEnv("OAF_MODEL"))) {
       logErr("OAF_MODEL environment variable not set. Please set it to your desired LLM model.")
@@ -246,21 +261,48 @@ jobs:
     var llm = $llm(_oaf_model)
     log(`ℹ️  Using model: ${_oaf_model.model} (${_oaf_model.type})`)
 
-    // Using MCP
-    var mcp, mcpTools = [], mcpToolNames = []
+    // Using MCP (single or multiple connections)
+    var mcpConnections = [], mcpTools = [], mcpToolNames = [], mcpToolToConnection = {}
     if (isDef(args.mcp)) {
-      log("🤖 Initializing MCP connection...")
-      mcp = $mcp(af.fromJSSLON(args.mcp))
-      mcp.initialize()
-      sleep(100, true)
-      mcpTools = mcp.listTools()
-      if (isDef(mcpTools) && isDef(mcpTools.tools)) {
-        mcpTools = mcpTools.tools
-      } else {
-        throw new Error("MCP connection failed or returned no tools.")
+      var mcpConfigs = af.fromJSSLON(args.mcp)
+      
+      // Handle both single object and array of MCP configurations
+      if (!isArray(mcpConfigs)) {
+        mcpConfigs = [mcpConfigs]
       }
-      mcpToolNames = mcpTools.map(r => r.name)
-      log(`✅ MCP connected. Found #${mcpTools.length} tools.`)
+      
+      log(`🤖 Initializing ${mcpConfigs.length} MCP connection(s)...`)
+      
+      // Initialize each MCP connection
+      mcpConfigs.forEach((mcpConfig, index) => {
+        try {
+          var mcp = $mcp(mcpConfig)
+          mcp.initialize()
+          sleep(100, true)
+          
+          var tools = mcp.listTools()
+          if (isDef(tools) && isDef(tools.tools)) {
+            tools = tools.tools
+          } else {
+            throw new Error(`MCP connection ${index + 1} failed or returned no tools.`)
+          }
+          
+          // Store connection and map tools to this connection
+          mcpConnections.push(mcp)
+          tools.forEach(tool => {
+            mcpTools.push(tool)
+            mcpToolNames.push(tool.name)
+            mcpToolToConnection[tool.name] = index
+          })
+          
+          log(`✅ MCP connection ${index + 1} established. Found #${tools.length} tools.`)
+        } catch (e) {
+          logErr(`❌ Failed to initialize MCP connection ${index + 1}: ${e.message}`)
+          throw e
+        }
+      })
+      
+      log(`✅ Total MCP tools available: ${mcpTools.length}`)
     }
 
     // Provide system prompt instructions
@@ -374,7 +416,12 @@ jobs:
           continue
         }
         log(`⚙️  Executing action '${origAction}' with params: ${af.toCSLON(msg.params)}`)
+        
+        // Find the correct MCP connection for this tool
+        var connectionIndex = mcpToolToConnection[origAction]
+        var mcp = mcpConnections[connectionIndex]
         var tool = mcpTools.find(t => t.name == origAction)
+        
         var toolOutput = mcp.callTool(origAction, msg.params)
         if (isDef(toolOutput) && isArray(toolOutput.content) && isDef(toolOutput.content[0]) && isDef(toolOutput.content[0].text)) {
           //toolOutput = toolOutput.content.map(r => jsonParse(r.text, __, __, true))
