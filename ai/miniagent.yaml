@@ -1,6 +1,11 @@
 # Author: Nuno Aguiar
 help:
-  text   : A mini autonomous agent that uses an LLM (use OAF_MODEL environment variable) and shell commands to achieve a specified goal in small steps. 
+  text   : |
+    A mini autonomous agent that uses an LLM (use OAF_MODEL environment variable) and shell commands to achieve a specified goal in small steps.
+
+    Examples:
+      ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/dockerhub', timeout: 5000)" rtm=20
+      ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/wikipedia-mcp', timeout: 5000)" rtm=20
   expects: 
   - name     : goal
     desc     : Goal for the agent to achieve
