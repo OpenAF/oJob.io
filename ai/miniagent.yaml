@@ -5,7 +5,7 @@ help:
 
     Examples:
       ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/dockerhub', timeout: 5000)" rtm=20
-      ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/wikipedia-mcp', timeout: 5000)" rtm=20
+      ojob ojob.io/ai/miniagent goal="..." mcp="(cmd: 'docker run --rm -i mcp/wikipedia-mcp', timeout: 5000)" rtm=20 knowledge="give final answer in markdown"
   expects: 
   - name     : goal
     desc     : Goal for the agent to achieve
@@ -277,7 +277,7 @@ jobs:
     llm = llm.withInstructions(_systemInst)
     log("📏 System prompt size " + ow.format.toBytesAbbreviation(_systemInst.length))
     if (args.debug) {
-      print( ow.format.withSideLine(">>>\n" + _systemInst + "\n>>>", __, "FG(196)", "BG(52),BLACK", ow.format.withSideLineThemes().doubleLineBothSides) )
+      print( ow.format.withSideLine(">>>\n" + _systemInst + "\n>>>", __, "FG(196)", "BG(52),WHITE", ow.format.withSideLineThemes().doubleLineBothSides) )
     }
 
     var context = [], maxSteps = args.maxsteps
@@ -335,12 +335,15 @@ jobs:
         log(`--- step ${step + 1} ---`)
         log(`\n${isObject(msg) ? printTree(msg) : msg}`)
       }
-      if (isMap(msg) || isArray(msg)) {
-        var _msg = thought || msg.think || af.toCSLON(msg) || "(no thought)"
-        if (isObject(_msg)) _msg = af.toCSLON(_msg)
-        log(`🧠 Thought: ${_msg}`)
-      } else {
-        log(`🧠 ${msg}`)
+
+      if (action != "think") {
+        if (isMap(msg) || isArray(msg)) {
+          var _msg = thought || msg.think || af.toCSLON(msg) || "(no thought)"
+          if (isObject(_msg)) _msg = af.toCSLON(_msg)
+          log(`🧠 Thought: ${_msg}`)
+        } else {
+          log(`🧠 ${msg}`)
+        }
       }
 
       // Handle actions
