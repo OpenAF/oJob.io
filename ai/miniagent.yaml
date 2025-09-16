@@ -10,6 +10,7 @@ help:
       
       # Multiple MCP connections
       ojob ojob.io/ai/miniagent goal="..." mcp="[(cmd: 'docker run --rm -i mcp/dockerhub', timeout: 5000), (cmd: 'docker run --rm -i mcp/wikipedia-mcp', timeout: 5000)]" rtm=20
+      
   expects: 
   - name     : goal
     desc     : Goal for the agent to achieve
@@ -51,6 +52,10 @@ help:
     desc     : Additional knowledge or context to provide to the agent (in the form of a string or a path to a text file)
     example  : "You have access to a Linux shell and can run commands like ls, cat, grep, wc, curl, etc."
     mandatory: false
+  - name     : conversation
+    desc     : Conversation history file to provide to the agent
+    example  : "/path/to/conversation.json"
+    mandatory: false
   - name     : libs
     desc     : Comma-separated list of additional OJob libraries to load (e.g., "lib1,lib2")
     example  : "lib1,lib2"
@@ -61,7 +66,7 @@ help:
     mandatory: false
 
 todo:
-- Mini Agent
+- MiniAgent
 
 ojob:
   opacks      :
@@ -71,7 +76,7 @@ ojob:
 
 init:
   SYSTEM_PROMPT: |- #handlebars
-    You are a goal-oriented agent. Work step-by-step toward your goal.
+    You are a goal-oriented agent. Work step-by-step toward your goal. No user interaction is possible.
 
     RESPONSE FORMAT: Always respond with exactly one valid JSON object:
     {
@@ -125,8 +130,8 @@ init:
     Respond as JSON: {"thought":"reasoning","action":"final","answer":"your complete answer"}
 
 jobs:
-# ------------------
-- name : Run command
+# ----------------------------
+- name : MiniAgent Run command
   check:
     in:
       command  : isString
@@ -185,21 +190,22 @@ jobs:
       args.output = _r.stdout + (isDef(_r.stderr) && _r.stderr.length > 0 ? "\n[stderr] " + _r.stderr : "")
     }
 
-# -----------------
-- name : Mini Agent
+# ----------------
+- name : MiniAgent
   check:
     in:
-      goal     : isString
-      mcp      : isString.default(__)
-      verbose  : toBoolean.isBoolean.default(false)
-      rtm      : toNumber.isNumber.default(__)
-      maxsteps : toNumber.isNumber.default(25)
-      readwrite: toBoolean.isBoolean.default(false)
-      debug    : toBoolean.isBoolean.default(false)
-      useshell : toBoolean.isBoolean.default(false)
-      knowledge: isString.default("")
-      outfile  : isString.default(__)
-      libs     : isString.default("")
+      goal        : isString
+      mcp         : isString.default(__)
+      verbose     : toBoolean.isBoolean.default(false)
+      rtm         : toNumber.isNumber.default(__)
+      maxsteps    : toNumber.isNumber.default(25)
+      readwrite   : toBoolean.isBoolean.default(false)
+      debug       : toBoolean.isBoolean.default(false)
+      useshell    : toBoolean.isBoolean.default(false)
+      knowledge   : isString.default("")
+      outfile     : isString.default(__)
+      libs        : isString.default("")
+      conversation: isString.default(__)
   exec : | #js
     // Mini autonomous agent to achieve a goal using an LLM and shell commands
     var calls = 0, startTime 
@@ -260,6 +266,12 @@ jobs:
     var _oaf_model = af.fromJSSLON(getEnv("OAF_MODEL"))
     var llm = $llm(_oaf_model)
     log(`ℹ️  Using model: ${_oaf_model.model} (${_oaf_model.type})`)
+
+    // Load conversation history if provided
+    if (isDef(args.conversation) && io.fileExists(args.conversation)) {
+      log(`📂 Loading conversation history from ${args.conversation}...`)
+      llm.getGPT().setConversation( io.readFileJSON(args.conversation) )
+    }
 
     // Using MCP (single or multiple connections)
     var mcpConnections = [], mcpTools = [], mcpToolNames = [], mcpToolToConnection = {}
@@ -340,6 +352,9 @@ jobs:
       }
       var rmsg = llm.prompt(prompt)
       log("⬅️  Model responded.")
+
+      // Store history
+      if (isDef(args.conversation)) io.writeFileJSON(args.conversation, llm.getGPT().getConversation())
       
       var msg
       if (isString(rmsg)) {
@@ -404,7 +419,7 @@ jobs:
           context.push(`[OBS ${step + 1}] (shell) missing 'command' from model.`)
           continue
         }
-        var shellOutput = $job("Run command", { command: command, readwrite: args.readwrite, checkall: args.checkall }).output
+        var shellOutput = $job("MiniAgent Run command", { command: command, readwrite: args.readwrite, checkall: args.checkall }).output
         context.push(`[ACT ${step + 1}] shell: ${command}`)
         context.push(`[OBS ${step + 1}] ${shellOutput || "(no output)"}`)
         continue
@@ -476,7 +491,11 @@ jobs:
     // Get final answer from model
     addCall()
     var res = jsonParse(llm.prompt(finalPrompt), __, __, true)
+
+    // Store history
+    if (isDef(args.conversation)) io.writeFileJSON(args.conversation, llm.getGPT().getConversation())
     
+    // Extract final answer
     if (isDef(res.answer) && res.answer.trim().startsWith("```") && res.answer.trim().endsWith("```")) {
       // Remove code block markers if present
       res.answer = res.answer.replace(/^```+[\w]*\n/, "").replace(/```+$/, "").trim()
