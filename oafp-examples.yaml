@@ -1321,3 +1321,9 @@ data:
   e: |
     # opack install badgen
     oafp libs=badgen out=badgen data="(status: beta, transparent: true, textColor: FFC107, borderColor: FFC107, style: rounded, shadow: false)" path="insert(@, 'label', __)" > beta.svg
+- c: Kubernetes
+  s: Kubectl
+  d: Creates a XLS file with all images used in a Kubernetes cluster with the corresponding namespace, kind, name, container name and image.
+  e: |
+    # opack install plugin-xls
+    oafp cmd="kubectl get all -A -o json" path="items[].setp(@,'','m').spec.containers.map(&{ ns: get('m').metadata.namespace, kind: get('m').kind, name: get('m').metadata.name, container: name, image: image }, nvl(@, from_json('[]'))) | []" out=xls outxlsfile=list.xlsx
