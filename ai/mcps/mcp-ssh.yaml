@@ -1,0 +1,291 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP SSH server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  # Add your specific parameters here
+  - name     : ssh
+    desc     : SSH OpenAF url
+    example  : 'ssh://user:pass@host:port/identificationKey?timeout=1234&compression=false'
+    mandatory: true 
+  - name     : readwrite
+    desc     : "If true, allows write operations (default: false)"
+    example  : "true"
+    mandatory: false
+  - name     : shellallow
+    desc     : Comma-separated list of banned commands to allow explicitly
+    example  : "curl,wget"
+    mandatory: false
+  - name     : shellallowpipes
+    desc     : Allow pipes, redirection and shell control operators
+    example  : "true"
+    mandatory: false
+  - name     : shellbanextra
+    desc     : Additional comma-separated commands to ban
+    example  : "lsblk,ifconfig"
+    mandatory: false
+
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-ssh
+        title  : OpenAF mini-a MCP SSH server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      shell-exec:
+        name       : shell-exec
+        description: Executes a shell command over SSH and returns a map with the output's stdout, stderr and exit code.
+        inputSchema:
+          type: object
+          properties:
+            command: { type: string }
+          required: [ command ]
+        annotations:
+          title         : shell-exec
+          readOnlyHint  : true
+          idempotentHint: true
+
+      shell-batch:
+        name       : shell-batch
+        description: Executes a batch of shell commands over SSH and returns an array of maps with each command's stdout, stderr and exit code.
+        inputSchema:
+          type: object
+          properties:
+            commands:
+              type : array
+              items: { type: string }
+          required: [ commands ]
+        annotations:
+          title         : shell-batch
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      shell-exec : SSH Execute
+      shell-batch: SSH Batch Execute
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-ssh.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  check:
+    in:
+      ssh      : isString
+      readwrite: toBoolean.isBoolean.default(false)
+      shellallow     : isString.default("")
+      shellbanextra  : isString.default("")
+      shellallowpipes: toBoolean.isBoolean.default(false)
+  exec : | #js
+    global.ssh = args.ssh
+    global.readwrite = args.readwrite
+    var parseList = function(value) {
+      if (isUnDef(value) || value === null) return []
+      if (!isString(value)) value = "" + value
+      return value.split(",").map(v => v.trim().toLowerCase()).filter(v => v.length > 0)
+    }
+    global.shellallow = parseList(args.shellallow)
+    global.shellbanextra = parseList(args.shellbanextra)
+    global.shellallowpipes = args.shellallowpipes
+
+# ---------------------
+- name : Validate Command
+  check:
+    in:
+      command    : isString
+  exec : | #js
+    var baseBanned = [
+      "rm","sudo","chmod","chown","mv","scp","ssh","docker","podman","kubectl",
+      "dd","mkfs","mkfs.ext4","mkfs.xfs","mount","umount","apt","yum","brew",
+      "apt-get","apk","rpm","cp","rsync","truncate","ln","passwd","useradd",
+      "userdel","groupadd","groupdel","shutdown","reboot","poweroff","halt",
+      "systemctl","service","fdisk","sfdisk","parted","losetup","mkswap",
+      "swapoff","swapon","iptables","nft","grub-install","update-grub",
+      "curl","wget","perl","python","python3","ruby","node","npm","yarn","pip","pip3","gem"
+    ]
+
+    var exec = false
+    var lcCmd = (args.command || "").toString().toLowerCase()
+    var tokens = lcCmd.split(/\s+/).filter(r => r.length > 0)
+    var errorMsg = ""
+
+    var allowlist = isArray(global.shellallow) ? global.shellallow : []
+    var extraBanned = isArray(global.shellbanextra) ? global.shellbanextra : []
+    var banned = baseBanned.concat(extraBanned).filter(b => allowlist.indexOf(b) < 0)
+
+    var isTokenAllowed = function(token) {
+      return allowlist.some(a => token === a || token.startsWith(a + "-") || token.startsWith(a + "."))
+    }
+
+    // detect banned tokens or tokens that start with banned entries (e.g., "docker-compose")
+    var bannedTokens = tokens.filter(t => !isTokenAllowed(t) && banned.some(b => t === b || t.startsWith(b + "-") || t.startsWith(b + ".")))
+    var hasBannedToken = bannedTokens.length > 0
+
+    // detect redirections, pipes or shell control operators which can perform write/replace operations
+    var hasRedirectionOrPipe = !(global.shellallowpipes || false) && /[<>|&;]/.test(lcCmd)
+
+    // collect what was detected to show to user
+    var detected = []
+    if (hasBannedToken) detected = detected.concat(bannedTokens)
+    if (hasRedirectionOrPipe) detected.push("redirection/pipe")
+
+    if (!global.readwrite && (hasBannedToken || hasRedirectionOrPipe)) {
+      if (hasBannedToken) {
+        errorMsg = "[blocked] Command contains banned operation" + (detected.length ? " (detected: " + detected.join(", ") + ")" : "") + ": " + args.command
+        exec = false
+      } else if (hasRedirectionOrPipe) {
+        errorMsg = "[blocked] Command contains redirection/pipe operations: " + args.command  
+        exec = false
+      } else {
+        exec = global.readwrite
+        if (!exec) {
+          errorMsg = "[blocked] Command blocked by security policy: " + args.command
+        }
+      }
+    } else {
+      exec = true
+    }
+
+    args.canExecute = exec
+    args.errorMessage = errorMsg
+    args.detectedIssues = detected
+
+# ------------------
+- name : SSH Execute
+  check:
+    in:
+      command    : isString
+  exec : | #js
+    // Validate command first
+    var validation = $job("Validate Command", {
+      command    : args.command
+    })
+
+    if (!validation.canExecute) {
+      return {
+        stdout   : "",
+        stderr   : validation.errorMessage,
+        exitcode : 1,
+        blocked  : true,
+        detected : validation.detectedIssues
+      }
+    }
+
+    var ssh
+    try {
+      var ssh = $ssh(global.ssh)
+      var result = ssh.sh(args.command).get(0)
+      result.blocked = false
+      return result
+    } catch(e) {
+      return {
+        stdout   : "",
+        stderr   : "[ERROR]: " + e.message,
+        exitcode : 1,
+        blocked  : false
+      }
+    } finally {
+      if (isDef(ssh)) ssh.close()
+    }
+
+# ------------------------
+- name : SSH Batch Execute
+  check:
+    in:
+      commands   : isArray
+      allowBanned: isBoolean.default(false)
+      checkAll   : isBoolean.default(false)  
+      interactive: isBoolean.default(true)
+  exec : | #js
+    var ssh, results = []
+    try {
+      var ssh = $ssh(global.ssh)
+      
+      for (var i = 0; i < args.commands.length; i++) {
+        if (isString(args.commands[i])) {
+          // Validate each command first
+          var validation = $job("Validate Command", {
+            command    : args.commands[i]
+          })
+
+          if (!validation.canExecute) {
+            // Add blocked command result to results
+            results.push({
+              stdout   : "",
+              stderr   : validation.errorMessage,
+              exitcode : 1,
+              blocked  : true,
+              detected : validation.detectedIssues,
+              command  : args.commands[i]
+            })
+            continue
+          }
+
+          ssh.sh(args.commands[i])
+        }
+      }
+      
+      var sshResults = ssh.get()
+      
+      // Merge validation results with SSH results
+      var validCommandIndex = 0
+      for (var j = 0; j < args.commands.length; j++) {
+        if (isString(args.commands[j])) {
+          var foundBlocked = false
+          for (var k = 0; k < results.length; k++) {
+            if (results[k].command === args.commands[j] && results[k].blocked) {
+              foundBlocked = true
+              break
+            }
+          }
+          
+          if (!foundBlocked && validCommandIndex < sshResults.length) {
+            var sshResult = sshResults[validCommandIndex]
+            sshResult.blocked = false
+            sshResult.command = args.commands[j]
+            results.push(sshResult)
+            validCommandIndex++
+          }
+        }
+      }
+      
+      return results.length > 0 ? results : sshResults
+    } catch(e) {
+      return [{
+        stdout   : "",
+        stderr   : "[ERROR]: " + e.message,
+        exitcode : 1,
+        blocked  : false
+      }]
+    } finally {
+      if (isDef(ssh)) ssh.close()
+    }

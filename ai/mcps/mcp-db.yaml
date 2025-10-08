@@ -1,0 +1,159 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO MCP database server 
+  expects: 
+  - name     : jdbc
+    desc     : JDBC connection string
+    example  : jdbc:postgresql://localhost:5432/somedb
+    mandatory: true
+  - name     : user
+    desc     : Database user
+    example  : aUser
+    mandatory: false
+  - name     : pass
+    desc     : Database password
+    example  : aPassword
+    mandatory: false
+  - name     : rw
+    desc     : Allow read/write operations (default is read-only)
+    example  : "true"
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Connect to database
+- Close database on exit
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-db
+        title  : OpenAF mini-a MCP database server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      dbSQLQuery:
+        name       : dbSQLQuery
+        description: Executes a SQL query against a database using JDBC.
+        inputSchema:
+          type      : object
+          properties:
+            sqlQuery:
+              type        : string
+              description : SQL query to execute.
+          required: [ sqlQuery ]
+        annotations:
+          title         : dbSQLQuery
+          readOnlyHint  : true
+          idempotentHint: true
+
+      dbDMLStatement:
+        name       : dbDMLStatement
+        description: Executes a SQL DML statement (CREATE, INSERT, UPDATE, DELETE, DROP) against a database using JDBC.
+        inputSchema:
+          type      : object
+          properties:
+            sqlDML:
+              type        : string
+              description : SQL DML statement to execute.
+          required: [ sqlDML ]
+        annotations:
+          title         : dbDMLStatement
+          readOnlyHint  : false
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      dbSQLQuery    : Execute SQL query
+      dbDMLStatement: Execute DML statement
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-db.pid
+    killPrevious: true
+        
+include:
+- oJobMCP.yaml
+
+jobs:
+# --------------------------
+- name : Connect to database
+  check:
+    in:
+      jdbc: isString
+      user: isString.default(__)
+      pass: isString.default(__) 
+  exec : | #js
+    global.db = new DB(args.jdbc, args.user, args.pass)
+
+# -----------------------------
+- name : Close database on exit
+  type : shutdown
+  check:
+    in:
+      jdbc: isString
+      user: isString.default(__)
+      pass: isString.default(__)
+  exec : | #js
+    if (global.db) {
+      global.db.close()
+    }
+
+# ------------------------
+- name : Execute SQL query
+  check:
+    in:
+      sqlQuery: isString
+  exec : | #js
+    if (!global.db) {
+      return "[ERROR] Database not connected"
+    } else {
+      var _res 
+      try {
+        _res = global.db.q(args.sqlQuery)
+        global.db.commit()
+      } catch(e) {
+        global.db.rollback()
+        return "[ERROR] " + e.message
+      }
+      return _res
+    }
+
+# ----------------------------
+- name : Execute DML statement
+  check:
+    in:
+      sqlDML: isString
+      rw    : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (!args.rw) {
+      return "[ERROR] Read-only mode. Set rw=true to allow write operations"
+    }
+    if (!global.db) {
+      return "[ERROR] Database not connected"
+    } else {
+      var _res
+      try {
+        _res = global.db.u(args.sqlDML)
+        global.db.commit()
+        return _res + " rows affected"
+      } catch(e) {
+        global.db.rollback()
+        return "[ERROR] " + e.message
+      }
+    } 

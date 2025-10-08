@@ -1,0 +1,170 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP OpenAF tools documentation server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-docs
+        title  : OpenAF mini-a MCP OpenAF tools documentation server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      openaf-doc:
+        name       : openaf-doc
+        description: Returns OpenAF help entries matching a search string or all entries if no string is provided OR the full OpenAF help if run with cli=true
+        inputSchema:
+          type: object
+          properties:
+            search: 
+              type: string
+              desc: If defined, searches help for the provided string returning a list of matching help entries. If the string corresponds to an exact entry it returns the full help entry. If not defined returns all help entries.
+            cli:
+              type: boolean
+              desc: If true returns the full OpenAF help text as if run from the command line "oaf -h"
+          required: [ search ]
+        annotations:
+          title         : openaf-doc
+          readOnlyHint  : true
+          idempotentHint: true
+
+      ojob-doc:
+        name       : ojob-doc
+        description: Returns oJob documentation (help or reference)
+        inputSchema:
+          type: object
+          properties:
+            reference:
+              type: boolean
+              desc: If true returns the oJob reference documentation in YAML format
+            cli:
+              type: boolean
+              desc: If true returns the oJob command line help text as if run from the command
+          required: [ reference, cli ]
+        annotations:
+          title         : ojob-doc
+          readOnlyHint  : true
+          idempotentHint: true
+
+      openaf-version:
+        name       : openaf-version
+        description: Returns the OpenAF suite version and distribution
+        inputSchema:
+          type: object
+          properties: { }
+          required: [ ]
+        annotations:
+          title         : openaf-version
+          readOnlyHint  : true
+          idempotentHint: true
+
+      oafp-doc:
+        name       : oafp-doc
+        description: Returns oAFp documentation (help)
+        inputSchema:
+          type: object
+          properties:
+            help:
+              type: string
+              desc: The help topic to return (default is "readme"). By default help=filters, help=template, help=examples and help=readme are available. 
+          required: [ help ]
+        annotations:
+          title         : oafp-doc
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      openaf-doc    : OpenAF documentation
+      ojob-doc      : oJob documentation
+      openaf-version: OpenAF suite version
+      oafp-doc      : oAFp documentation
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-oaf.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  exec : | #js
+    global.oaf_docs = searchHelp("")
+
+# ---------------------------
+- name : OpenAF documentation
+  check:
+    in:
+      search: isString.default(__)
+      cli   : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (args.cli) {
+      return "```" + $sh(getOpenAFPath() + "oaf -h").get(0).stderr + "```"
+    } else {
+      if (isUnDef(args.search)) {
+        return global.oaf_docs
+      } else {
+        var _r = searchHelp(args.search)
+        if (isDef(_r.fullkey) && isDef(_r.text)) {
+          _r.fullkey = "```" + _r.fullkey + "```"
+          _r.text    = "```javascript\n" + _r.text + "\n```"
+        } 
+        return _r
+      }
+    }
+
+# -------------------------
+- name : oJob documentation
+  check:
+    in:
+      reference: toBoolean.isBoolean.default(false)
+      cli      : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (args.cli) {
+      return "```" + $sh(getOpenAFPath() + "ojob -h").get(0).stdout + "```"
+    } else if (args.reference) {
+      return io.readFileString(getOpenAFJar() + "::" + "docs/.ojob-all.yaml")
+    } else {
+      return io.readFileString(getOpenAFJar() + "::" + "docs/.ojob.md")
+    }
+
+# -------------------------
+- name : oAFp documentation
+  check:
+    in:
+      help: isString.default("readme")
+  exec : | #js
+    return $sh(getOpenAFPath() + "oafp help=" + args.help + " out=raw").get(0).stdout
+
+# ---------------------------
+- name : OpenAF suite version
+  exec : | #js
+    return {
+      version: getVersion(),
+      distribution: getDistribution()
+    }

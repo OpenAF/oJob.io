@@ -1,0 +1,325 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP OpenAF data channel server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : chs
+    desc     : A JSON/SLON array/map of channel name, type, rw (read/write boolean) and options (depending on channel type)
+    example  : '(_name: my-data, _type: file, _rw: true, file: my-data.json)'
+    mandatory: false
+    
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-ch
+        title  : OpenAF mini-a MCP data channel server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      ch-size:
+        name       : ch-size
+        description: Returns the size of a data channel.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+          required: [ dataCh ]
+        annotations:
+          title         : ch-size
+          readOnlyHint  : true
+          idempotentHint: true
+
+      ch-keys:
+        name       : ch-keys
+        description: Returns the keys of a data channel.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+            extra:
+              type        : string
+              description : Extra argument to pass to getKeys (optional).
+          required: [ dataCh ]
+        annotations:
+          title         : ch-keys
+          readOnlyHint  : true
+          idempotentHint: true
+
+      ch-values:
+        name       : ch-values
+        description: Returns all values of a data channel.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+            extra:
+              type        : string
+              description : Extra argument to pass to getAll (optional).
+          required: [ dataCh ]
+        annotations:
+          title         : ch-values
+          readOnlyHint  : true
+          idempotentHint: true
+
+      ch-get:
+        name       : ch-get
+        description: Gets a value from a data channel using a key.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+            key:
+              type        : object
+              description : Key to get.
+            value:
+              type        : object
+              description : Value to get (optional).
+          required: [ dataCh, key ]
+        annotations:
+          title         : ch-get
+          readOnlyHint  : true
+          idempotentHint: true
+
+      ch-set:
+        name       : ch-set
+        description: Sets a value in a data channel using a key.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+            key:
+              type        : object
+              description : Key to set.
+            value:
+              type        : object
+              description : Value to set.
+          required: [ dataCh, key, value ]
+        annotations:
+          title         : ch-set
+          readOnlyHint  : false
+          idempotentHint: false
+
+      ch-unset:
+        name       : ch-unset
+        description: Unsets a value in a data channel using a key.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+            key:
+              type        : object
+              description : Key to unset.
+          required: [ dataCh, key ]
+        annotations:
+          title         : ch-unset
+          readOnlyHint  : false
+          idempotentHint: false
+
+      ch-set-all:
+        name       : ch-set-all
+        description: Sets multiple values in a data channel using a list of key fields and values.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh:
+              type        : string
+              description : Name of the data channel.
+            keyFieldsList:
+              type        : array
+              description : List of key fields.
+              items:
+                type: string
+            valuesList:
+              type        : array
+              description : List of values.
+              items:
+                type: object
+          required: [ dataCh, keyFieldsList, valuesList ]
+        annotations:
+          title         : ch-set-all
+          readOnlyHint  : false
+          idempotentHint: false
+
+      ch-unset-all:
+        name       : ch-unset-all
+        description: Unsets multiple values in a data channel using a list of key fields and values.
+        inputSchema:
+          type      : object
+          properties:
+            dataCh: 
+              type        : string
+              description : Name of the data channel.
+            keyFieldsList:
+              type        : array
+              description : List of key fields.
+              items:
+                type: string
+            valuesList:
+              type        : array
+              description : List of values.
+              items:
+                type: object
+          required: [ dataCh, keyFieldsList, valuesList ]
+        annotations:
+          title         : ch-unset-all
+          readOnlyHint  : false
+          idempotentHint: false
+
+    ((fns    )): &MCPFNS
+      ch-size     : Channel size
+      ch-keys     : Channel keys
+      ch-values   : Channel values
+      ch-get      : Channel get
+      ch-set      : Channel set
+      ch-unset    : Channel unset
+      ch-set-all  : Channel set all
+      ch-unset-all: Channel unset all
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-ch.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  check:
+    in:
+      chs: isString.default("[]")
+  exec : | #js
+    var chs = af.fromJSSLON(args.chs)
+    if (isMap(chs)) chs = [chs]
+
+    global.chs = chs
+    if (isArray(chs)) {
+      for (var i = 0; i < chs.length; i++) {
+        $ch(chs[i]._name).create(chs[i]._type || "simple", chs[i])
+      }
+    }
+
+# -------------------
+- name : Channel size
+  check:
+    in:
+      dataCh: isString
+  exec : | #js
+    return $ch(args.dataCh).size()
+
+# -------------------
+- name : Channel keys
+  check:
+    in:
+      dataCh: isString
+      extra : isString.default(__)
+  exec : | #js
+    return $ch(args.dataCh).getKeys(args.extra)
+
+# ---------------------
+- name : Channel values
+  check:
+    in:
+      dataCh: isString
+      extra : isString.default(__)
+  exec : | #js
+    return $ch(args.dataCh).getAll(args.extra)
+
+# ------------------
+- name : Channel get
+  check:
+    in:
+      dataCh: isString
+      key   : isMap
+      value : isMap
+  exec : | #js
+    return $ch(args.dataCh).get(args.key, args.value)
+
+# ------------------
+- name : Channel set 
+  check:
+    in:
+      dataCh: isString
+      key   : isMap
+      value : isMap
+  exec : | #js
+    if (global.chs.filter(c => c._name === args.dataCh)[0]._rw) {
+      return $ch(args.dataCh).set(args.key, args.value)
+    } else {
+      return "[ERROR] The data channel '" + args.dataCh + "' is read-only"
+    }
+    
+
+# --------------------
+- name : Channel unset
+  check:
+    in:
+      dataCh: isString
+      key   : isMap
+  exec : | #js
+    if (global.chs.filter(c => c._name === args.dataCh)[0]._rw) {
+      return $ch(args.dataCh).unset(args.key)
+    } else {
+      return "[ERROR] The data channel '" + args.dataCh + "' is read-only"
+    }
+
+# ----------------------
+- name : Channel set all
+  check:
+    in:
+      dataCh       : isString
+      keyFieldsList: isArray
+      valuesList   : isArray
+  exec : | #js
+    if (global.chs.filter(c => c._name === args.dataCh)[0]._rw) {
+      return $ch(args.dataCh).setAll(args.keyFieldsList, args.valuesList)
+    } else {
+      return "[ERROR] The data channel '" + args.dataCh + "' is read-only"
+    }
+
+# ------------------------
+- name : Channel unset all
+  check:
+    in:
+      dataCh       : isString
+      keyFieldsList: isArray
+      valuesList   : isArray
+  exec : | #js
+    if (global.chs.filter(c => c._name === args.dataCh)[0]._rw) {
+      return $ch(args.dataCh).unsetAll(args.keyFieldsList, args.valuesList)
+    } else {
+      return "[ERROR] The data channel '" + args.dataCh + "' is read-only"
+    }

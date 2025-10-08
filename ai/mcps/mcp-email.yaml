@@ -1,0 +1,213 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO MCP email server
+  expects:
+  - name     : smtpserver
+    desc     : SMTP server hostname
+    example  : smtp.gmail.com
+    mandatory: true
+  - name     : from
+    desc     : Default FROM email address
+    example  : sender@example.com
+    mandatory: true
+  - name     : user
+    desc     : SMTP authentication user
+    example  : sender@example.com
+    mandatory: false
+  - name     : pass
+    desc     : SMTP authentication password or app token
+    example  : mySecret
+    mandatory: false
+  - name     : ssl
+    desc     : Use SSL to connect to the SMTP server
+    example  : "true"
+    mandatory: false
+  - name     : tls
+    desc     : Use STARTTLS to connect to the SMTP server
+    example  : "true"
+    mandatory: false
+  - name     : html
+    desc     : Treat message bodies as HTML (otherwise plain text)
+    example  : "true"
+    mandatory: false
+  - name     : port
+    desc     : SMTP server port (defaults to provider standard)
+    example  : "587"
+    mandatory: false
+  - name     : debug
+    desc     : Enable JavaMail debug logs
+    example  : "true"
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : forcebcc
+    desc     : If defined forces all emails to be sent BCC to the provided address (for testing)
+    example  : bcc@example.com
+    mandatory: false
+
+todo:
+- Init email client
+- Cleanup email client
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-email
+        title  : OpenAF mini-a MCP email server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      sendEmail:
+        name       : sendEmail
+        description: Sends an email (HTML or text) using the configured SMTP server.
+        inputSchema:
+          type      : object
+          properties:
+            subject:
+              type        : string
+              description : Subject of the email.
+            body:
+              type        : string
+              description : Body of the email message.
+            to:
+              type        : array
+              description : List of TO recipient email addresses.
+              items:
+                type: string
+            cc:
+              type        : array
+              description : List of CC recipient email addresses.
+              items:
+                type: string
+            bcc:
+              type        : array
+              description : List of BCC recipient email addresses.
+              items:
+                type: string
+            from:
+              type        : string
+              description : Optional FROM email address override.
+          required: [ subject, body, to ]
+        annotations:
+          title         : sendEmail
+          readOnlyHint  : false
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      sendEmail: Send email
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ---------------------------
+- name : Init email client
+  check:
+    in:
+      smtpserver: isString
+      from      : isString
+      user      : isString.default(__)
+      pass      : isString.default(__)
+      ssl       : toBoolean.isBoolean.default(false)
+      tls       : toBoolean.isBoolean.default(false)
+      html      : toBoolean.isBoolean.default(false)
+      port      : toNumber.isNumber.default(__)
+      debug     : toBoolean.isBoolean.default(false)
+      forcebcc  : isString.default(__)
+  exec : | #js
+    plugin("Email")
+    global.emailFrom         = args.from
+    global.emailContainsHTML = args.html
+    global.emailClient       = new Email(args.smtpserver, args.from, args.ssl, args.tls, args.html)
+    global.forceBCC          = isDef(args.forcebcc) ? args.forcebcc : __
+
+    if (isDef(args.port)) {
+      global.emailClient.setPort(args.port)
+    }
+
+    if (args.debug) {
+      global.emailClient.getEmailObj().setDebug(true)
+    }
+
+    if (isDef(args.user) && isDef(args.pass)) {
+      global.emailClient.login(args.user, args.pass)
+    }
+
+# ------------------------------
+- name : Cleanup email client
+  type : shutdown
+  exec : | #js
+    if (isDef(global.emailClient)) {
+      try {
+        if (isDef(global.emailClient.close)) {
+          global.emailClient.close()
+        }
+      } catch(e) {
+        logErr("Error closing email client: " + e)
+      }
+      global.emailClient = undefined
+    }
+
+# -----------------
+- name : Send email
+  check:
+    in:
+      subject: isString
+      body   : isString
+      to     : isArray
+      cc     : isArray.default(__)
+      bcc    : isArray.default(__)
+      from   : isString.default(__)
+  exec : | #js
+    if (!isDef(global.emailClient)) {
+      return "[ERROR] Email client not initialised"
+    }
+
+    var _to  = args.to
+    var _cc  = isDef(args.cc) ? args.cc : []
+    var _bcc = isDef(args.bcc) ? args.bcc : []
+    var _from = isDef(args.from) ? args.from : global.emailFrom
+
+    // If forceBCC is defined, override all BCC recipients
+    if (isDef(global.forceBCC)) {
+      if (!isArray(_bcc)) {
+        _bcc = []
+      }
+      if (!arrayContains(_bcc, global.forceBCC)) {
+        _bcc.push(global.forceBCC)
+      }
+    }
+
+    if (!isArray(_to) || _to.length == 0) {
+      return "[ERROR] At least one TO address is required"
+    }
+
+    try {
+      var messageBody = args.body
+      if (global.emailContainsHTML) {
+        global.emailClient.setHTML(messageBody)
+        messageBody = ""
+      }
+      global.emailClient.send(args.subject, messageBody, _to, _cc, _bcc, _from)
+      return "Email sent"
+    } catch(e) {
+      logErr("Error sending email: " + e)
+      return "[ERROR] Couldn't send email."
+    }

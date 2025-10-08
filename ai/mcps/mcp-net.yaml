@@ -1,0 +1,254 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO MCP network utilities server
+  expects: 
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-net
+        title  : OpenAF mini-a MCP network utilities server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+
+      get-dns:
+        name       : get-dns
+        description: Retrieves the DNS information for a given hostname.
+        inputSchema:
+          type      : object
+          properties:
+            name:
+              type        : string
+              description : The hostname to query.
+              example     : "example.com"
+              required    : true
+            type:
+              type        : string
+              description : The type of DNS record to retrieve (e.g., A, AAAA, CNAME).
+              example     : "A"
+              required    : false
+              default     : "A"
+            dnsServer:
+              type        : string
+              description : Optional DNS server to use for the query.
+              example     : "8.8.8.8"
+              required    : false
+              default     : null
+            extended:
+              type        : boolean
+              description : If true, returns extended DNS information.
+              example     : false
+              required    : false
+              default     : false
+          required: [ name ]
+        annotations:
+          title         : get-dns
+          readOnlyHint  : true
+          idempotentHint: true
+
+      test-port:
+        name       : test-port
+        description: Tests if a specific port on a given host is open.
+        inputSchema:
+          type      : object
+          properties:
+            host:
+              type        : string
+              description : The hostname or IP address to test.
+              example     : "example.com"
+              required    : true
+            port:
+              type        : integer
+              description : The port number to test.
+              example     : 80
+              required    : true
+          required: [ host, port ]
+        annotations:
+          title         : test-port
+          readOnlyHint  : true
+          idempotentHint: true
+
+      test-port-latency:
+        name       : test-port-latency
+        description: Measures the latency, in ms, to connect to a specific port on a given host.
+        inputSchema:
+          type      : object
+          properties:
+            host:
+              type        : string
+              description : The hostname or IP address to test.
+              example     : "example.com"
+              required    : true
+            port:
+              type        : integer
+              description : The port number to test.
+              example     : 80
+              required    : true
+            timeout:
+              type        : integer
+              description : The maximum time to wait for a connection (in milliseconds).
+              example     : 5000
+              required    : false
+              default     : 60000
+          required: [ host, port ]
+        annotations:
+          title         : test-port-latency
+          readOnlyHint  : true
+          idempotentHint: true
+
+      who-is:
+        name       : who-is
+        description: Retrieves WHOIS information for a given domain.
+        inputSchema:
+          type      : object
+          properties:
+            domain:
+              type        : string
+              description : The domain name to query.
+              example     : "example.com"
+              required    : true
+          required: [ domain ]
+        annotations:
+          title         : who-is
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-tls-certificates:
+        name       : get-tls-certificates
+        description: Retrieves the TLS/SSL certificates for a given host and port.
+        inputSchema:
+          type      : object
+          properties:
+            host:
+              type        : string
+              description : The hostname to query.
+              example     : "example.com"
+              required    : true
+            port:
+              type        : integer
+              description : The port number to connect to (default is 443).
+              example     : 443
+              required    : false
+              default     : 443
+            socketTimeout:
+              type        : integer
+              description : The maximum time to wait for a connection (in milliseconds).
+              example     : 5000
+              required    : false
+              default     : 60000
+          required: [ host ]
+        annotations:
+          title         : get-tls-certificates
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-public-ip:
+        name       : get-public-ip
+        description: Retrieves the public host/IP address geo, ASN and hosting information.
+        inputSchema:
+          type      : object
+          properties:
+            name:
+              type        : string
+              description : The hostname or IP address to query.
+              example     : "example.com"
+              required    : true
+          required: [ name ]
+        annotations:
+          title         : get-public-ip
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      get-dns             : Get DNS
+      test-port           : Test Port
+      who-is              : Who is
+      test-port-latency   : Test Port Latency
+      get-public-ip       : Get Public IP
+      get-tls-certificates: Get TLS Certificates
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  owraps     :
+  - Net
+        
+include:
+- oJobMCP.yaml
+
+jobs:
+# --------------
+- name : Get DNS
+  check:
+    in:
+      name     : isString
+      type     : isString.default("A")
+      dnsServer: isString.default(__)
+      extended : toBoolean.isBoolean.default(false)
+  exec : | #js
+    return ow.net.getDNS(args.name, args.type, args.dnsServer, args.extended)
+
+# --------------------
+- name : Get Public IP
+  check:
+    in:
+      name:   isString
+  exec : | #js
+    return ow.net.getPublicIP(args.name)
+
+# ----------------
+- name : Test Port
+  check:
+    in:
+      host: isString
+      port: toNumber().isNumber()
+  exec : | #js
+    return ow.net.testPort(args.host, args.port)
+
+# ------------------------
+- name : Test Port Latency
+  check:
+    in:
+      host   : isString
+      port   : toNumber().isNumber()
+      timeout: toNumber().isNumber.default(60000)
+  exec : | #js
+    return ow.net.testPortLatency(args.host, args.port, args.timeout)
+
+# ---------------------------
+- name : Get TLS Certificates
+  check:
+    in:
+      host         : isString
+      port         : toNumber().isNumber.default(443)
+      socketTimeout: toNumber().isNumber.default(60000)
+  exec : | #js
+    return ow.net.getTLSCertificates(args.host, args.port, false, __, args.socketTimeout)
+
+# -------------
+- name : Who is
+  check:
+    in:
+      domain: isString
+  exec : | #js
+    return ow.net.getWhoIs(args.domain)

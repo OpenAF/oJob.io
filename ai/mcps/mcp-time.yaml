@@ -1,0 +1,367 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP time and timezone utility server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-time
+        title  : OpenAF mini-a MCP time and timezone utility server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      current-time:
+        name       : current-time
+        description: Returns the current date and time information, optionally for a specific timezone.
+        inputSchema:
+          type      : object
+          properties:
+            timezone:
+              type        : string
+              description : IANA timezone identifier to use instead of the system default.
+              example     : "Europe/Lisbon"
+              required    : false
+            format:
+              type        : string
+              description : Optional Java time pattern used to produce the formatted field.
+              example     : "yyyy-MM-dd HH:mm:ss"
+              required    : false
+            locale:
+              type        : string
+              description : Optional BCP 47 language tag to format locale-aware fields.
+              example     : "en-US"
+              required    : false
+          required: []
+        annotations:
+          title         : current-time
+          readOnlyHint  : true
+          idempotentHint: true
+
+      convert-time:
+        name       : convert-time
+        description: Converts a date/time value between timezones and formats.
+        inputSchema:
+          type      : object
+          properties:
+            targetTimezone:
+              type        : string
+              description : Target IANA timezone identifier.
+              example     : "America/New_York"
+              required    : true
+            sourceTimezone:
+              type        : string
+              description : Source IANA timezone identifier (defaults to system timezone).
+              example     : "Europe/Lisbon"
+              required    : false
+            datetime:
+              type        : string
+              description : Date/time value to convert. If omitted, the current moment is used.
+              example     : "2024-06-01T10:15:00"
+              required    : false
+            inputFormat:
+              type        : string
+              description : Optional Java time pattern describing the provided datetime when it lacks timezone information.
+              example     : "yyyy-MM-dd'T'HH:mm:ss"
+              required    : false
+            outputFormat:
+              type        : string
+              description : Optional Java time pattern for the formatted output field.
+              example     : "EEE, dd MMM yyyy HH:mm z"
+              required    : false
+            locale:
+              type        : string
+              description : Optional BCP 47 language tag used for parsing/formatting with custom patterns.
+              example     : "en-US"
+              required    : false
+          required: [ targetTimezone ]
+        annotations:
+          title         : convert-time
+          readOnlyHint  : true
+          idempotentHint: true
+
+      timezone-difference:
+        name       : timezone-difference
+        description: Calculates the offset difference between two timezones at a specific moment.
+        inputSchema:
+          type      : object
+          properties:
+            firstTimezone:
+              type        : string
+              description : First IANA timezone identifier.
+              example     : "Europe/London"
+              required    : true
+            secondTimezone:
+              type        : string
+              description : Second IANA timezone identifier.
+              example     : "Asia/Tokyo"
+              required    : true
+            datetime:
+              type        : string
+              description : Date/time reference (defaults to now). Accepts ISO strings or custom format.
+              example     : "2024-12-01T08:00:00"
+              required    : false
+            inputFormat:
+              type        : string
+              description : Optional Java time pattern when parsing without timezone information.
+              example     : "yyyy-MM-dd HH:mm"
+              required    : false
+            locale:
+              type        : string
+              description : Optional BCP 47 language tag to apply with custom input formats.
+              example     : "en-GB"
+              required    : false
+          required: [ firstTimezone, secondTimezone ]
+        annotations:
+          title         : timezone-difference
+          readOnlyHint  : true
+          idempotentHint: true
+
+      list-timezones:
+        name       : list-timezones
+        description: Lists available IANA timezone identifiers, optionally filtered by a substring search.
+        inputSchema:
+          type      : object
+          properties:
+            search:
+              type        : string
+              description : Optional case-insensitive substring to filter timezone identifiers.
+              example     : "America"
+              required    : false
+          required: []
+        annotations:
+          title         : list-timezones
+          readOnlyHint  : true
+          idempotentHint: true
+    ((fns    )): &MCPFNS
+      current-time      : Current time information
+      convert-time      : Convert between timezones
+      timezone-difference: Compare timezone offsets
+      list-timezones    : List available timezones
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-time.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ------------------
+- name : Current time information
+  check:
+    in:
+      timezone: isString.default(__)
+      format  : isString.default(__)
+      locale  : isString.default(__)
+  exec : | #js
+    var ZoneId = java.time.ZoneId
+    var ZonedDateTime = java.time.ZonedDateTime
+    var DateTimeFormatter = java.time.format.DateTimeFormatter
+    var ChronoUnit = java.time.temporal.ChronoUnit
+    var IsoFields = java.time.temporal.IsoFields
+    var TextStyle = java.time.format.TextStyle
+    var Locale = java.util.Locale
+
+    var zone = isDef(args.timezone) ? ZoneId.of(args.timezone) : ZoneId.systemDefault()
+    var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
+    var now = ZonedDateTime.now(zone)
+
+    var pattern = isDef(args.format) ? args.format : "yyyy-MM-dd'T'HH:mm:ssXXX"
+    var formatter = DateTimeFormatter.ofPattern(pattern).withLocale(locale)
+    var timeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withLocale(locale)
+
+    var truncated = now.truncatedTo(ChronoUnit.SECONDS)
+    var weekOfYear = now.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)
+    var weekYear = now.get(IsoFields.WEEK_BASED_YEAR)
+
+    var offsetSeconds = Number(now.getOffset().getTotalSeconds())
+
+    return {
+      timezone              : String(zone.getId()),
+      timezoneDisplay       : String(zone.getDisplayName(TextStyle.FULL, locale)),
+      timezoneAbbreviation  : String(zone.getDisplayName(TextStyle.SHORT, locale)),
+      offset                : String(now.getOffset()),
+      offsetSeconds         : offsetSeconds,
+      offsetHours           : Number(offsetSeconds / 3600),
+      iso8601               : String(now.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+      zonedISO              : String(now.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
+      formatted             : String(now.format(formatter)),
+      date                  : String(now.toLocalDate()),
+      time                  : String(truncated.format(timeFormatter)),
+      unixEpochSeconds      : Number(now.toEpochSecond()),
+      unixEpochMilliseconds : Number(now.toInstant().toEpochMilli()),
+      dayOfWeek             : String(now.getDayOfWeek()),
+      dayOfYear             : Number(now.getDayOfYear()),
+      weekOfYear            : Number(weekOfYear),
+      weekYear              : Number(weekYear),
+      isDaylightSaving      : Boolean(zone.getRules().isDaylightSavings(now.toInstant())),
+      locale                : String(locale.toLanguageTag())
+    }
+
+# ----------------
+- name : Convert between timezones
+  check:
+    in:
+      targetTimezone: isString
+      sourceTimezone: isString.default(__)
+      datetime      : isString.default(__)
+      inputFormat   : isString.default(__)
+      outputFormat  : isString.default(__)
+      locale        : isString.default(__)
+  exec : | #js
+    var ZoneId = java.time.ZoneId
+    var ZonedDateTime = java.time.ZonedDateTime
+    var LocalDateTime = java.time.LocalDateTime
+    var DateTimeFormatter = java.time.format.DateTimeFormatter
+    var Locale = java.util.Locale
+
+    var sourceZone = isDef(args.sourceTimezone) ? ZoneId.of(args.sourceTimezone) : ZoneId.systemDefault()
+    var targetZone = ZoneId.of(args.targetTimezone)
+    var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
+
+    var formatterOut = isDef(args.outputFormat) ? DateTimeFormatter.ofPattern(args.outputFormat).withLocale(locale) : null
+
+    function parseDateTime(value) {
+      if (isUnDef(value) || value === null || value === "") {
+        return ZonedDateTime.now(sourceZone)
+      }
+
+      if (isDef(args.inputFormat)) {
+        var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)
+        var local = LocalDateTime.parse(value, fmt)
+        return local.atZone(sourceZone)
+      }
+
+      try {
+        return ZonedDateTime.parse(value)
+      } catch(e) {
+        var local = LocalDateTime.parse(value)
+        return local.atZone(sourceZone)
+      }
+    }
+
+    var parsed = parseDateTime(args.datetime)
+    var converted = parsed.withZoneSameInstant(targetZone)
+
+    return {
+      sourceTimezone        : String(sourceZone.getId()),
+      targetTimezone        : String(targetZone.getId()),
+      sourceIso8601         : String(parsed.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+      targetIso8601         : String(converted.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+      targetZonedISO        : String(converted.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
+      formatted             : formatterOut ? String(converted.format(formatterOut)) : String(converted.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+      sourceOffsetSeconds   : Number(parsed.getOffset().getTotalSeconds()),
+      targetOffsetSeconds   : Number(converted.getOffset().getTotalSeconds()),
+      unixEpochSeconds      : Number(converted.toEpochSecond()),
+      unixEpochMilliseconds : Number(converted.toInstant().toEpochMilli())
+    }
+
+# -------------------------
+- name : Compare timezone offsets
+  check:
+    in:
+      firstTimezone : isString
+      secondTimezone: isString
+      datetime      : isString.default(__)
+      inputFormat   : isString.default(__)
+      locale        : isString.default(__)
+  exec : | #js
+    var ZoneId = java.time.ZoneId
+    var ZonedDateTime = java.time.ZonedDateTime
+    var LocalDateTime = java.time.LocalDateTime
+    var DateTimeFormatter = java.time.format.DateTimeFormatter
+    var Locale = java.util.Locale
+
+    var firstZone = ZoneId.of(args.firstTimezone)
+    var secondZone = ZoneId.of(args.secondTimezone)
+    var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
+
+    function parseMoment(value) {
+      if (isUnDef(value) || value === null || value === "") {
+        return ZonedDateTime.now(firstZone)
+      }
+
+      if (isDef(args.inputFormat)) {
+        var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)
+        var local = LocalDateTime.parse(value, fmt)
+        return local.atZone(firstZone)
+      }
+
+      try {
+        return ZonedDateTime.parse(value)
+      } catch(e) {
+        var local = LocalDateTime.parse(value)
+        return local.atZone(firstZone)
+      }
+    }
+
+    var base = parseMoment(args.datetime)
+    var instant = base.toInstant()
+
+    var firstOffset = firstZone.getRules().getOffset(instant).getTotalSeconds()
+    var secondOffset = secondZone.getRules().getOffset(instant).getTotalSeconds()
+    var differenceSeconds = secondOffset - firstOffset
+    var totalMinutes = Math.abs(differenceSeconds) / 60
+    var hours = Math.floor(totalMinutes / 60)
+    var minutes = Math.floor(totalMinutes % 60)
+
+    function pad2(value) {
+      var str = String(value)
+      return str.length < 2 ? ("0" + str).slice(-2) : str
+    }
+    var formattedDifference = (differenceSeconds >= 0 ? "+" : "-") + pad2(hours) + ":" + pad2(minutes)
+
+    return {
+      referenceIso8601    : String(base.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+      firstTimezone       : String(firstZone.getId()),
+      secondTimezone      : String(secondZone.getId()),
+      firstOffsetSeconds  : Number(firstOffset),
+      secondOffsetSeconds : Number(secondOffset),
+      differenceSeconds   : Number(differenceSeconds),
+      differenceHours     : Number(differenceSeconds / 3600),
+      differenceFormatted : formattedDifference
+    }
+
+# ------------------
+- name : List available timezones
+  check:
+    in:
+      search: isString.default(__)
+  exec : | #js
+    var ZoneId = java.time.ZoneId
+    var zones = ZoneId.getAvailableZoneIds().iterator()
+    var list = []
+    while (zones.hasNext()) {
+      var id = String(zones.next())
+      if (isDef(args.search)) {
+        if (id.toLowerCase().indexOf(String(args.search).toLowerCase()) >= 0) {
+          list.push(id)
+        }
+      } else {
+        list.push(id)
+      }
+    }
+    list.sort()
+    return list

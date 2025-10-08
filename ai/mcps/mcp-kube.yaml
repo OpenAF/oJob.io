@@ -1,0 +1,459 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO MCP Kubernetes (Kube) management server
+  expects:
+  - name     : url
+    desc     : Kubernetes API server URL or kubeconfig file path
+    example  : https://my-k8s.example.com:6443
+    mandatory: false
+  - name     : user
+    desc     : Username to authenticate against the Kubernetes API server
+    example  : admin
+    mandatory: false
+  - name     : pass
+    desc     : Password to authenticate against the Kubernetes API server
+    example  : "P@ssw0rd!"
+    mandatory: false
+  - name     : token
+    desc     : Bearer token to authenticate against the Kubernetes API server
+    example  : eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+    mandatory: false
+  - name     : namespace
+    desc     : Default namespace to target (defaults to "default")
+    example  : production
+    mandatory: false
+  - name     : wstimeout
+    desc     : Websocket timeout in milliseconds when interacting with the API server
+    example  : "5000"
+    mandatory: false
+  - name     : readwrite
+    desc     : Allow operations that modify Kubernetes resources (defaults to read-only)
+    example  : "true"
+    mandatory: false
+  - name     : kubelib
+    desc     : Path or name of the kube.js library to load (defaults to "kube.js")
+    example  : /opt/openaf/opacks/Kube/kube.js
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Initialise Kube client
+- Close Kube client on exit
+- (if    ): "isDef(args.onport)"
+  ((then)): 
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-kube
+        title  : OpenAF mini-a MCP Kubernetes server
+        version: 1.0.0
+    ((fnsMeta    )): &MCPFNSMETA
+      list-namespaces:
+        name       : list-namespaces
+        description: Lists all namespaces available in the Kubernetes cluster.
+        inputSchema:
+          type      : object
+          properties: {}
+        annotations:
+          title         : list-namespaces
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-resource:
+        name       : get-resource
+        description: Retrieves Kubernetes objects or metrics using a single entry point.
+        inputSchema:
+          type      : object
+          properties:
+            resource:
+              type       : string
+              description: Resource identifier to fetch (for example `pods`, `deployments`, `pod`, `pods-metrics`).
+              enum       : [pods, deployments, statefulsets, clusterroles, clusterrolebindings, roles, rolebindings, ingresses, networkpolicies, resourcequotas, storageclasses, services, service-accounts, serviceaccounts, secrets, replicasets, persistent-volume-claims, persistentvolumeclaims, persistent-volumes, persistentvolumes, nodes, configmaps, jobs, daemonsets, cronjobs, endpoints, pod, events, pods-metrics, pod-metrics, nodes-metrics, node-metrics]
+            namespace:
+              type       : string
+              description: Namespace scope when applicable (defaults to the configured namespace).
+              example    : production
+            name:
+              type       : string
+              description: Resource name when required (for example pod name or node for metrics).
+              example    : web-658d9c56fb-abc12
+            node:
+              type       : string
+              description: Alias for `name` when requesting node metrics.
+              example    : ip-10-0-0-123
+            full:
+              type       : boolean
+              description: When supported, return the complete resource definition.
+              example    : false
+          required: [ resource ]
+        annotations:
+          title         : get-resource
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-log:
+        name       : get-log
+        description: Retrieves logs for a pod (optionally scoped to a container and stream).
+        inputSchema:
+          type      : object
+          properties:
+            pod:
+              type        : string
+              description : Pod name to retrieve logs from.
+              example     : web-658d9c56fb-abc12
+              required    : true
+            namespace:
+              type        : string
+              description : Namespace to query (defaults to the configured namespace).
+              example     : production
+            container:
+              type        : string
+              description : Optional container name inside the pod.
+              example     : web
+            stream:
+              type        : string
+              description : Optional stream (stdout or stderr) to retrieve.
+              example     : stdout
+          required: [ pod ]
+        annotations:
+          title         : get-log
+          readOnlyHint  : true
+          idempotentHint: true
+
+      apply-manifest:
+        name       : apply-manifest
+        description: Applies (creates or updates) Kubernetes resources from a manifest.
+        inputSchema:
+          type      : object
+          properties:
+            manifest:
+              type        : string
+              description : Kubernetes manifest in YAML or JSON format.
+              example     : "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: demo\ndata:\n  key: value"
+              required    : true
+            namespace:
+              type        : string
+              description : Namespace to apply the manifest in (defaults to the configured namespace).
+              example     : production
+          required: [ manifest ]
+        annotations:
+          title         : apply-manifest
+          readOnlyHint  : false
+          idempotentHint: false
+
+      delete-manifest:
+        name       : delete-manifest
+        description: Deletes Kubernetes resources defined in a manifest.
+        inputSchema:
+          type      : object
+          properties:
+            manifest:
+              type        : string
+              description : Kubernetes manifest in YAML or JSON format.
+              example     : "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: demo"
+              required    : true
+            namespace:
+              type        : string
+              description : Namespace to apply the deletion in (defaults to the configured namespace).
+              example     : production
+          required: [ manifest ]
+        annotations:
+          title         : delete-manifest
+          readOnlyHint  : false
+          idempotentHint: false
+
+      scale-resource:
+        name       : scale-resource
+        description: Scales a Kubernetes resource to the provided replica count.
+        inputSchema:
+          type      : object
+          properties:
+            resourceType:
+              type        : string
+              description : Kubernetes resource type (e.g. Deployment, StatefulSet).
+              example     : Deployment
+              required    : true
+            name:
+              type        : string
+              description : Resource name to scale.
+              example     : web
+              required    : true
+            replicas:
+              type        : integer
+              description : Desired number of replicas.
+              example     : 3
+              required    : true
+            namespace:
+              type        : string
+              description : Namespace containing the resource (defaults to the configured namespace).
+              example     : production
+          required: [ resourceType, name, replicas ]
+        annotations:
+          title         : scale-resource
+          readOnlyHint  : false
+          idempotentHint: false
+    ((fns        )): &MCPFNS
+      list-namespaces: List Namespaces
+      get-resource   : Get Resource
+      get-log        : Get Log
+      apply-manifest : Apply Manifest
+      delete-manifest: Delete Manifest
+      scale-resource : Scale Resource
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - Kube       : 20250916
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  loadLibs    :
+  - kube.js
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------------------------
+- name : Initialise Kube client
+  check:
+    in:
+      url       : isString.default(__)
+      user      : isString.default(__)
+      pass      : isString.default(__)
+      token     : isString.default(__)
+      namespace : isString.default("default")
+      wstimeout : toNumber().isNumber.default(__)
+      readwrite : toBoolean.isBoolean.default(false)
+  exec : | #js
+    var params = {
+      url      : args.url,
+      user     : args.user,
+      pass     : args.pass,
+      token    : args.token,
+      wstimeout: args.wstimeout
+    }
+    var kubeParams = {}
+    Object.keys(params).forEach(function(key) {
+      if (isDef(params[key])) {
+        kubeParams[key] = params[key]
+      }
+    })
+    global.__kubeDefaultNS__ = args.namespace
+    global.__kubeReadWrite__ = args.readwrite
+    global.__kubeParams__    = kubeParams
+
+# --------------------------------
+- name : Close Kube client on exit
+  type : shutdown
+  exec : | #js
+    try {
+      $kube(global.__kubeParams__).close()
+    } catch(e) {
+      // ignore close errors
+    }
+
+# -------------------
+- name : List Namespaces
+  exec : | #js
+    return $kube(global.__kubeParams__).getNS()
+
+# -------------------
+- name : Get Resource
+  check:
+    in:
+      resource : isString
+      namespace: isString.default(__)
+      name     : isString.default(__)
+      node     : isString.default(__)
+      full     : toBoolean.isBoolean.default(false)
+  exec : | #js
+    var key = String(args.resource || "").toLowerCase()
+    key = key.replace(/[_\s]+/g, "-")
+    var map = {
+      "pods"                   : "pods",
+      "deployments"            : "deployments",
+      "statefulsets"           : "statefulsets",
+      "clusterroles"           : "clusterroles",
+      "clusterrolebindings"    : "clusterrolebindings",
+      "roles"                  : "roles",
+      "rolebindings"           : "rolebindings",
+      "ingresses"              : "ingresses",
+      "networkpolicies"        : "networkpolicies",
+      "resourcequotas"         : "resourcequotas",
+      "storageclasses"         : "storageclasses",
+      "services"               : "services",
+      "service-accounts"       : "service-accounts",
+      "serviceaccounts"        : "service-accounts",
+      "secrets"                : "secrets",
+      "replicasets"            : "replicasets",
+      "persistent-volume-claims": "persistent-volume-claims",
+      "persistentvolumeclaims" : "persistent-volume-claims",
+      "persistent-volumes"     : "persistent-volumes",
+      "persistentvolumes"      : "persistent-volumes",
+      "nodes"                  : "nodes",
+      "configmaps"             : "configmaps",
+      "jobs"                   : "jobs",
+      "daemonsets"             : "daemonsets",
+      "cronjobs"               : "cronjobs",
+      "endpoints"              : "endpoints",
+      "pod"                    : "pod",
+      "events"                 : "events",
+      "pods-metrics"           : "pods-metrics",
+      "pod-metrics"            : "pods-metrics",
+      "nodes-metrics"          : "nodes-metrics",
+      "node-metrics"           : "node-metrics"
+    }
+    var normalized = map[key]
+    if (!isDef(normalized)) {
+      throw "[ERROR] Unsupported resource '" + args.resource + "'"
+    }
+
+    var ns = args.namespace
+    var full = args.full === true
+    var client = $kube(global.__kubeParams__)
+
+    switch (normalized) {
+      case "pods":
+        return full ? client.getPodsFull(ns) : client.getPods(ns)
+      case "deployments":
+        return full ? client.getDeploymentsFull(ns) : client.getDeployments(ns)
+      case "statefulsets":
+        return full ? client.getStatefulSetsFull(ns) : client.getStatefulSets(ns)
+      case "clusterroles":
+        return full ? client.getClusterRolesFull(ns) : client.getClusterRoles(ns)
+      case "clusterrolebindings":
+        return full ? client.getClusterRoleBindingsFull(ns) : client.getClusterRoleBindings(ns)
+      case "roles":
+        return full ? client.getRolesFull(ns) : client.getRoles(ns)
+      case "rolebindings":
+        return full ? client.getRoleBindingsFull(ns) : client.getRoleBindings(ns)
+      case "ingresses":
+        return full ? client.getIngressesFull(ns) : client.getIngresses(ns)
+      case "networkpolicies":
+        return full ? client.getNetworkPoliciesFull(ns) : client.getNetworkPolicies(ns)
+      case "resourcequotas":
+        return full ? client.getResourceQuotasFull(ns) : client.getResourceQuotas(ns)
+      case "storageclasses":
+        return full ? client.getStorageClassesFull(ns) : client.getStorageClasses(ns)
+      case "services":
+        return full ? client.getServicesFull(ns) : client.getServices(ns)
+      case "service-accounts":
+        return full ? client.getServiceAccountsFull(ns) : client.getServiceAccounts(ns)
+      case "secrets":
+        return full ? client.getSecretsFull(ns) : client.getSecrets(ns)
+      case "replicasets":
+        return full ? client.getReplicaSetsFull(ns) : client.getReplicaSets(ns)
+      case "persistent-volume-claims":
+        return full ? client.getPersistentVolumeClaimsFull(ns) : client.getPersistentVolumeClaims(ns)
+      case "persistent-volumes":
+        return full ? client.getPersistentVolumesFull(ns) : client.getPersistentVolumes(ns)
+      case "nodes":
+        return full ? client.getNodesFull(ns) : client.getNodes(ns)
+      case "configmaps":
+        return full ? client.getConfigMapsFull(ns) : client.getConfigMaps(ns)
+      case "jobs":
+        return full ? client.getJobsFull(ns) : client.getJobs(ns)
+      case "daemonsets":
+        return full ? client.getDaemonSetsFull(ns) : client.getDaemonSets(ns)
+      case "cronjobs":
+        return full ? client.getCronJobsFull(ns) : client.getCronJobs(ns)
+      case "endpoints":
+        return full ? client.getEndpointsFull(ns) : client.getEndpoints(ns)
+      case "pod":
+        var podName = args.name
+        if (isUnDef(podName)) {
+          throw "[ERROR] 'name' is required when resource is 'pod'"
+        }
+        return client.get("pods", podName, ns)
+      case "events":
+        return client.events(ns)
+      case "pods-metrics":
+        return client.getPodsMetrics(ns)
+      case "nodes-metrics":
+        return client.getNodesMetrics()
+      case "node-metrics":
+        var nodeName = isDef(args.node) ? args.node : args.name
+        if (isUnDef(nodeName)) {
+          throw "[ERROR] 'name' (or 'node') is required when resource is 'node-metrics'"
+        }
+        return client.getNodeMetrics(nodeName)
+    }
+
+# ---------------
+- name : Get Log
+  check:
+    in:
+      pod      : isString
+      namespace: isString.default(__)
+      container: isString.default(__)
+      stream   : isString.default(__)
+  exec : | #js
+    return $kube(global.__kubeParams__).getLog(args.namespace, args.pod, args.container, args.stream)
+
+# ---------------------
+- name : Apply Manifest
+  check:
+    in:
+      manifest : isString
+      namespace: isString.default(__)
+  exec : | #js
+    if (!global.__kubeReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
+    }
+    return $kube(global.__kubeParams__).apply(args.manifest, args.namespace)
+
+# ----------------------
+- name : Delete Manifest
+  check:
+    in:
+      manifest : isString
+      namespace: isString.default(__)
+  exec : | #js
+    if (!global.__kubeReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
+    }
+    return $kube(global.__kubeParams__).delete(args.manifest, args.namespace)
+
+# --------------------
+- name : Scale Resource
+  check:
+    in:
+      resourceType: isString
+      name        : isString
+      replicas    : toNumber().isNumber()
+      namespace   : isString.default(__)
+  exec : | #js
+    if (!global.__kubeReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
+    }
+    var prevNS = $kube(global.__kubeParams__)._ns
+    try {
+      if (isDef(args.namespace)) {
+        $kube(global.__kubeParams__).ns(args.namespace)
+      }
+      $kube(global.__kubeParams__).scale(args.resourceType, args.name, args.replicas)
+      return {
+        resourceType: args.resourceType,
+        name        : args.name,
+        replicas    : args.replicas,
+        namespace   : $kube(global.__kubeParams__)._ns
+      }
+    } finally {
+      if (isDef(prevNS)) {
+        $kube(global.__kubeParams__).ns(prevNS)
+      }
+    }
+
