@@ -31,24 +31,20 @@ todo:
               type        : string
               description : The hostname to query.
               example     : "example.com"
-              required    : true
             type:
               type        : string
               description : The type of DNS record to retrieve (e.g., A, AAAA, CNAME).
               example     : "A"
-              required    : false
               default     : "A"
             dnsServer:
               type        : string
               description : Optional DNS server to use for the query.
               example     : "8.8.8.8"
-              required    : false
               default     : null
             extended:
               type        : boolean
               description : If true, returns extended DNS information.
               example     : false
-              required    : false
               default     : false
           required: [ name ]
         annotations:
@@ -66,12 +62,10 @@ todo:
               type        : string
               description : The hostname or IP address to test.
               example     : "example.com"
-              required    : true
             port:
               type        : integer
               description : The port number to test.
               example     : 80
-              required    : true
           required: [ host, port ]
         annotations:
           title         : test-port
@@ -88,17 +82,14 @@ todo:
               type        : string
               description : The hostname or IP address to test.
               example     : "example.com"
-              required    : true
             port:
               type        : integer
               description : The port number to test.
               example     : 80
-              required    : true
             timeout:
               type        : integer
               description : The maximum time to wait for a connection (in milliseconds).
               example     : 5000
-              required    : false
               default     : 60000
           required: [ host, port ]
         annotations:
@@ -116,7 +107,6 @@ todo:
               type        : string
               description : The domain name to query.
               example     : "example.com"
-              required    : true
           required: [ domain ]
         annotations:
           title         : who-is
@@ -133,18 +123,15 @@ todo:
               type        : string
               description : The hostname to query.
               example     : "example.com"
-              required    : true
             port:
               type        : integer
               description : The port number to connect to (default is 443).
               example     : 443
-              required    : false
               default     : 443
             socketTimeout:
               type        : integer
               description : The maximum time to wait for a connection (in milliseconds).
               example     : 5000
-              required    : false
               default     : 60000
           required: [ host ]
         annotations:
@@ -162,7 +149,6 @@ todo:
               type        : string
               description : The hostname or IP address to query.
               example     : "example.com"
-              required    : true
           required: [ name ]
         annotations:
           title         : get-public-ip

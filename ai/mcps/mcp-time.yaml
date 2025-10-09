@@ -30,17 +30,14 @@ todo:
               type        : string
               description : IANA timezone identifier to use instead of the system default.
               example     : "Europe/Lisbon"
-              required    : false
             format:
               type        : string
               description : Optional Java time pattern used to produce the formatted field.
               example     : "yyyy-MM-dd HH:mm:ss"
-              required    : false
             locale:
               type        : string
               description : Optional BCP 47 language tag to format locale-aware fields.
               example     : "en-US"
-              required    : false
           required: []
         annotations:
           title         : current-time
@@ -57,32 +54,26 @@ todo:
               type        : string
               description : Target IANA timezone identifier.
               example     : "America/New_York"
-              required    : true
             sourceTimezone:
               type        : string
               description : Source IANA timezone identifier (defaults to system timezone).
               example     : "Europe/Lisbon"
-              required    : false
             datetime:
               type        : string
               description : Date/time value to convert. If omitted, the current moment is used.
               example     : "2024-06-01T10:15:00"
-              required    : false
             inputFormat:
               type        : string
               description : Optional Java time pattern describing the provided datetime when it lacks timezone information.
               example     : "yyyy-MM-dd'T'HH:mm:ss"
-              required    : false
             outputFormat:
               type        : string
               description : Optional Java time pattern for the formatted output field.
               example     : "EEE, dd MMM yyyy HH:mm z"
-              required    : false
             locale:
               type        : string
               description : Optional BCP 47 language tag used for parsing/formatting with custom patterns.
               example     : "en-US"
-              required    : false
           required: [ targetTimezone ]
         annotations:
           title         : convert-time
@@ -99,27 +90,22 @@ todo:
               type        : string
               description : First IANA timezone identifier.
               example     : "Europe/London"
-              required    : true
             secondTimezone:
               type        : string
               description : Second IANA timezone identifier.
               example     : "Asia/Tokyo"
-              required    : true
             datetime:
               type        : string
               description : Date/time reference (defaults to now). Accepts ISO strings or custom format.
               example     : "2024-12-01T08:00:00"
-              required    : false
             inputFormat:
               type        : string
               description : Optional Java time pattern when parsing without timezone information.
               example     : "yyyy-MM-dd HH:mm"
-              required    : false
             locale:
               type        : string
               description : Optional BCP 47 language tag to apply with custom input formats.
               example     : "en-GB"
-              required    : false
           required: [ firstTimezone, secondTimezone ]
         annotations:
           title         : timezone-difference
@@ -136,7 +122,6 @@ todo:
               type        : string
               description : Optional case-insensitive substring to filter timezone identifiers.
               example     : "America"
-              required    : false
           required: []
         annotations:
           title         : list-timezones
