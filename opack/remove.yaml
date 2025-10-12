@@ -1,0 +1,140 @@
+# Author: Codex Assistant
+help:
+  text   : Interactively remove entries from an OpenAF local oPack database
+  expects:
+  - name     : db
+    desc     : Path to the .opack.db file to update (defaults to the current OpenAF path)
+    example  : /Applications/OpenAF/.opack.db
+    mandatory: false
+
+todo:
+- Detect local oPack database
+- Ask which entries to remove
+- Update local oPack database
+
+ojob:
+  opacks      :
+  - openaf     : 20231229
+  catch       : logErr(exception)
+  logToConsole: true
+
+jobs:
+# -------------------------------
+- name: Detect local oPack database
+  exec: | #js
+    ow.loadFormat()
+    plugin("ZIP")
+
+    var base = String(getOpenAFPath())
+    if (!base.endsWith("/")) base += "/"
+    var dbPath = _$(args.db, "db").isString().default(base + PACKAGESJSON_DB)
+
+    if (!io.fileExists(dbPath))
+      throw "oPack database not found at " + dbPath
+
+    var zip = new ZIP()
+    var raw = af.fromBytes2String(zip.streamGetFile(dbPath, PACKAGESJSON))
+    var packages = af.fromJson(raw)
+
+    var entries = []
+    var addEntry = (key, pack) => {
+      if (isUnDef(pack)) return
+      if (isDef(pack.name) && pack.name == "OpenAF") return
+      var label = isDef(pack.name) ? pack.name : key
+      if (isDef(pack.version)) label += " (" + pack.version + ")"
+      var target = isDef(pack.__target) ? pack.__target : key
+      label += " | " + target
+      entries.push({ key: key, label: label, pack: pack })
+    }
+
+    if (isArray(packages)) {
+      packages.forEach((pack, idx) => addEntry(idx, pack))
+    } else {
+      Object.keys(packages).sort().forEach(key => addEntry(key, packages[key]))
+    }
+
+    if (entries.length == 0)
+      throw "No removable entries found in " + dbPath
+
+    $set("dbPath", dbPath)
+    $set("packages", packages)
+    $set("isArrayPackages", isArray(packages))
+    $set("entries", entries)
+    log("Loaded " + entries.length + " entries from " + dbPath)
+
+# -------------------------------------------
+- name: Ask which entries to remove
+  exec: | #js
+    var entries = $get("entries")
+    var options = entries.map(e => e.label)
+
+    var selectedLabels = askChooseMultiple(
+      "Select oPacks to remove",
+      options,
+      Math.min(10, options.length),
+      ansiColor("FAINT,ITALIC", "(use arrows to move, space to toggle, enter to confirm)")
+    )
+
+    if (!isArray(selectedLabels) || selectedLabels.length == 0) {
+      log("No entries selected. Nothing will be removed.")
+      $set("selected", [])
+      return
+    }
+
+    var selected = entries.filter(e => selectedLabels.indexOf(e.label) >= 0)
+    selected.forEach(e => log("Marked for removal: " + e.label))
+    $set("selected", selected)
+
+# ---------------------------------------------
+- name: Update local oPack database
+  exec: | #js
+    var selected = $get("selected")
+    if (!isArray(selected) || selected.length == 0) {
+      log("No changes applied to the oPack database.")
+      return
+    }
+
+    var dbPath = $get("dbPath")
+    var isArrayPackages = $get("isArrayPackages")
+    var packages = $get("packages")
+
+    var nowDate = new Date()
+    var pad = n => String(n).padStart(2, "0")
+    var timestamp = nowDate.getFullYear() +
+                    pad(nowDate.getMonth() + 1) +
+                    pad(nowDate.getDate()) +
+                    pad(nowDate.getHours()) +
+                    pad(nowDate.getMinutes()) +
+                    pad(nowDate.getSeconds())
+    var backupPath = dbPath + "." + timestamp + ".bak"
+    log("Creating backup at " + backupPath + "...")
+    io.cp(dbPath, backupPath)
+
+    var removed = []
+    if (isArrayPackages) {
+      var indexes = {}
+      selected.forEach(e => indexes[String(e.key)] = true)
+      packages = packages.filter((_, idx) => !indexes[String(idx)])
+      selected.forEach(e => removed.push(isDef(e.pack.name) ? e.pack.name : String(e.key)))
+    } else {
+      selected.forEach(e => {
+        if (isDef(packages[e.key]) && isDef(packages[e.key].name))
+          removed.push(packages[e.key].name)
+        else
+          removed.push(String(e.key))
+        delete packages[e.key]
+      })
+    }
+
+    plugin("ZIP")
+    var zip = new ZIP()
+    try {
+      zip.streamPutFile(dbPath, PACKAGESJSON, af.fromString2Bytes(stringify(packages, __, 2)))
+    } catch(e) {
+      logErr("Failed to write updated packages.json: " + e)
+      log("Database left untouched. Restore from backup at " + backupPath)
+      throw e
+    }
+
+    log("Removed " + removed.length + " entr" + (removed.length == 1 ? "y" : "ies") + " from " + dbPath)
+    removed.forEach(name => log(" - " + name))
