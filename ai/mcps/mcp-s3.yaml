@@ -1,0 +1,479 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO MCP S3 server
+  expects:
+  - name     : url
+    desc     : S3 endpoint URL (defaults to the AWS public endpoint)
+    example  : https://s3.amazonaws.com
+    mandatory: false
+  - name     : accessKey
+    desc     : Access key ID for the S3 endpoint
+    example  : AKIA...
+    mandatory: false
+  - name     : secret
+    desc     : Secret key for the S3 endpoint
+    example  : WJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    mandatory: false
+  - name     : region
+    desc     : AWS-style region to use when required by the endpoint
+    example  : eu-west-1
+    mandatory: false
+  - name     : bucket
+    desc     : Default bucket to use when one is not provided to the MCP tool
+    example  : my-bucket
+    mandatory: false
+  - name     : readwrite
+    desc     : 'If true, enables write/delete operations. Default is false (read-only)'
+    example  : "true"
+    mandatory: false
+  - name     : useversion1
+    desc     : Force MinIO client to use the S3 API version 1 when listing objects
+    example  : "true"
+    mandatory: false
+  - name     : ignorecertcheck
+    desc     : Ignore TLS certificate validation (use with caution)
+    example  : "true"
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Init S3 client
+- Close S3 client on exit
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-s3
+        title  : OpenAF mini-a MCP S3 server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      s3-list-buckets:
+        name       : s3-list-buckets
+        description: Lists the accessible S3 buckets for the configured credentials.
+        inputSchema:
+          type      : object
+          properties: {}
+        annotations:
+          title         : s3-list-buckets
+          readOnlyHint  : true
+          idempotentHint: true
+
+      s3-list-objects:
+        name       : s3-list-objects
+        description: Lists objects inside a bucket with optional prefix filtering.
+        inputSchema:
+          type      : object
+          properties:
+            bucket:
+              type       : string
+              description: Bucket name to inspect; defaults to the configured bucket when omitted.
+            prefix:
+              type       : string
+              description: Optional prefix (e.g. folder/) to scope the listing.
+            recursive:
+              type       : boolean
+              description: Traverse recursively instead of simulating directory levels.
+            details:
+              type       : boolean
+              description: Retrieve additional metadata like content type (slower).
+          required  : []
+        annotations:
+          title         : s3-list-objects
+          readOnlyHint  : true
+          idempotentHint: true
+
+      s3-get-object:
+        name       : s3-get-object
+        description: Retrieves an object content and basic metadata from S3.
+        inputSchema:
+          type      : object
+          properties:
+            bucket:
+              type       : string
+              description: Bucket name to read from; defaults to the configured bucket when omitted.
+            key:
+              type       : string
+              description: Object key to retrieve.
+            encoding:
+              type       : string
+              description: Output encoding for the content (base64/text/json).
+            charset:
+              type       : string
+              description: Charset to use when decoding text or JSON content.
+            offset:
+              type       : number
+              description: Optional byte offset for ranged reads.
+            length:
+              type       : number
+              description: Optional byte length for ranged reads.
+            metadata:
+              type       : boolean
+              description: Include object metadata by issuing a stat operation.
+          required  : [ key ]
+        annotations:
+          title         : s3-get-object
+          readOnlyHint  : true
+          idempotentHint: true
+
+      s3-put-object:
+        name       : s3-put-object
+        description: Stores/overwrites an object in S3 using the provided content.
+        inputSchema:
+          type      : object
+          properties:
+            bucket:
+              type       : string
+              description: Bucket name to write to; defaults to the configured bucket when omitted.
+            key:
+              type       : string
+              description: Object key to store.
+            content:
+              type       : string
+              description: Content to store in the object (base64-encoded by default).
+            encoding:
+              type       : string
+              description: How to decode the provided content (base64 or text).
+            charset:
+              type       : string
+              description: Charset used when encoding text content.
+            metadata:
+              type       : object
+              description: Optional map of metadata headers to store along the object.
+            contentType:
+              type       : string
+              description: MIME type to associate with the object.
+          required  : [ key, content ]
+        annotations:
+          title         : s3-put-object
+          readOnlyHint  : false
+          idempotentHint: false
+
+      s3-delete-object:
+        name       : s3-delete-object
+        description: Deletes an object from the chosen bucket.
+        inputSchema:
+          type      : object
+          properties:
+            bucket:
+              type       : string
+              description: Bucket name to operate on; defaults to the configured bucket when omitted.
+            key:
+              type       : string
+              description: Object key to delete.
+          required  : [ key ]
+        annotations:
+          title         : s3-delete-object
+          readOnlyHint  : false
+          idempotentHint: false
+
+      s3-presign-get:
+        name       : s3-presign-get
+        description: Generates a pre-signed URL for temporary GET access to an object.
+        inputSchema:
+          type      : object
+          properties:
+            bucket:
+              type       : string
+              description: Bucket name containing the object; defaults to the configured bucket when omitted.
+            key:
+              type       : string
+              description: Object key to generate the URL for.
+            expiresInSeconds:
+              type       : number
+              description: Expiration in seconds for the generated URL (defaults to 86400).
+          required  : [ key ]
+        annotations:
+          title         : s3-presign-get
+          readOnlyHint  : true
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      s3-list-buckets: S3 List Buckets
+      s3-list-objects: S3 List Objects
+      s3-get-object  : S3 Get Object
+      s3-put-object  : S3 Put Object
+      s3-delete-object: S3 Delete Object
+      s3-presign-get : S3 Presign Get URL
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - S3         : 20251005
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  loadLibs    :
+  - s3.js
+  unique      :
+    pidFile     : .mcp-s3.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ----------------------
+- name : Init S3 client
+  check:
+    in:
+      url            : isString.default("https://s3.amazonaws.com")
+      accessKey      : isString.default(__)
+      secret         : isString.default(__)
+      region         : isString.default(__)
+      bucket         : isString.default(__)
+      readwrite      : toBoolean.isBoolean.default(false)
+      useversion1    : toBoolean.isBoolean.default(false)
+      ignorecertcheck: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (isDef(global.__s3Client__)) {
+      try { global.__s3Client__.close() } catch(e) {}
+    }
+    global.__s3Client__         = new S3(args.url, args.accessKey, args.secret, args.region, args.useversion1, args.ignorecertcheck)
+    global.__s3DefaultBucket__  = args.bucket
+    global.__s3ReadWrite__      = args.readwrite
+
+# --------------------------
+- name : Close S3 client on exit
+  type : shutdown
+  check:
+    in:
+      url            : isString.default("https://s3.amazonaws.com")
+      accessKey      : isString.default(__)
+      secret         : isString.default(__)
+      region         : isString.default(__)
+      bucket         : isString.default(__)
+      readwrite      : toBoolean.isBoolean.default(false)
+      useversion1    : toBoolean.isBoolean.default(false)
+      ignorecertcheck: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (isDef(global.__s3Client__)) {
+      try { global.__s3Client__.close() } catch(e) {}
+      global.__s3Client__ = __
+    }
+
+# ------------------------
+- name : S3 List Buckets
+  exec : | #js
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    try {
+      return global.__s3Client__.listBuckets()
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# ------------------------
+- name : S3 List Objects
+  check:
+    in:
+      bucket   : isString.default(__)
+      prefix   : isString.default("")
+      recursive: toBoolean.isBoolean.default(false)
+      details  : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    var bucket = isDef(args.bucket) ? args.bucket : global.__s3DefaultBucket__
+    if (isUnDef(bucket)) {
+      return "[ERROR] Bucket not provided"
+    }
+    try {
+      return global.__s3Client__.listObjects(bucket, args.prefix, args.details, args.recursive)
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# ----------------------
+- name : S3 Get Object
+  check:
+    in:
+      bucket  : isString.default(__)
+      key     : isString
+      encoding: isString.default("base64")
+      charset : isString.default("utf-8")
+      offset  : toNumber.isNumber.default(__)
+      length  : toNumber.isNumber.default(__)
+      metadata: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    var bucket = isDef(args.bucket) ? args.bucket : global.__s3DefaultBucket__
+    if (isUnDef(bucket)) {
+      return "[ERROR] Bucket not provided"
+    }
+    var encoding = String(args.encoding || "base64").toLowerCase()
+    var charset  = args.charset || "utf-8"
+    var stream, bytes
+    try {
+      stream = global.__s3Client__.getObjectStream(bucket, args.key, args.offset, args.length)
+      bytes  = af.fromInputStream2Bytes(stream)
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    } finally {
+      if (isDef(stream) && isDef(stream.close)) {
+        try { stream.close() } catch(ignore) {}
+      }
+    }
+    var result = {
+      bucket  : bucket,
+      key     : args.key,
+      size    : isDef(bytes) ? bytes.length : 0,
+      encoding: encoding
+    }
+    if (args.metadata) {
+      try {
+        result.metadata = global.__s3Client__.statObject(bucket, args.key)
+      } catch(e) {
+        result.metadataError = isDef(e.message) ? e.message : String(e)
+      }
+    }
+    if (isUnDef(bytes)) {
+      return result
+    }
+    try {
+      switch(encoding) {
+      case "text":
+        result.content = af.fromBytes2String(bytes, charset)
+        break
+      case "json":
+        result.content = jsonParse(af.fromBytes2String(bytes, charset))
+        break
+      default:
+        result.content = af.fromBytes2String(af.toBase64Bytes(bytes))
+        result.encoding = "base64"
+      }
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+    return result
+
+# ----------------------
+- name : S3 Put Object
+  check:
+    in:
+      bucket     : isString.default(__)
+      key        : isString
+      content    : isString
+      encoding   : isString.default("base64")
+      charset    : isString.default("utf-8")
+      metadata   : isMap.default(__)
+      contentType: isString.default(__)
+  exec : | #js
+    if (!global.__s3ReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
+    }
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    var bucket = isDef(args.bucket) ? args.bucket : global.__s3DefaultBucket__
+    if (isUnDef(bucket)) {
+      return "[ERROR] Bucket not provided"
+    }
+    var encoding = String(args.encoding || "base64").toLowerCase()
+    var charset  = args.charset || "utf-8"
+    var bytes
+    try {
+      switch(encoding) {
+      case "text":
+        bytes = af.fromString2Bytes(args.content, charset)
+        break
+      default:
+        bytes    = af.fromBase64(args.content)
+        encoding = "base64"
+      }
+    } catch(e) {
+      return "[ERROR] Failed to decode content: " + (isDef(e.message) ? e.message : String(e))
+    }
+    var meta = {}
+    if (isDef(args.metadata)) {
+      if (!isMap(args.metadata)) {
+        return "[ERROR] metadata must be a map"
+      }
+      meta = args.metadata
+    }
+    var stream = new Packages.java.io.ByteArrayInputStream(bytes)
+    try {
+      global.__s3Client__.putObjectStream(bucket, args.key, stream, meta, args.contentType)
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    } finally {
+      try { stream.close() } catch(ignore) {}
+    }
+    var response = {
+      bucket  : bucket,
+      key     : args.key,
+      encoding: encoding
+    }
+    if (isDef(args.contentType)) response.contentType = args.contentType
+    if (Object.keys(meta).length > 0) response.metadata = meta
+    return response
+
+# -------------------------
+- name : S3 Delete Object
+  check:
+    in:
+      bucket: isString.default(__)
+      key   : isString
+  exec : | #js
+    if (!global.__s3ReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
+    }
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    var bucket = isDef(args.bucket) ? args.bucket : global.__s3DefaultBucket__
+    if (isUnDef(bucket)) {
+      return "[ERROR] Bucket not provided"
+    }
+    try {
+      global.__s3Client__.removeObject(bucket, args.key)
+      return {
+        bucket : bucket,
+        key    : args.key,
+        deleted: true
+      }
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# -----------------------------
+- name : S3 Presign Get URL
+  check:
+    in:
+      bucket          : isString.default(__)
+      key             : isString
+      expiresInSeconds: toNumber.isNumber.default(__)
+  exec : | #js
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    var bucket = isDef(args.bucket) ? args.bucket : global.__s3DefaultBucket__
+    if (isUnDef(bucket)) {
+      return "[ERROR] Bucket not provided"
+    }
+    var expires = args.expiresInSeconds
+    try {
+      return {
+        bucket          : bucket,
+        key             : args.key,
+        url             : global.__s3Client__.getPresignedGetObject(bucket, args.key, expires),
+        expiresInSeconds: isDef(expires) ? expires : 24 * 60 * 60
+      }
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }

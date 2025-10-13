@@ -1,0 +1,347 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP shell server for controlled local command execution
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : readwrite
+    desc     : 'If true, allows commands that may change state (default: false)'
+    example  : "true"
+    mandatory: false
+  - name     : shellallow
+    desc     : Comma-separated list of otherwise banned commands to allow
+    example  : "cat,ls"
+    mandatory: false
+  - name     : shellallowpipes
+    desc     : Allow pipes, redirection and shell control operators
+    example  : "true"
+    mandatory: false
+  - name     : shellbanextra
+    desc     : Additional comma-separated commands to ban
+    example  : "curl,wget"
+    mandatory: false
+  - name     : cwd
+    desc     : Default working directory for shell commands
+    example  : /tmp
+    mandatory: false
+  - name     : timeout
+    desc     : Default timeout (ms) applied to shell commands
+    example  : "5000"
+    mandatory: false
+  - name     : env
+    desc     : Optional map of environment variables applied to each command
+    example  : "(PATH: '/usr/local/bin', LANG: 'C.UTF-8')"
+    mandatory: false
+
+todo:
+- Init shell context
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mcp-shell
+        title  : OpenAF MCP local shell server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      shell-exec:
+        name       : shell-exec
+        description: Runs a local shell command with optional stdin, env, cwd and timeout overrides.
+        inputSchema:
+          type      : object
+          properties:
+            command:
+              type       : string
+              description: Shell command to execute.
+            stdin:
+              type       : string
+              description: Optional stdin contents to feed into the command.
+            cwd:
+              type       : string
+              description: Working directory override for this command.
+            timeout:
+              type       : number
+              description: Timeout in milliseconds for this command.
+            env:
+              type       : object
+              description: Map of environment variables applied only for this execution.
+            parseJson:
+              type       : boolean
+              description: Parse stdout/stderr as JSON when possible.
+          required  : [ command ]
+        annotations:
+          title         : shell-exec
+          readOnlyHint  : true
+          idempotentHint: true
+
+      shell-batch:
+        name       : shell-batch
+        description: Executes multiple local shell commands sequentially.
+        inputSchema:
+          type      : object
+          properties:
+            commands:
+              type : array
+              items:
+                anyOf:
+                - type: string
+                - type: object
+                  properties:
+                    command: { type: string }
+                    stdin  : { type: string }
+                    cwd    : { type: string }
+                    timeout: { type: number }
+                    env    : { type: object }
+                    parseJson: { type: boolean }
+                  required: [ command ]
+            cwd:
+              type       : string
+              description: Working directory applied to commands without their own override.
+            timeout:
+              type       : number
+              description: Timeout applied to commands without their own override.
+            env:
+              type       : object
+              description: Map of environment variables merged with per-command env maps.
+            stopOnError:
+              type       : boolean
+              description: Stop after the first failing (or blocked) command.
+          required  : [ commands ]
+        annotations:
+          title         : shell-batch
+          readOnlyHint  : true
+          idempotentHint: true
+    ((fns    )): &MCPFNS
+      shell-exec : Shell Execute
+      shell-batch: Shell Batch Execute
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-shell.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -------------------------
+- name : Init shell context
+  check:
+    in:
+      readwrite      : toBoolean.isBoolean.default(false)
+      shellallow     : isString.default("")
+      shellbanextra  : isString.default("")
+      shellallowpipes: toBoolean.isBoolean.default(false)
+      cwd            : isString.default(__)
+      timeout        : toNumber.isNumber.default(__)
+      env            : isMap.default(__)
+  exec : | #js
+    var parseList = function(value) {
+      if (isUnDef(value) || value === null) return []
+      if (!isString(value)) value = "" + value
+      return value.split(",").map(v => v.trim().toLowerCase()).filter(v => v.length > 0)
+    }
+
+    global.__shellReadWrite__   = args.readwrite
+    global.__shellAllow__       = parseList(args.shellallow)
+    global.__shellBanExtra__    = parseList(args.shellbanextra)
+    global.__shellAllowPipes__  = args.shellallowpipes
+    global.__shellDefaultCwd__  = args.cwd
+    global.__shellDefaultTimeout__ = args.timeout
+    global.__shellDefaultEnv__  = args.env
+
+# ---------------------
+- name : Validate command
+  check:
+    in:
+      command: isString
+  exec : | #js
+    var baseBanned = [
+      "rm","sudo","chmod","chown","mv","scp","ssh","docker","podman","kubectl",
+      "dd","mkfs","mkfs.ext4","mkfs.xfs","mount","umount","apt","yum","brew",
+      "apt-get","apk","rpm","cp","rsync","truncate","ln","passwd","useradd",
+      "userdel","groupadd","groupdel","shutdown","reboot","poweroff","halt",
+      "systemctl","service","fdisk","sfdisk","parted","losetup","mkswap",
+      "swapoff","swapon","iptables","nft","grub-install","update-grub",
+      "curl","wget","perl","python","python3","ruby","node","npm","yarn","pip","pip3","gem"
+    ]
+
+    var execAllowed = false
+    var lcCmd = (args.command || "").toString().toLowerCase()
+    var tokens = lcCmd.split(/\s+/).filter(r => r.length > 0)
+    var errorMsg = ""
+
+    var allowlist = isArray(global.__shellAllow__) ? global.__shellAllow__ : []
+    var extraBanned = isArray(global.__shellBanExtra__) ? global.__shellBanExtra__ : []
+    var banned = baseBanned.concat(extraBanned).filter(b => allowlist.indexOf(b) < 0)
+
+    var isTokenAllowed = function(token) {
+      return allowlist.some(function(a) {
+        return token === a || token.startsWith(a + "-") || token.startsWith(a + ".")
+      })
+    }
+
+    var bannedTokens = tokens.filter(function(t) {
+      return !isTokenAllowed(t) && banned.some(function(b) {
+        return t === b || t.startsWith(b + "-") || t.startsWith(b + ".")
+      })
+    })
+    var hasBannedToken = bannedTokens.length > 0
+    var allowPipes = (global.__shellAllowPipes__ || false)
+    var hasRedirectionOrPipe = !allowPipes && /[<>|&;]/.test(lcCmd)
+
+    var detected = []
+    if (hasBannedToken) detected = detected.concat(bannedTokens)
+    if (hasRedirectionOrPipe) detected.push("redirection/pipe")
+
+    if (!global.__shellReadWrite__ && (hasBannedToken || hasRedirectionOrPipe)) {
+      if (hasBannedToken) {
+        errorMsg = "[blocked] Command contains banned operation" + (detected.length ? " (detected: " + detected.join(", ") + ")" : "") + ": " + args.command
+      } else if (hasRedirectionOrPipe) {
+        errorMsg = "[blocked] Command contains redirection/pipe operations: " + args.command
+      } else {
+        errorMsg = "[blocked] Command blocked by security policy: " + args.command
+      }
+      execAllowed = false
+    } else {
+      execAllowed = true
+    }
+
+    args.canExecute = execAllowed
+    args.errorMessage = errorMsg
+    args.detectedIssues = detected
+
+# -----------------------
+- name : Shell Execute
+  check:
+    in:
+      command  : isString
+      stdin    : isString.default(__)
+      cwd      : isString.default(__)
+      timeout  : toNumber.isNumber.default(__)
+      env      : isMap.default(__)
+      parseJson: toBoolean.isBoolean.default(false)
+  exec : | #js
+    var validation = $job("Validate command", { command: args.command })
+    if (!validation.canExecute) {
+      return {
+        stdout   : "",
+        stderr   : validation.errorMessage,
+        exitcode : 1,
+        blocked  : true,
+        detected : validation.detectedIssues,
+        command  : args.command
+      }
+    }
+
+    var combinedEnv = {}
+    var copyEnv = function(target, source) {
+      Object.keys(source).forEach(function(k) {
+        target[k] = source[k]
+      })
+    }
+    if (isMap(global.__shellDefaultEnv__)) copyEnv(combinedEnv, global.__shellDefaultEnv__)
+    if (isMap(args.env)) copyEnv(combinedEnv, args.env)
+
+    var runner
+    if (isDef(args.stdin)) {
+      runner = $sh(args.command, args.stdin)
+    } else {
+      runner = $sh(args.command)
+    }
+
+    if (Object.keys(combinedEnv).length > 0) runner = runner.envs(combinedEnv)
+    var effectiveCwd = isDef(args.cwd) ? args.cwd : global.__shellDefaultCwd__
+    if (isDef(effectiveCwd)) runner = runner.pwd(effectiveCwd)
+
+    var effectiveTimeout = isDef(args.timeout) ? args.timeout : global.__shellDefaultTimeout__
+    if (isDef(effectiveTimeout)) runner = runner.timeout(effectiveTimeout)
+
+    try {
+      var result = args.parseJson ? runner.getJson(0) : runner.get(0)
+      result.blocked = false
+      result.command = args.command
+      if (isDef(effectiveCwd)) result.cwd = effectiveCwd
+      if (Object.keys(combinedEnv).length > 0) result.env = combinedEnv
+      result.parseJson = args.parseJson
+      return result
+    } catch(e) {
+      return {
+        stdout   : "",
+        stderr   : "[ERROR] " + (isDef(e.message) ? e.message : String(e)),
+        exitcode : -1,
+        blocked  : false,
+        command  : args.command
+      }
+    }
+
+# -----------------------
+- name : Shell Batch Execute
+  check:
+    in:
+      commands   : isArray
+      cwd        : isString.default(__)
+      timeout    : toNumber.isNumber.default(__)
+      env        : isMap.default(__)
+      stopOnError: toBoolean.isBoolean.default(false)
+      parseJson  : toBoolean.isBoolean.default(false)
+  exec : | #js
+    var results = []
+
+    var defaultArgs = {
+      cwd      : isDef(args.cwd) ? args.cwd : global.__shellDefaultCwd__,
+      timeout  : isDef(args.timeout) ? args.timeout : global.__shellDefaultTimeout__,
+      env      : args.env,
+      parseJson: args.parseJson
+    }
+
+    for (var i = 0; i < args.commands.length; i++) {
+      var entry = args.commands[i]
+      var cmdArgs = {}
+
+      if (isString(entry)) {
+        cmdArgs.command = entry
+      } else if (isMap(entry) && isString(entry.command)) {
+        cmdArgs = {}
+        Object.keys(entry).forEach(function(k) { cmdArgs[k] = entry[k] })
+      } else {
+        results.push({
+          stdout  : "",
+          stderr  : "[ERROR] Invalid command entry at index " + i,
+          exitcode: -1,
+          blocked : true,
+          command : isDef(entry) ? stringify(entry) : "__undefined__",
+          detected: [ "invalid-entry" ]
+        })
+        if (args.stopOnError) break
+        continue
+      }
+
+      if (isUnDef(cmdArgs.cwd)) cmdArgs.cwd = defaultArgs.cwd
+      if (isUnDef(cmdArgs.timeout)) cmdArgs.timeout = defaultArgs.timeout
+      if (isUnDef(cmdArgs.env) && isDef(defaultArgs.env)) cmdArgs.env = defaultArgs.env
+      if (isUnDef(cmdArgs.parseJson)) cmdArgs.parseJson = defaultArgs.parseJson
+
+      var res = $job("Shell Execute", cmdArgs)
+      results.push(res)
+
+      if (args.stopOnError && (res.blocked || res.exitcode !== 0)) break
+    }
+
+    return results

@@ -229,7 +229,7 @@ jobs:
       port         : toNumber().isNumber.default(443)
       socketTimeout: toNumber().isNumber.default(60000)
   exec : | #js
-    return ow.net.getTLSCertificates(args.host, args.port, false, __, args.socketTimeout)
+    return ow.net.getTLSCertificates(args.host, args.port, __, __, __, args.socketTimeout)
 
 # -------------
 - name : Who is
