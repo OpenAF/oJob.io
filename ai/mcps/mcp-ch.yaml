@@ -10,6 +10,10 @@ help:
     desc     : A JSON/SLON array/map of channel name, type, rw (read/write boolean) and options (depending on channel type)
     example  : '(_name: my-data, _type: file, _rw: true, file: my-data.json)'
     mandatory: false
+  - name     : libs
+    desc     : Optional comma separated libraries or @oPack/library.js references to preload
+    example  : "@mini-a/utils.js,lib/my-library.js"
+    mandatory: false
     
 todo:
 - Init
@@ -221,7 +225,33 @@ jobs:
   check:
     in:
       chs: isString.default("[]")
+      libs: isString.default("")
   exec : | #js
+    if (isDef(args.libs) && args.libs.length > 0) {
+      args.libs.split(",").map(function(lib) { return lib.trim() }).filter(function(lib) { return lib.length > 0 }).forEach(function(lib) {
+        log("[mini-a-ch] Loading library: " + lib + "...")
+        try {
+          if (lib.startsWith("@")) {
+            if (/^\@([^\/]+)\/(.+)\.js$/.test(lib)) {
+              var match = lib.match(/^\@([^\/]+)\/(.+)\.js$/)
+              var packPath = getOPackPath(match[1])
+              var filePath = packPath + "/" + match[2] + ".js"
+              if (io.fileExists(filePath)) {
+                loadLib(filePath)
+              } else {
+                logErr("[ERROR] Library '" + lib + "' not found.")
+              }
+            } else {
+              logErr("[ERROR] Library '" + lib + "' does not have the correct format (@oPack/library.js).")
+            }
+          } else {
+            loadLib(lib)
+          }
+        } catch(e) {
+          logErr("[ERROR] Failed to load library " + lib + ": " + e.message)
+        }
+      })
+    }
     var chs = af.fromJSSLON(args.chs)
     if (isMap(chs)) chs = [chs]
 

@@ -1,0 +1,297 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP OpenAF processor (oafp) execution and documentation server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8890"
+    mandatory: false
+  - name     : libs
+    desc     : Optional comma separated oPack names to preload for extended commands
+    example  : "minia,ojob"
+    mandatory: false
+  - name     : params
+    desc     : Map with parameters to pass directly to the oafp function
+    example  : "(out: json)"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-oafp
+        title  : OpenAF mini-a MCP oafp server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+
+      run-oafp:
+        name       : run-oafp
+        description: Executes the oafp processor with the provided parameters.
+        inputSchema:
+          type      : object
+          properties:
+            params:
+              type       : object
+              description: Parameters map passed directly to oafp.
+            data:
+              type       : string
+              description: Optional inline data payload (assigned to params.data).
+            libs:
+              type       : [string, array]
+              description: Optional libs/opacks to preload (overrides params.libs).
+            helpTopic:
+              type       : string
+              description: Optional help topic shortcut (assigns to params.help).
+          required: [ ]
+        annotations:
+          title         : run-oafp
+          readOnlyHint  : false
+          idempotentHint: false
+
+      list-commands:
+        name       : list-commands
+        description: Returns the list of oafp command line options parsed from the embedded documentation.
+        inputSchema:
+          type      : object
+          properties:
+            search:
+              type       : string
+              description: Optional case-insensitive filter for option names or descriptions.
+            libs:
+              type       : string
+              description: Optional libs to include when refreshing documentation.
+          required: [ ]
+        annotations:
+          title         : list-commands
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-doc:
+        name       : get-doc
+        description: Returns one of the built-in oafp documentation sections (usage, filters, template, examples).
+        inputSchema:
+          type      : object
+          properties:
+            section:
+              type       : string
+              description: One of usage, filters, template, examples.
+              default    : usage
+            libs:
+              type       : string
+              description: Optional libs to include before loading docs.
+          required: [ ]
+        annotations:
+          title         : get-doc
+          readOnlyHint  : true
+          idempotentHint: true
+
+      search-doc:
+        name       : search-doc
+        description: Performs a keyword search across all loaded oafp documentation sections.
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: Keyword or phrase to search for (case-insensitive).
+          required: [ query ]
+        annotations:
+          title         : search-doc
+          readOnlyHint  : true
+          idempotentHint: true
+
+      discover-capabilities:
+        name       : discover-capabilities
+        description: Returns dynamic oafp capability information (inputs, transforms, outputs, version) honouring optional libs.
+        inputSchema:
+          type      : object
+          properties:
+            libs:
+              type       : string
+              description: Optional libs/opacks to preload.
+          required: [ ]
+        annotations:
+          title         : discover-capabilities
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      run-oafp             : Run oafp command
+      list-commands        : List oafp options
+      get-doc              : Get oafp documentation section
+      search-doc           : Search oafp documentation
+      discover-capabilities: Discover dynamic oafp capabilities
+      
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-oafp.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  exec : | #js
+    if (isUnDef(global.ensureOafpInit)) {
+      global.ensureOafpInit = function(libs) {
+        loadOAFP()
+        if (isDef(libs)) {
+          oafp({ libs: libs, out: "raw", help: "readme" })
+        }
+
+        if (isUnDef(global.oafpDocs)) {
+          global.oafpDocs = {}
+        }
+
+        global.oafpDocs.usage    = _oafphelp['docs/USAGE.md']
+        global.oafpDocs.filters  = _oafphelp['docs/FILTERS.md']
+        global.oafpDocs.template = _oafphelp['docs/TEMPLATE.md']
+        global.oafpDocs.examples = _oafphelp['docs/EXAMPLES.md']
+
+        global.oafpCommandsCache = __
+      }
+    }
+
+    global.ensureOafpInit(args.libs)
+
+# ------------------------
+- name : List oafp options
+  check:
+    in:
+      search: isString.default(__)
+      libs  : isString.default(__)
+  exec : | #js
+    global.ensureOafpInit(args.libs)
+
+    if (isUnDef(global.oafpCommandsCache)) {
+      var commands = []
+      var lines = String(global.oafpDocs.usage).split(/\n/)
+      var inTable = false
+      lines.forEach(function(line) {
+        if (line.match(/^\| Option /)) {
+          inTable = true
+          return
+        }
+        if (inTable) {
+          if (!line.startsWith("|")) {
+            inTable = false
+            return
+          }
+          if (line.match(/^\|[- ]+\|/)) {
+            return
+          }
+          var parts = line.split("|").map(function(p) { return p.trim() })
+          if (parts.length >= 3 && parts[1] != "" && parts[2] != "") {
+            commands.push({ option: parts[1], description: parts[2] })
+          }
+        }
+      })
+      global.oafpCommandsCache = commands
+    }
+
+    var result = global.oafpCommandsCache
+    if (isDef(args.search)) {
+      var term = args.search.toLowerCase()
+      result = result.filter(function(entry) {
+        return entry.option.toLowerCase().indexOf(term) >= 0 || entry.description.toLowerCase().indexOf(term) >= 0
+      })
+    }
+    return result
+
+# -----------------------
+- name : Run oafp command
+  check:
+    in:
+      params   : isMap.default({})
+      data     : isString.default(__)
+      libs     : isString.default(__)
+      helpTopic: isString.default(__)
+  exec : | #js
+    global.ensureOafpInit(args.libs)
+
+    var options = {}
+    if (isMap(args.params)) {
+      Object.keys(args.params).forEach(function(k) { options[k] = args.params[k] })
+    }
+    if (isDef(args.data)) options.data = args.data
+    if (isDef(args.libs)) options.libs = args.libs
+    if (isDef(args.helpTopic)) options.help = args.helpTopic
+
+    var _i = "out-" + genUUID()
+    options.pipe = {
+      in   : "raw",
+      out  : "key",
+      __key: _i
+    }
+
+    oafp(options)
+    var _r = $get(_i)
+    $unset(_i)
+    return _r
+
+# -------------------------------------
+- name : Get oafp documentation section
+  check:
+    in:
+      section: isString.default("usage")
+      libs   : isString.default(__)
+  exec : | #js
+    global.ensureOafpInit(args.libs)
+    var key = String(args.section || "usage").toLowerCase()
+    if (!['usage','filters','template','examples'].indexOf(key) >= 0) key = 'usage'
+    return global.oafpDocs[key]
+
+# --------------------------------
+- name : Search oafp documentation
+  check:
+    in:
+      query: isString
+  exec : | #js
+    global.ensureOafpInit(__)
+    var term = args.query.toLowerCase()
+    var out = []
+    Object.keys(global.oafpDocs).forEach(function(key) {
+      var matches = []
+      String(global.oafpDocs[key]).split(/\n/).forEach(function(line, idx) {
+        if (line.toLowerCase().indexOf(term) >= 0) {
+          matches.push({ line: idx + 1, text: line })
+        }
+      })
+      if (matches.length > 0) {
+        out.push({ section: key, matches: matches })
+      }
+    })
+    return out
+
+# -----------------------------------------
+- name : Discover dynamic oafp capabilities
+  check:
+    in:
+      libs: isString.default(__)
+  exec : | #js
+    global.ensureOafpInit(args.libs)
+    var _i = "out-" + genUUID()
+    oafp({ version: true, libs: args.libs, out: "key", __key: _i })
+    var info = $get(_i)
+    $unset(_i)
+    return info

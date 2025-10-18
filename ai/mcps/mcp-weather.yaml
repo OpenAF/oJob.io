@@ -1,0 +1,118 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP weather information server using wttr.in
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : ansi
+    desc     : If true returns ANSI formatted output instead of JSON
+    example  : false
+    mandatory: false
+  - name     : oneline
+    desc     : If true forces wttr.in to return a single line summary
+    example  : false
+    mandatory: false
+  - name     : format
+    desc     : Custom wttr.in format string to override defaults
+    example  : "%l:+%c+%t"
+    mandatory: false
+  - name     : options
+    desc     : Extra wttr.in view options (0,1,2,3,A,d,F,n,q,Q,T)
+    example  : "1FQ"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-weather
+        title  : OpenAF mini-a MCP weather information server
+        version: 1.0.0
+
+    ((fnsMeta)): &MCPFNSMETA
+
+      get-weather:
+        name       : get-weather
+        description: Retrieves current weather information from wttr.in for a given location.
+        inputSchema:
+          type      : object
+          properties:
+            location:
+              type       : string
+              description: The location name (city, airport code, attraction, coordinates, etc.).
+            ansi:
+              type       : boolean
+              description: If true returns the ANSI formatted wttr.in output.
+              default    : false
+            oneline:
+              type       : boolean
+              description: If true returns a single line summary instead of structured data.
+              default    : false
+            format:
+              type       : string
+              description: Custom wttr.in format string.
+            options:
+              type       : string
+              description: Additional wttr.in view options to apply (0,1,2,3,A,d,F,n,q,Q,T).
+          required: [ location ]
+        annotations:
+          title         : get-weather
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      get-weather: Get weather
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-weather.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ------------------
+- name : Get weather
+  check:
+    in:
+      location: isString
+      ansi    : toBoolean.isBoolean.default(false)
+      oneline : toBoolean.isBoolean.default(false)
+      format  : isString.default(__)
+      options : isString.default(__)
+  exec : | #js
+    var options = {}
+    if (!args.ansi) options.format = "j1"
+    if (args.oneline) options.format = 3
+    if (isDef(args.format)) options.format = args.format
+    if (isDef(args.options)) options[args.options] = ""
+
+    var encoded = args.location.replace(/ /g, "+")
+    var rest = $rest({ uriQuery: true, requestHeaders: { "User-Agent": "curl" } })
+    var data = rest.get("https://wttr.in/" + encoded, options)
+
+    if (args.ansi) {
+      return isMap(data) ? data : String(data)
+    } else {
+      return args.oneline ? { output: data } : data
+    }

@@ -18,6 +18,10 @@ help:
     desc     : Allow read/write operations (default is read-only)
     example  : "true"
     mandatory: false
+  - name     : libs
+    desc     : Optional comma separated libraries or @oPack/library.js references to preload
+    example  : "@mini-a/utils.js,lib/sql-helpers.js"
+    mandatory: false
   - name     : onport
     desc     : If defined starts a MCP server on the provided port
     example  : "8888"
@@ -38,38 +42,51 @@ todo:
         title  : OpenAF mini-a MCP database server
         version: 1.0.0
     ((fnsMeta)): &MCPFNSMETA
-      dbSQLQuery:
-        name       : dbSQLQuery
+      do-sql-query:
+        name       : do-sql-query
         description: Executes a SQL query against a database using JDBC.
         inputSchema:
           type      : object
           properties:
-            sqlQuery:
+            sql:
               type        : string
               description : SQL query to execute.
-          required: [ sqlQuery ]
+          required: [ sql ]
         annotations:
-          title         : dbSQLQuery
+          title         : do-sql-query
           readOnlyHint  : true
           idempotentHint: true
 
-      dbDMLStatement:
-        name       : dbDMLStatement
+      do-dml-statement:
+        name       : do-dml-statement
         description: Executes a SQL DML statement (CREATE, INSERT, UPDATE, DELETE, DROP) against a database using JDBC.
         inputSchema:
           type      : object
           properties:
-            sqlDML:
+            sql:
               type        : string
               description : SQL DML statement to execute.
-          required: [ sqlDML ]
+          required: [ sql ]
         annotations:
-          title         : dbDMLStatement
+          title         : do-dml-statement
           readOnlyHint  : false
           idempotentHint: false
+
+      do-get-client-info:
+        name       : do-get-client-info
+        description: Retrieves information about the database client and metadata.
+        inputSchema:
+          type      : object
+          properties: {}
+        annotations:
+          title         : do-get-client-info
+          readOnlyHint  : true
+          idempotentHint: true
+
     ((fns    )): &MCPFNS
-      dbSQLQuery    : Execute SQL query
-      dbDMLStatement: Execute DML statement
+      do-sql-query      : Execute SQL query
+      do-dml-statement  : Execute DML statement
+      do-get-client-info: Get client info
   ((else)):
   - (stdioMCP ): *MCPSERVER
     ((fnsMeta)): *MCPFNSMETA
@@ -98,8 +115,39 @@ jobs:
       jdbc: isString
       user: isString.default(__)
       pass: isString.default(__) 
+      rw  : toBoolean.isBoolean.default(false)
+      libs: isString.default("")
   exec : | #js
+    if (isDef(args.libs) && args.libs.length > 0) {
+      args.libs.split(",")
+        .map(function(lib) { return lib.trim() })
+        .filter(function(lib) { return lib.length > 0 })
+        .forEach(function(lib) {
+          log("[mcp-db] Loading library: " + lib + "...")
+          try {
+            if (lib.startsWith("@")) {
+              if (/^\@([^\/]+)\/(.+)\.js$/.test(lib)) {
+                var match = lib.match(/^\@([^\/]+)\/(.+)\.js$/)
+                var packPath = getOPackPath(match[1])
+                var filePath = packPath + "/" + match[2] + ".js"
+                if (io.fileExists(filePath)) {
+                  loadLib(filePath)
+                } else {
+                  logErr("[ERROR] Library '" + lib + "' not found.")
+                }
+              } else {
+                logErr("[ERROR] Library '" + lib + "' does not have the correct format (@oPack/library.js).")
+              }
+            } else {
+              loadLib(lib)
+            }
+          } catch(e) {
+            logErr("[ERROR] Failed to load library " + lib + ": " + e.message)
+          }
+        })
+    }
     global.db = new DB(args.jdbc, args.user, args.pass)
+    global._dbrw = args.rw
 
 # -----------------------------
 - name : Close database on exit
@@ -118,14 +166,15 @@ jobs:
 - name : Execute SQL query
   check:
     in:
-      sqlQuery: isString
+      sql: isString.default(__)
   exec : | #js
+    if (isUnDef(args.sql)) return "[ERROR] No SQL query provided in 'sql' argument"
     if (!global.db) {
       return "[ERROR] Database not connected"
     } else {
       var _res 
       try {
-        _res = global.db.q(args.sqlQuery)
+        _res = global.db.q(args.sql)
         global.db.commit()
       } catch(e) {
         global.db.rollback()
@@ -134,14 +183,53 @@ jobs:
       return _res
     }
 
+# ----------------------
+- name : Get client info
+  exec : | #js
+    if (!global.db) {
+      return "[ERROR] Database not connected"
+    } else {
+      try {
+        var _connect = global.db.getConnect()
+        // Return the java.sql.Connection info from the Connection object __connect
+        var _metadata = _connect.getMetaData()
+
+        return {
+          version        : _connect.getDBVersionNumber(),
+          protocolVersion: _connect.getProtocolVersion(),
+          autoCommit     : _connect.getAutoCommit(),
+          catalog        : _connect.getCatalog(),
+          clientInfo     : af.fromJavaMap(_connect.getClientInfo()),
+          metadata       : {
+            productName         : _metadata.getDatabaseProductName(),
+            productVersion      : _metadata.getDatabaseProductVersion(),
+            driverName          : _metadata.getDriverName(),
+            driverVersion       : _metadata.getDriverVersion(),
+            userName            : _metadata.getUserName(),
+            url                 : _metadata.getURL(),
+            isReadOnly          : _metadata.isReadOnly(),
+            supportsTransactions: _metadata.supportsTransactions(),
+            maxConnections      : _metadata.getMaxConnections(),
+            maxTableNameLength  : _metadata.getMaxTableNameLength(),
+            maxColumnsInTable   : _metadata.getMaxColumnsInTable(),
+            maxRowSize          : _metadata.getMaxRowSize(),
+            maxStatementLength  : _metadata.getMaxStatementLength(),
+            maxTablesInSelect   : _metadata.getMaxTablesInSelect()
+          }
+        }
+      } catch(e) {
+        return "[ERROR] " + e.message
+      }
+    }
+
 # ----------------------------
 - name : Execute DML statement
   check:
     in:
-      sqlDML: isString
-      rw    : toBoolean.isBoolean.default(false)
+      sql: isString.default(__)
   exec : | #js
-    if (!args.rw) {
+    if (isUnDef(args.sql)) return "[ERROR] No SQL query provided in 'sql' argument"
+    if (!global._dbrw) {
       return "[ERROR] Read-only mode. Set rw=true to allow write operations"
     }
     if (!global.db) {
@@ -149,7 +237,7 @@ jobs:
     } else {
       var _res
       try {
-        _res = global.db.u(args.sqlDML)
+        _res = global.db.u(args.sql)
         global.db.commit()
         return _res + " rows affected"
       } catch(e) {
