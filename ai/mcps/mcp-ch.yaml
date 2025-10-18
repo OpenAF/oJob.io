@@ -190,6 +190,16 @@ todo:
           readOnlyHint  : false
           idempotentHint: false
 
+      ch-list:
+        name       : ch-list
+        description: Lists all configured data channels.
+        inputSchema:
+          type      : object
+        annotations:
+          title         : ch-list
+          readOnlyHint  : true
+          idempotentHint: true
+
     ((fns    )): &MCPFNS
       ch-size     : Channel size
       ch-keys     : Channel keys
@@ -199,6 +209,7 @@ todo:
       ch-unset    : Channel unset
       ch-set-all  : Channel set all
       ch-unset-all: Channel unset all
+      ch-list     : Channel list
   ((else)):
   - (stdioMCP ): *MCPSERVER
     ((fnsMeta)): *MCPFNSMETA
@@ -353,3 +364,14 @@ jobs:
     } else {
       return "[ERROR] The data channel '" + args.dataCh + "' is read-only"
     }
+
+# -------------------
+- name : Channel list
+  exec : | #js
+    return global.chs.map(function(ch) {
+      return {
+        name: ch._name,
+        type: ch._type,
+        rw  : ch._rw
+      }
+    })
