@@ -1,0 +1,669 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP random data generation utility server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-random
+        title  : OpenAF mini-a MCP random data generation server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      random-integer:
+        name       : random-integer
+        description: Generates a random integer within an inclusive range.
+        inputSchema:
+          type      : object
+          properties:
+            min:
+              type       : number
+              description: Lower bound of the range (inclusive).
+              example    : 1
+            max:
+              type       : number
+              description: Upper bound of the range (inclusive).
+              example    : 100
+            seed:
+              type       : number
+              description: Optional numeric seed to make the result deterministic.
+              example    : 12345
+          required  : [ max ]
+        annotations:
+          title         : random-integer
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-sequence:
+        name       : random-sequence
+        description: Produces a shuffled sequence of integers within a range and optionally limits the length.
+        inputSchema:
+          type      : object
+          properties:
+            start:
+              type       : number
+              description: First integer in the range (inclusive).
+              example    : 1
+            end:
+              type       : number
+              description: Last integer in the range (inclusive).
+              example    : 10
+            count:
+              type       : number
+              description: Optional number of values to return from the shuffled sequence.
+              example    : 5
+            seed:
+              type       : number
+              description: Optional numeric seed to make the shuffle deterministic.
+              example    : 42
+          required  : [ end ]
+        annotations:
+          title         : random-sequence
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-integer-set:
+        name       : random-integer-set
+        description: Generates a set of unique random integers within a range.
+        inputSchema:
+          type      : object
+          properties:
+            min:
+              type       : number
+              description: Lower bound of the range (inclusive).
+              example    : 10
+            max:
+              type       : number
+              description: Upper bound of the range (inclusive).
+              example    : 99
+            count:
+              type       : number
+              description: Number of unique integers to generate.
+              example    : 6
+            seed:
+              type       : number
+              description: Optional numeric seed to make the set deterministic.
+              example    : 2024
+          required  : [ max, count ]
+        annotations:
+          title         : random-integer-set
+          readOnlyHint  : true
+          idempotentHint: false
+
+      gaussian-sample:
+        name       : gaussian-sample
+        description: Generates normally distributed random numbers using java.util.Random#nextGaussian.
+        inputSchema:
+          type      : object
+          properties:
+            mean:
+              type       : number
+              description: Mean (μ) of the distribution.
+              example    : 0
+            stddev:
+              type       : number
+              description: Standard deviation (σ) of the distribution.
+              example    : 1
+            count:
+              type       : number
+              description: Number of samples to generate.
+              example    : 100
+            seed:
+              type       : number
+              description: Optional numeric seed to make the samples deterministic.
+              example    : 98765
+          required  : []
+        annotations:
+          title         : gaussian-sample
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-fraction:
+        name       : random-fraction
+        description: Generates decimal fractions in the [0,1] range rounded to a configurable number of places.
+        inputSchema:
+          type      : object
+          properties:
+            decimalPlaces:
+              type       : number
+              description: Number of decimal places to include (0-12 recommended).
+              example    : 4
+            count:
+              type       : number
+              description: Number of fractions to generate.
+              example    : 3
+            seed:
+              type       : number
+              description: Optional numeric seed to make the fractions deterministic.
+              example    : 4321
+          required  : []
+        annotations:
+          title         : random-fraction
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-choice:
+        name       : random-choice
+        description: Selects one or more random elements from an array.
+        inputSchema:
+          type      : object
+          properties:
+            items:
+              type        : array
+              description : Array of candidate values to choose from.
+              items       : {}
+            count:
+              type       : number
+              description: Number of elements to pick (defaults to 1).
+              example    : 2
+            unique:
+              type       : boolean
+              description: If true, ensures returned elements are unique.
+              example    : true
+            seed:
+              type       : number
+              description: Optional numeric seed to make the selection deterministic.
+              example    : 555
+          required  : [ items ]
+        annotations:
+          title         : random-choice
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-boolean:
+        name       : random-boolean
+        description: Generates random boolean values with an optional bias probability for true.
+        inputSchema:
+          type      : object
+          properties:
+            probabilityTrue:
+              type       : number
+              description: Probability (0-1) that the result is true.
+              example    : 0.25
+            count:
+              type       : number
+              description: Number of booleans to generate.
+              example    : 4
+            seed:
+              type       : number
+              description: Optional numeric seed to make the booleans deterministic.
+              example    : 321
+          required  : []
+        annotations:
+          title         : random-boolean
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-hex:
+        name       : random-hex
+        description: Generates a random hexadecimal string of the requested length.
+        inputSchema:
+          type      : object
+          properties:
+            length:
+              type       : number
+              description: Number of hexadecimal characters to return.
+              example    : 16
+            uppercase:
+              type       : boolean
+              description: If true, returns uppercase letters; otherwise lowercase.
+              example    : false
+            seed:
+              type       : number
+              description: Optional numeric seed to make the output deterministic.
+              example    : 2468
+          required  : [ length ]
+        annotations:
+          title         : random-hex
+          readOnlyHint  : true
+          idempotentHint: false
+
+      random-password:
+        name       : random-password
+        description: Generates a random password with configurable character sets.
+        inputSchema:
+          type      : object
+          properties:
+            size:
+              type       : number
+              description: Length of the password to generate.
+              example    : 12
+            sets:
+              type       : string
+              description: Comma-separated list of character sets to include (lowercase, uppercase, numbers, symbols, symbols2).
+              example    : "lowercase,uppercase,numbers,symbols"
+            exclude:
+              type       : string
+              description: Characters to exclude from the generated password.
+              example    : "#$"
+          required  : []
+        annotations:
+          title         : random-password
+          readOnlyHint  : true
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      random-integer     : Generate random integer
+      random-sequence    : Generate random sequence
+      random-integer-set : Generate random integer set
+      gaussian-sample    : Generate gaussian sample
+      random-fraction    : Generate random fractions
+      random-choice      : Generate random choice
+      random-boolean     : Generate random booleans
+      random-hex         : Generate random hex string
+      random-password    : Generate random password
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-random.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ------------------------------
+- name : Generate random integer
+  check:
+    in:
+      min : toNumber.isNumber.default(0)
+      max : toNumber.isNumber
+      seed: toNumber.isNumber.default(__)
+  exec : | #js
+    if (args.min > args.max) throw "min must be less than or equal to max"
+
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var lower = Math.ceil(Number(args.min))
+    var upper = Math.floor(Number(args.max))
+    if (lower > upper) throw "After rounding to integers the range is empty"
+
+    var range = upper - lower + 1
+    if (range > java.lang.Integer.MAX_VALUE) throw "range is too large"
+
+    var value = lower + rng.nextInt(range)
+    return {
+      min    : lower,
+      max    : upper,
+      value  : Number(value),
+      seed   : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# -------------------------------
+- name : Generate random sequence
+  check:
+    in:
+      start: toNumber.isNumber.default(0)
+      end  : toNumber.isNumber
+      count: toNumber.isNumber.default(__)
+      seed : toNumber.isNumber.default(__)
+  exec : | #js
+    var start = Math.ceil(Number(args.start))
+    var end = Math.floor(Number(args.end))
+    if (start > end) throw "start must be less than or equal to end"
+
+    var total = end - start + 1
+    var desired = isDef(args.count) ? Math.min(total, Math.max(0, Math.floor(Number(args.count)))) : total
+
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var sequence = []
+    for (var i = start; i <= end; i++) sequence.push(i)
+
+    for (var i = sequence.length - 1; i > 0; i--) {
+      var j = rng.nextInt(i + 1)
+      var temp = sequence[i]
+      sequence[i] = sequence[j]
+      sequence[j] = temp
+    }
+
+    var result = sequence.slice(0, desired)
+    return {
+      start   : start,
+      end     : end,
+      count   : desired,
+      sequence: result,
+      seed    : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# ----------------------------------
+- name : Generate random integer set
+  check:
+    in:
+      min  : toNumber.isNumber.default(0)
+      max  : toNumber.isNumber
+      count: toNumber.isNumber
+      seed : toNumber.isNumber.default(__)
+  exec : | #js
+    var lower = Math.ceil(Number(args.min))
+    var upper = Math.floor(Number(args.max))
+    if (lower > upper) throw "min must be less than or equal to max"
+
+    var range = upper - lower + 1
+    var requested = Math.floor(Number(args.count))
+    if (requested < 0) throw "count must be non-negative"
+    if (requested > range) throw "count exceeds the number of unique integers in the range"
+
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    if (range > java.lang.Integer.MAX_VALUE) throw "range is too large"
+
+    var set = {}
+    var values = []
+    while (values.length < requested) {
+      var candidate = lower + rng.nextInt(range)
+      if (!set.hasOwnProperty(candidate)) {
+        set[candidate] = true
+        values.push(candidate)
+      }
+    }
+
+    values.sort(function(a, b) { return a - b })
+
+    return {
+      min   : lower,
+      max   : upper,
+      count : requested,
+      values: values,
+      seed  : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# -------------------------------
+- name : Generate gaussian sample
+  check:
+    in:
+      mean : toNumber.isNumber.default(0)
+      stddev: toNumber.isNumber.default(1)
+      count: toNumber.isNumber.default(1)
+      seed : toNumber.isNumber.default(__)
+  exec : | #js
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var mean = Number(args.mean)
+    var stddev = Number(args.stddev)
+    if (stddev < 0) throw "stddev must be non-negative"
+
+    var count = Math.max(1, Math.floor(Number(args.count)))
+
+    var samples = []
+    for (var i = 0; i < count; i++) {
+      var value = mean + stddev * rng.nextGaussian()
+      samples.push(value)
+    }
+
+    return {
+      mean    : mean,
+      stddev  : stddev,
+      count   : count,
+      samples : samples,
+      seed    : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# --------------------------------
+- name : Generate random fractions
+  check:
+    in:
+      decimalPlaces: toNumber.isNumber.default(6)
+      count        : toNumber.isNumber.default(1)
+      seed         : toNumber.isNumber.default(__)
+  exec : | #js
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var decimals = Math.max(0, Math.min(12, Math.floor(Number(args.decimalPlaces))))
+    var count = Math.max(1, Math.floor(Number(args.count)))
+    var factor = Math.pow(10, decimals)
+
+    var values = []
+    for (var i = 0; i < count; i++) {
+      var raw = rng.nextDouble()
+      var rounded = Math.round(raw * factor) / factor
+      values.push({
+        number: rounded,
+        string: rounded.toFixed(decimals)
+      })
+    }
+
+    return {
+      decimalPlaces: decimals,
+      count        : count,
+      fractions    : values,
+      seed         : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# -----------------------------
+- name : Generate random choice
+  check:
+    in:
+      items: isArray
+      count: toNumber.isNumber.default(1)
+      unique: toBoolean.isBoolean.default(false)
+      seed : toNumber.isNumber.default(__)
+  exec : | #js
+    if (args.items.length === 0) throw "items array must not be empty"
+
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var count = Math.max(1, Math.floor(Number(args.count)))
+    var unique = isDef(args.unique) ? Boolean(args.unique) : false
+
+    if (unique && count > args.items.length) {
+      throw "count cannot exceed the number of unique items when unique=true"
+    }
+
+    var results = []
+    if (unique) {
+      var indices = []
+      for (var i = 0; i < args.items.length; i++) indices.push(i)
+      for (var i = indices.length - 1; i > 0; i--) {
+        var j = rng.nextInt(i + 1)
+        var temp = indices[i]
+        indices[i] = indices[j]
+        indices[j] = temp
+      }
+      for (var i = 0; i < count; i++) {
+        results.push(args.items[indices[i]])
+      }
+    } else {
+      for (var i = 0; i < count; i++) {
+        var index = rng.nextInt(args.items.length)
+        results.push(args.items[index])
+      }
+    }
+
+    return {
+      count : count,
+      unique: unique,
+      choices: results,
+      seed  : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# -------------------------------
+- name : Generate random booleans
+  check:
+    in:
+      probabilityTrue: toNumber.isNumber.default(0.5)
+      count          : toNumber.isNumber.default(1)
+      seed           : toNumber.isNumber.default(__)
+  exec : | #js
+    var probability = Number(args.probabilityTrue)
+    if (probability < 0 || probability > 1) throw "probabilityTrue must be between 0 and 1"
+
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var count = Math.max(1, Math.floor(Number(args.count)))
+    var values = []
+    for (var i = 0; i < count; i++) {
+      values.push(rng.nextDouble() < probability)
+    }
+
+    return {
+      probabilityTrue: probability,
+      count          : count,
+      values         : values,
+      seed           : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# ---------------------------------
+- name : Generate random hex string
+  check:
+    in:
+      length   : toNumber.isNumber
+      uppercase: toBoolean.isBoolean.default(false)
+      seed     : toNumber.isNumber.default(__)
+  exec : | #js
+    var length = Math.max(1, Math.floor(Number(args.length)))
+    var uppercase = isDef(args.uppercase) ? Boolean(args.uppercase) : false
+
+    var Random = java.util.Random
+    var rng = isDef(args.seed) ? new Random(Number(args.seed)) : new Random()
+
+    var hexChars = uppercase ? "0123456789ABCDEF" : "0123456789abcdef"
+    var builder = new java.lang.StringBuilder()
+    for (var i = 0; i < length; i++) {
+      var index = rng.nextInt(16)
+      builder.append(hexChars.charAt(index))
+    }
+
+    return {
+      length   : length,
+      uppercase: uppercase,
+      value    : String(builder.toString()),
+      seed     : isDef(args.seed) ? Number(args.seed) : null
+    }
+
+# -------------------------------
+- name : Generate random password
+  check:
+    in:
+      size: toNumber.isNumber.default(12)
+  exec : | #js
+    var size = Math.max(1, Math.floor(Number(args.size)))
+
+    var defaultSets = "lowercase,uppercase,numbers,symbols"
+    var rawSets = defaultSets
+    if (isDef(args.sets)) {
+      if (Array.isArray(args.sets)) {
+        rawSets = args.sets.join(",")
+      } else {
+        rawSets = String(args.sets)
+      }
+    }
+    if (rawSets.trim().length === 0) rawSets = defaultSets
+
+    var exclude = isDef(args.exclude) ? String(args.exclude) : ""
+
+    var catalog = {
+      lowercase: "abcdefghijklmnopqrstuvwxyz",
+      uppercase: "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+      numbers  : "1234567890",
+      symbols  : "!@#$%*+_-?",
+      symbols2 : "\",./:;'<=>(){}?@[\\]^`~&"
+    }
+    var weights = {
+      lowercase: 40,
+      uppercase: 36,
+      numbers  : 15,
+      symbols  : 9,
+      symbols2 : 9
+    }
+
+    var parts = rawSets.split(",").map(function(value) {
+      return String(value).toLowerCase().trim()
+    }).filter(function(value) {
+      return value.length > 0
+    })
+
+    var unique = []
+    var seen = {}
+    for (var i = 0; i < parts.length; i++) {
+      var name = parts[i]
+      if (!seen[name]) {
+        seen[name] = true
+        unique.push(name)
+      }
+    }
+
+    if (unique.length === 0) throw "no valid character sets provided"
+
+    var pools = []
+    var totalWeight = 0
+    for (var i = 0; i < unique.length; i++) {
+      var setName = unique[i]
+      if (!catalog.hasOwnProperty(setName)) throw "unknown character set: " + setName
+
+      var source = catalog[setName]
+      var filtered = ""
+      for (var j = 0; j < source.length; j++) {
+        var ch = source.charAt(j)
+        if (exclude.indexOf(ch) < 0) filtered += ch
+      }
+      if (filtered.length === 0) continue
+
+      var weight = weights.hasOwnProperty(setName) ? Number(weights[setName]) : 1
+      if (!isFinite(weight) || weight <= 0) weight = 1
+      weight = Math.max(1, Math.floor(weight))
+
+      pools.push({ name: setName, chars: filtered, weight: weight })
+      totalWeight += weight
+    }
+
+    if (pools.length === 0 || totalWeight <= 0) throw "no usable character sets available"
+
+    var rng = new java.security.SecureRandom()
+    var builder = new java.lang.StringBuilder()
+
+    while (builder.length() < size) {
+      var pick = rng.nextInt(totalWeight)
+      var cumulative = 0
+      var chosen = pools[0]
+      for (var k = 0; k < pools.length; k++) {
+        cumulative += pools[k].weight
+        if (pick < cumulative) {
+          chosen = pools[k]
+          break
+        }
+      }
+
+      var chars = chosen.chars
+      if (chars.length === 0) continue
+
+      var index = rng.nextInt(chars.length)
+      var candidate = chars.charAt(index)
+      builder.append(candidate)
+    }
+
+    var activeSets = pools.map(function(pool) { return pool.name })
+
+    return {
+      size    : size,
+      sets    : activeSets,
+      exclude : exclude,
+      password: String(builder.toString())
+    }
