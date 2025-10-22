@@ -22,6 +22,10 @@ help:
     desc     : The temperature to use
     example  : 0.7
     mandatory: false
+  - name     : libs
+    desc     : Comma-separated list of additional libraries to load
+    example  : utils/logger.js,@myPack/helper.js
+    mandatory: false
 
 todo:
 - Build OAF_MODEL
@@ -82,7 +86,35 @@ jobs:
       url        : isString.default(__)
       model      : isString.default(__)
       temperature: toNumber.isNumber.default(__)
+      libs       : isString.default(__)
   exec : | #js
+    // Load additional libraries if specified
+    if (isDef(args.libs) && args.libs.length > 0) {
+      args.libs.split(",").map(r => r.trim()).filter(r => r.length > 0).forEach(lib => {
+        log(`Loading library: ${lib}...`)
+        try {
+          if (lib.startsWith("@")) {
+            if (/^\@([^\/]+)\/(.+)\.js$/.test(lib)) {
+              var _ar = lib.match(/^\@([^\/]+)\/(.+)\.js$/)
+              var _path = getOPackPath(_ar[1])
+              var _file = _path + "/" + _ar[2] + ".js"
+              if (io.fileExists(_file)) {
+                loadLib(_file)
+              } else {
+                logErr(`Library '${lib}' not found.`)
+              }
+            } else {
+              logErr(`Library '${lib}' does not have the correct format (@oPack/library.js).`)
+            }
+          } else {
+            loadLib(lib)
+          }
+        } catch(e) {
+          logErr(`Failed to load library ${lib}: ${e.message}`)
+        }
+      })
+    }
+
     var iProvider = args.type, _out = {}
     if (isUnDef(args.type)) {
       iProvider = askChoose("Choose a provider: ", args.init.providers.sort())
@@ -104,7 +136,7 @@ jobs:
     }
     
     if (isDef(args.model)) _out.model = args.model
-    if (isUnDef(args.model)) {
+    if (isUnDef(args.model) && args.init.options[args.init.providers[iProvider]].includes("model")) {
       try {
         var _models = $llm( clone(_out) ).getModels()
         if (_models != null && _models.length > 0) {
@@ -132,8 +164,30 @@ jobs:
 
     // Does it have a options model?
     if (args.init.providers[iProvider] == "bedrock" && isUnDef(_out.model) && (_out.model == null || _out.model == "")) {
-      if (isMap(_out.options)) _out.options = {}
-      if (args.init.options[args.init.providers[iProvider]].includes("options.model")) {
+      if (isUnDef(_out)) _out = {}
+      if (isUnDef(_out.options)) _out.options = {}
+
+      // Region
+      if (args.init.options[args.init.providers[iProvider]].includes("options.region")) {
+        _out.options.region = ask("Enter the AWS region (or leave blank for default): ")
+        if (_out.options.region == "") delete _out.options.region
+      }
+
+      var _models = $llm( clone(_out) ).getModels()
+      if (_models != null && _models.length > 0) {
+        if (isDef(_models[0].modelId)) {
+          var _m = _models.map(r => r.modelId).sort()
+          var _modelId = askChoose( "Choose a model: ", _m )
+          _out.options.model = _m[_modelId]
+        }
+        if (isDef(_models[0].name)) {
+          var _m = _models.map(r => r.name).map(r => r.replace(/^models\//, "")).sort()
+          var _name = askChoose( "Choose a model: ", _m )
+          _out.options.model = _m[_name]
+        }
+      }
+
+      if (isUnDef(_out.options.model) && args.init.options[args.init.providers[iProvider]].includes("options.model")) {
         _out.options.model = ask("Enter the model to use (or leave blank for default): ")
         if (_out.options.model == "") delete _out.options.model
       }
@@ -152,7 +206,7 @@ jobs:
     }
 
     if (args.init.providers[iProvider] == "bedrock" && _out.temperature == null) {
-      if (isMap(_out.options)) _out.options = {}
+      if (isUnDef(_out.options)) _out.options = {}
       if (args.init.options[args.init.providers[iProvider]].includes("options.temperature")) {
         if (isDef(args.temperature)) {
           _out.options.temperature = args.temperature
@@ -165,13 +219,9 @@ jobs:
       }
     }
 
-    // Region
+    // max tokens for bedrock
     if (args.init.providers[iProvider] == "bedrock") {
-      if (isMap(_out.options)) _out.options = {}
-      if (args.init.options[args.init.providers[iProvider]].includes("options.region")) {
-        _out.options.region = ask("Enter the AWS region (or leave blank for default): ")
-        if (_out.options.region == "") delete _out.options.region
-      }
+      if (isUnDef(_out.options)) _out.options = {}
       if (args.init.options[args.init.providers[iProvider]].includes("options.params.max_tokens")) {
         var maxTokens = ask("Enter the max tokens (leave blank for default): ")
         if (maxTokens != "") {
