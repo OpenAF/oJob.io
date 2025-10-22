@@ -1,0 +1,185 @@
+# Author: Nuno Aguiar
+help:
+  text   : Build the environment model variable OAF_MODEL 
+  expects: 
+  - name     : type
+    desc     : The type of the model
+    example  : text-davinci-002
+    mandatory: false
+  - name     : key
+    desc     : The API key for the model
+    example  : sk-xxxxxx
+    mandatory: false
+  - name     : url
+    desc     : The base URL for the model API
+    example  : https://api.openai.com/v1
+    mandatory: false
+  - name     : model
+    desc     : The model to use
+    example  : gpt-4o
+    mandatory: false
+  - name     : temperature
+    desc     : The temperature to use
+    example  : 0.7
+    mandatory: false
+
+todo:
+- Build OAF_MODEL
+
+ojob:
+  opacks      :
+  - openaf: 20250715
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  providers:
+  - openai
+  - ollama
+  - anthropic
+  - gemini
+  - bedrock
+
+  options:
+    openai:             
+    - model
+    - timeout
+    - temperature
+    - key
+    - url
+    gemini:
+    - model
+    - timeout
+    - key
+    - temperature
+    - url
+    bedrock:
+    - timeout
+    - options.model
+    - options.temperature
+    - options.region
+    - options.params.max_tokens
+    ollama:
+    - model
+    - url
+    - timeout
+    - temperature
+    anthropic:
+    - model
+    - key
+    - timeout
+    - temperature
+    - url
+
+
+jobs:
+# ----------------------
+- name : Build OAF_MODEL
+  check:
+    in:
+      type       : isString.default(__)
+      key        : isString.default(__)
+      url        : isString.default(__)
+      model      : isString.default(__)
+      temperature: toNumber.isNumber.default(__)
+  exec : | #js
+    var iProvider = args.type, _out = {}
+    if (isUnDef(args.type)) {
+      iProvider = askChoose("Choose a provider: ", args.init.providers.sort())
+    }
+    _out.type = args.init.providers[iProvider]
+
+    // Does it have a key?
+    if (isDef(args.key)) _out.key = args.key
+    if (isUnDef(args.key) && args.init.options[args.init.providers[iProvider]].includes("key")) {
+      _out.key = askEncrypt("Enter your API key (it will be stored encrypted): ")
+      if (_out.key == null || _out.key == "") delete _out.key
+    }
+
+    // Does it have a url?
+    if (isDef(args.url)) _out.url = args.url
+    if (isUnDef(args.url) && args.init.options[args.init.providers[iProvider]].includes("url")) {
+      _out.url = ask("Enter the API base URL (or leave blank for default): ")
+      if (_out.url == null || _out.url == "") delete _out.url
+    }
+    
+    if (isDef(args.model)) _out.model = args.model
+    if (isUnDef(args.model)) {
+      try {
+        var _models = $llm( clone(_out) ).getModels()
+        if (_models != null && _models.length > 0) {
+          if (isDef(_models[0].id)) {
+            var _m = _models.map(r => r.id).sort()
+            var _id = askChoose( "Choose a model: ", _m )
+            _out.model = _m[_id]
+          }
+          if (isDef(_models[0].name)) {
+            var _m = _models.map(r => r.name).map(r => r.replace(/^models\//, "")).sort()
+            var _name = askChoose( "Choose a model: ", _m )
+            _out.model = _m[_name]
+          }
+        }
+      } catch(e) {
+          $err(e)
+      }
+    }
+
+    // Does it have a model?
+    if (isUnDef(_out.model) && args.init.options[args.init.providers[iProvider]].includes("model")) {
+      _out.model = ask("Enter the model to use (or leave blank for default): ")
+      if (_out.model == "") delete _out.model
+    }
+
+    // Does it have a options model?
+    if (args.init.providers[iProvider] == "bedrock" && isUnDef(_out.model) && (_out.model == null || _out.model == "")) {
+      if (isMap(_out.options)) _out.options = {}
+      if (args.init.options[args.init.providers[iProvider]].includes("options.model")) {
+        _out.options.model = ask("Enter the model to use (or leave blank for default): ")
+        if (_out.options.model == "") delete _out.options.model
+      }
+    }
+
+    // Timeout
+    _out.timeout = 900000
+
+    // Temperature
+    if (isDef(args.temperature) && args.init.providers[iProvider] != "bedrock") _out.temperature = args.temperature
+    if (isUnDef(args.temperature) && args.init.options[args.init.providers[iProvider]].includes("temperature")) {
+      var temp = ask("Enter the temperature (leave blank for default): ")
+      if (temp != "") {
+        _out.temperature = parseFloat(temp)
+      }
+    }
+
+    if (args.init.providers[iProvider] == "bedrock" && _out.temperature == null) {
+      if (isMap(_out.options)) _out.options = {}
+      if (args.init.options[args.init.providers[iProvider]].includes("options.temperature")) {
+        if (isDef(args.temperature)) {
+          _out.options.temperature = args.temperature
+        } else {
+          var temp = ask("Enter the temperature (leave blank for default): ")
+          if (temp != "") {
+            _out.options.temperature = parseFloat(temp)
+          }
+        }
+      }
+    }
+
+    // Region
+    if (args.init.providers[iProvider] == "bedrock") {
+      if (isMap(_out.options)) _out.options = {}
+      if (args.init.options[args.init.providers[iProvider]].includes("options.region")) {
+        _out.options.region = ask("Enter the AWS region (or leave blank for default): ")
+        if (_out.options.region == "") delete _out.options.region
+      }
+      if (args.init.options[args.init.providers[iProvider]].includes("options.params.max_tokens")) {
+        var maxTokens = ask("Enter the max tokens (leave blank for default): ")
+        if (maxTokens != "") {
+          _out.options.params = {}
+          _out.options.params.max_tokens = parseInt(maxTokens)
+        }
+      }
+    }
+
+    print()
+    print(`${ansiColor('FAINT,ITALIC', 'OAF_MODEL="')}${af.toCSLON(_out)}${ansiColor('FAINT,ITALIC', '"')}`)
