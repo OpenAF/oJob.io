@@ -1,0 +1,99 @@
+# Author: Nuno Aguiar
+help:
+  text   : Mirrors the latest tags from a source container registry to a target container registry using skopeo.
+  expects: 
+  - name     : file
+    desc     : File to process with list of items to mirror.
+    example  : list.yaml
+    mandatory: true
+
+todo:
+- Process list
+
+ojob:
+  opacks      :
+  - openaf: 20250715
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.code)
+  logToConsole: true   # to change when finished
+
+jobs:
+# -----------------------
+- name : Check for skopeo
+  exec : | #js
+    var _res = $sh("skopeo --version").get(0)
+    if (_res.exitcode != 0) {
+      throw new Error("skopeo is not installed or not found in PATH.")
+    }
+    log("skopeo found: " + _res.stdout.trim())
+
+# -------------------
+- name : Process list
+  from: 
+  - Check for skopeo
+  each :
+  - Mirror images
+  check:
+    in:
+      file: isString
+  exec : | #js
+    var _list = io.readFileYAML(args.file)
+    if (!isArray(_list)) throw new Error("File does not contain a list: " + args.file)
+
+    log(`🚀 Processing #${_list.length} items from file: ${args.file}`)
+    _list.forEach(item => {
+      each(item)
+    })
+
+# --------------------
+- name : Mirror images
+  check:
+    in:
+      repo  : isString
+      target: isString
+      incRe : default(".*")
+      excRe : default("^$")
+      always: default(__)
+      dryRun: isBoolean.default(true)
+  exec : | #js
+    var _source_tags = [], _target_tags = []
+
+    // Prepare
+    if (!isArray(args.incRe)) args.incRe = [args.incRe]
+    if (!isArray(args.excRe)) args.excRe = [args.excRe]
+    if (isUnDef(args.always)) args.always = []
+    if (!isArray(args.always)) args.always = [args.always]
+
+    // Source
+    var _source = $sh(`skopeo list-tags docker://${args.repo}`).getJson(0)
+    if (_source.exitcode == 0) {
+      _source_tags = _source.stdout.Tags.filter(t =>
+        args.incRe.some(re => t.match(new RegExp(re))) &&
+        !args.excRe.some(re => t.match(new RegExp(re)))
+      )
+      _source_tags = _source_tags.concat(args.always)
+    }
+    log(`${args.target} | 📦 Source tags: #${_source_tags.length}`)
+
+    // Target
+    var _target = $sh(`skopeo list-tags docker://${args.target}`).getJson(0)
+    if (_target.exitcode == 0) {
+      _target_tags = _target.stdout.Tags.filter(t =>
+        args.incRe.some(re => t.match(new RegExp(re))) &&
+        !args.excRe.some(re => t.match(new RegExp(re)))
+      )
+      _target_tags = _target_tags.filter(r => !args.always.includes(r))
+    }
+    log(`${args.target} | 🎯 Target tags: #${_target_tags.length}`)
+
+    log(`${args.target} | 📋 Tags to copy: #${_source_tags.filter(r => !_target_tags.includes(r)).length}`)
+
+    // Mirror
+    pForEach(_source_tags.filter(r => !_target_tags.includes(r)), t => {
+      log(`${args.target} | 🔄 Mirror tag: ${t}${args.dryRun ? " (dry run)" : ""}`)
+      if (!args.dryRun) {
+        var _res = $sh(`skopeo copy --all docker://${args.repo}:${t} docker://${args.target}:${t}`).get(0)
+        if (_res.exitcode != 0) {
+          logErr(`${args.target} | ❌ Error copying tag ${t}: ${_res.stderr}`)
+        }
+      }
+    })
