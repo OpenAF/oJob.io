@@ -1,0 +1,29 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the Docker authentication token for AWS ECR.
+  expects: 
+  - name     : region
+    desc     : AWS region to retrieve the token
+    example  : us-east-1
+    mandatory: false
+
+todo:
+- Get ECR auth token
+
+ojob:
+  opacks      :
+  - openaf: 20250725
+  - AWS
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false   # to change when finished
+  loadLibs    :
+  - aws.js
+
+jobs:
+# -------------------------
+- name : Get ECR auth token
+  check:
+    in:
+      region: isString.default("us-east-1")
+  exec : |
+    print((new AWS()).ECR_GetAuthorizationToken(args.region).authorizationToken)
