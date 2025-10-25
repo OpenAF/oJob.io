@@ -6,6 +6,10 @@ help:
     desc     : AWS region to retrieve the token
     example  : us-east-1
     mandatory: false
+  - name     : justtoken
+    desc     : If true, only the token is returned without decoding
+    example  : "false"
+    mandatory: false
 
 todo:
 - Get ECR auth token
@@ -24,6 +28,10 @@ jobs:
 - name : Get ECR auth token
   check:
     in:
-      region: isString.default("us-east-1")
-  exec : |
-    print((new AWS()).ECR_GetAuthorizationToken(args.region).authorizationToken)
+      region   : isString.default("us-east-1")
+      justtoken: toBoolean.isBoolean.default(false)
+  exec : | #js
+    var aws = new AWS()
+    var ecrToken = aws.ECR_GetAuthorizationToken(args.region).authorizationToken
+    var decodedToken = args.justtoken ? ow.format.fromBase64(ecrToken).split(":")[1] : ow.format.fromBase64(ecrToken).split(":").join(",")
+    printnl(decodedToken)
