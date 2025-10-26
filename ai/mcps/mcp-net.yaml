@@ -176,8 +176,11 @@ ojob:
   logToConsole: false   # to change when finished
   argsFromEnvs: true
   daemon      : true
-  owraps     :
+  owraps      :
   - Net
+  unique      :
+    pidFile     : .mcp-net.pid
+    killPrevious: true
         
 include:
 - oJobMCP.yaml

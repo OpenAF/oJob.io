@@ -221,6 +221,9 @@ ojob:
   daemon      : true
   loadLibs    :
   - kube.js
+  unique      :
+    pidFile     : .mcp-kube.pid
+    killPrevious: true
 
 include:
 - oJobMCP.yaml

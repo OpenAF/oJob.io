@@ -112,6 +112,9 @@ ojob:
   logToConsole: false   # to change when finished
   argsFromEnvs: true
   daemon      : true
+  unique      :
+    pidFile     : .mcp-email.pid
+    killPrevious: true
 
 include:
 - oJobMCP.yaml

@@ -1,0 +1,708 @@
+# Author: OpenAI Assistant, Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP file management server backed by OpenAF io utilities
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : root
+    desc     : "Base directory restricting all file operations (default: current directory)"
+    example  : "/workspace"
+    mandatory: false
+  - name     : readwrite
+    desc     : 'If true, allows write/delete operations (default: false)'
+    example  : "true"
+    mandatory: false
+
+todo:
+- Init file context
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-file
+        title  : OpenAF mini-a MCP file management server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      read-file:
+        name       : read-file
+        description: Reads text content from a file within the configured root using io.readFileString.
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Path to the file (relative to the root by default).
+              example    : "./notes/today.md"
+            encoding:
+              type       : string
+              description: "Optional charset passed to io.readFileString (default: utf-8)."
+              example    : "utf-8"
+              default    : "utf-8"
+          required  : [ path ]
+        annotations:
+          title         : read-file
+          readOnlyHint  : true
+          idempotentHint: true
+
+      list-directory:
+        name       : list-directory
+        description: Lists the files and directories inside a folder using io.listFiles and io.fileInfo.
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Directory to inspect (relative to the root when not absolute).
+              example    : "./notes"
+              default    : "."
+            recursive:
+              type       : boolean
+              description: Recursively traverse child directories when true.
+              example    : false
+              default    : false
+            includeHidden:
+              type       : boolean
+              description: Include hidden files (those starting with a dot).
+              example    : false
+              default    : false
+          required  : [ ]
+        annotations:
+          title         : list-directory
+          readOnlyHint  : true
+          idempotentHint: true
+
+      search-content:
+        name       : search-content
+        description: Searches files for a pattern using io.listFiles and io.readFileString.
+        inputSchema:
+          type      : object
+          properties:
+            pattern:
+              type       : string
+              description: Text or regular expression to locate.
+              example    : "TODO"
+            path:
+              type       : string
+              description: File or directory to search (defaults to the root directory).
+              example    : "./"
+              default    : "."
+            regex:
+              type       : boolean
+              description: Treat the pattern as a regular expression.
+              example    : false
+              default    : false
+            caseSensitive:
+              type       : boolean
+              description: Enable case-sensitive matching when true.
+              example    : false
+              default    : true
+            recursive:
+              type       : boolean
+              description: Recurse into subdirectories when searching directories.
+              example    : true
+              default    : true
+            maxResults:
+              type       : integer
+              description: Maximum number of matches to return (0 means unlimited).
+              example    : 100
+              default    : 0
+          required  : [ pattern ]
+        annotations:
+          title         : search-content
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-file-info:
+        name       : get-file-info
+        description: Retrieves metadata for a file or directory using io.fileInfo.
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Path to inspect.
+              example    : "./notes/today.md"
+          required  : [ path ]
+        annotations:
+          title         : get-file-info
+          readOnlyHint  : true
+          idempotentHint: true
+
+      write-file:
+        name       : write-file
+        description: Writes text content to a file using io.writeFileString (supports append; requires readwrite=true).
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: File path to create or update.
+              example    : "./notes/today.md"
+            content:
+              type       : string
+              description: Text to write into the file.
+              example    : "Hello, world!"
+            encoding:
+              type       : string
+              description: Charset passed to io.writeFileString.
+              example    : "utf-8"
+              default    : "utf-8"
+            createMissingDirs:
+              type       : boolean
+              description: Create parent directories when they do not exist.
+              example    : true
+              default    : true
+            append:
+              type       : boolean
+              description: When true, appends content to the file instead of overwriting.
+              example    : false
+              default    : false
+          required  : [ path, content ]
+        annotations:
+          title         : write-file
+          readOnlyHint  : false
+          idempotentHint: false
+
+      delete-file:
+        name       : delete-file
+        description: Deletes a file or directory using io.rm (requires readwrite=true).
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: File or directory path to remove.
+              example    : "./notes/old.txt"
+            recursive:
+              type       : boolean
+              description: Allow deleting non-empty directories when true.
+              example    : false
+              default    : false
+            confirm:
+              type       : boolean
+              description: Additional safety flag that must be true to proceed.
+              example    : true
+              default    : false
+          required  : [ path ]
+        annotations:
+          title         : delete-file
+          readOnlyHint  : false
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      read-file      : Read File
+      list-directory : List Directory
+      search-content : Search Content
+      get-file-info  : Get File Info
+      write-file     : Write File
+      delete-file    : Delete File
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-file.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------------------
+- name : Init file context
+  check:
+    in:
+      root      : isString.default(".")
+      readwrite : toBoolean.isBoolean.default(false)
+  exec : | #js
+    var File = Packages.java.io.File
+    var rootPath = args.root || "."
+    var rootFile = new File(rootPath)
+    var canonicalRoot = String(rootFile.getCanonicalPath())
+    if (!rootFile.exists()) {
+      return "[ERROR] Root path not found: " + rootPath
+    }
+    if (!rootFile.isDirectory()) {
+      return "[ERROR] Root path is not a directory: " + canonicalRoot
+    }
+
+    var info = io.fileInfo(canonicalRoot)
+    if (isUnDef(info) || info.isDirectory !== true) {
+      return "[ERROR] Unable to load directory information for: " + canonicalRoot
+    }
+
+    global.__fileRoot__      = canonicalRoot
+    global.__fileReadWrite__ = args.readwrite === true
+
+    var FileSep = String(Packages.java.io.File.separator)
+    var rootCheck = canonicalRoot
+    if (!rootCheck.endsWith(FileSep)) {
+      rootCheck = rootCheck + FileSep
+    }
+
+    global.__fileWithinRoot__ = function(candidate) {
+      if (candidate === canonicalRoot) return true
+      return candidate.indexOf(rootCheck) === 0
+    }
+
+    global.__fileSeparator__ = FileSep
+
+    global.__toRelative__ = function(targetPath) {
+      if (!isString(targetPath)) return targetPath
+      if (!global.__fileWithinRoot__(targetPath)) return targetPath
+      var relative = targetPath.substring(global.__fileRoot__.length)
+      if (relative.startsWith(global.__fileSeparator__)) {
+        relative = relative.substring(global.__fileSeparator__.length)
+      }
+      if (relative.length === 0) {
+        relative = "."
+      }
+      return relative
+    }
+
+    global.__fileResolve__ = function(target) {
+      var FileRef = Packages.java.io.File
+      var candidate = new FileRef(target)
+      if (!candidate.isAbsolute()) {
+        candidate = new FileRef(global.__fileRoot__, target)
+      }
+      var resolved = String(candidate.getCanonicalPath())
+      if (!global.__fileWithinRoot__(resolved)) {
+        throw new Error("Path outside of allowed root: " + target)
+      }
+      return resolved
+    }
+
+    global.__ensureWritable__ = function(operation) {
+      if (!global.__fileReadWrite__) {
+        throw new Error("Read-only mode. Set readwrite=true to allow " + operation)
+      }
+    }
+
+    var listNestedKeys = ["files", "dirs", "children", "items", "list", "entries", "content"]
+
+    global.__listEntries__ = function(baseDir, options) {
+      options = options || {}
+      var includeHidden = options.includeHidden === true
+      var recursive = options.recursive === true
+      var results = []
+      var seen = {}
+      var FileRef = File
+
+      var pushEntry = function(fullPath) {
+        if (!isString(fullPath)) return
+        if (!global.__fileWithinRoot__(fullPath)) return
+        if (fullPath === baseDir) return
+        if (seen[fullPath]) return
+        var fileObj = new FileRef(fullPath)
+        var fileName = String(fileObj.getName())
+        if (!includeHidden && (fileObj.isHidden() || fileName.charAt(0) === '.')) return
+        var info = io.fileInfo(fullPath)
+        if (isUnDef(info)) return
+        info.filename = isString(info.filename) ? info.filename : fileName
+        //info.canonicalPath = isString(info.canonicalPath) ? info.canonicalPath : fullPath
+        info.lastModified = isDef(info.lastModified) ? new Date(info.lastModified) : __
+        info.createTime = isDef(info.createTime) ? new Date(info.createTime) : __
+        info.lastAccess = isDef(info.lastAccess) ? new Date(info.lastAccess) : __
+        //info.filepath = isString(info.filepath) ? info.filepath : fullPath
+        //info.path = info.canonicalPath
+        info.relativePath = global.__toRelative__(info.canonicalPath || fullPath)
+        info.isDirectory = info.isDirectory === true
+        info.isFile = info.isFile === true
+        info.hidden = fileObj.isHidden()
+
+        delete info.canonicalPath
+        delete info.filepath
+        delete info.path
+
+        results.push(info)
+        seen[fullPath] = true
+      }
+
+      var _traverse = function(value, ctxDir) {
+        if (isUnDef(value)) return
+        if (isArray(value)) {
+          value.forEach(function(entry) {
+            _traverse(entry, ctxDir)
+          })
+          return
+        }
+        if (isString(value)) {
+          try {
+            var fromString = new FileRef(isString(ctxDir) ? ctxDir : baseDir, value)
+            var resolved = String(fromString.getCanonicalPath())
+            pushEntry(resolved)
+          } catch (innerErr) {
+            // Ignore malformed entries
+          }
+          return
+        }
+        if (isMap(value)) {
+          var resolved
+          var candidate = value.canonicalPath || value.filepath || value.path
+          if (isString(candidate)) {
+            try {
+              var fileCandidate = new FileRef(candidate)
+              if (!fileCandidate.isAbsolute()) {
+                fileCandidate = new FileRef(isString(ctxDir) ? ctxDir : baseDir, candidate)
+              }
+              resolved = String(fileCandidate.getCanonicalPath())
+              pushEntry(resolved)
+            } catch (innerErr2) {
+              resolved = null
+            }
+          } else if (isString(value.filename)) {
+            try {
+              var parentDir = value.directory
+              var baseForName
+              if (isString(parentDir)) {
+                baseForName = new FileRef(parentDir)
+                if (!baseForName.isAbsolute()) {
+                  baseForName = new FileRef(isString(ctxDir) ? ctxDir : baseDir, parentDir)
+                }
+              } else {
+                baseForName = new FileRef(isString(ctxDir) ? ctxDir : baseDir)
+              }
+              resolved = String(new FileRef(baseForName, value.filename).getCanonicalPath())
+              pushEntry(resolved)
+            } catch (innerErr3) {
+              resolved = null
+            }
+          }
+
+          var childContext = resolved
+          if (!isString(childContext) || value.isDirectory !== true) {
+            childContext = ctxDir
+          }
+          listNestedKeys.forEach(function(key) {
+            if (isDef(value[key])) {
+              _traverse(value[key], childContext)
+            }
+          })
+        }
+      }
+
+      var fallbackEnumerate = function(currentDir) {
+        try {
+          var listed = io.listFiles(currentDir) || []
+          if (isArray(listed)) {
+            listed.forEach(function(entry) {
+              try {
+                var childFile = new FileRef(currentDir, entry)
+                var childPath = String(childFile.getCanonicalPath())
+                pushEntry(childPath)
+                if (recursive) {
+                  var childInfo = io.fileInfo(childPath)
+                  if (isDef(childInfo) && childInfo.isDirectory === true) {
+                    fallbackEnumerate(childPath)
+                  }
+                }
+              } catch (innerErr) {
+                // Ignore
+              }
+            })
+          } else {
+            _traverse(listed, currentDir)
+          }
+        } catch (innerErr2) {
+          // Ignore fallback errors
+        }
+      }
+
+      var raw
+      try {
+        raw = recursive ? io.listFilesRecursive(baseDir) : io.listFiles(baseDir)
+      } catch (e) {
+        raw = null
+      }
+
+      if (isUnDef(raw)) {
+        fallbackEnumerate(baseDir)
+      } else {
+        _traverse(raw, baseDir)
+        if (results.length === 0) {
+          fallbackEnumerate(baseDir)
+        }
+      }
+
+      results.sort(function(a, b) {
+        var left = isDef(a.relativePath) ? String(a.relativePath) : String(a.path || a.filename || "")
+        var right = isDef(b.relativePath) ? String(b.relativePath) : String(b.path || b.filename || "")
+        return left.localeCompare(right)
+      })
+
+      return results
+    }
+
+# ----------------
+- name : Read File
+  check:
+    in:
+      path    : isString
+      encoding: isString.default("utf-8")
+  exec : | #js
+    try {
+      if (isUnDef(global.__fileResolve__)) {
+        throw new Error("File context not initialized")
+      }
+      var filePath = global.__fileResolve__(args.path)
+      if (!io.fileExists(filePath)) {
+        return "[ERROR] File not found: " + args.path
+      }
+      var details = io.fileInfo(filePath)
+      if (isUnDef(details) || details.isFile !== true) {
+        return "[ERROR] Path is not a file: " + args.path
+      }
+      var encoding = args.encoding || "utf-8"
+      var content = io.readFileString(filePath, encoding)
+      details.path = isString(details.canonicalPath) ? details.canonicalPath : filePath
+      details.relativePath = global.__toRelative__(details.path)
+      details.encoding = encoding
+      details.content = content
+      return details
+    } catch (e) {
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# ---------------------
+- name : List Directory
+  check:
+    in:
+      path          : isString.default(".")
+      recursive     : toBoolean.isBoolean.default(false)
+      includeHidden : toBoolean.isBoolean.default(false)
+  exec : | #js
+    try {
+      if (isUnDef(global.__fileResolve__)) {
+        throw new Error("File context not initialized")
+      }
+      var dirPath = global.__fileResolve__(args.path)
+      var info = io.fileInfo(dirPath)
+      if (isUnDef(info) || info.isDirectory !== true) {
+        return "[ERROR] Path is not a directory: " + args.path
+      }
+      var includeHidden = args.includeHidden === true
+      var recursive = args.recursive === true
+      return global.__listEntries__(dirPath, {
+        recursive    : recursive,
+        includeHidden: includeHidden
+      })
+    } catch (e) {
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# ---------------------
+- name : Search Content
+  check:
+    in:
+      pattern      : isString
+      path         : isString.default(".")
+      regex        : toBoolean.isBoolean.default(false)
+      caseSensitive: toBoolean.isBoolean.default(true)
+      recursive    : toBoolean.isBoolean.default(true)
+      maxResults   : toNumber.isNumber.default(0)
+  exec : | #js
+    try {
+      if (isUnDef(global.__fileResolve__)) {
+        throw new Error("File context not initialized")
+      }
+      var startPath = global.__fileResolve__(args.path)
+      var searchInfo = io.fileInfo(startPath)
+      if (isUnDef(searchInfo)) {
+        return "[ERROR] Path not found: " + args.path
+      }
+
+      var regexMode = args.regex === true
+      var caseSensitive = args.caseSensitive === true
+      var maxResults = Number(args.maxResults || 0)
+      var collected = $atomic(0, "long")
+
+      var buildRegex = function() {
+        var flags = caseSensitive ? "g" : "gi"
+        return new RegExp(args.pattern, flags)
+      }
+
+      var matcher
+      if (regexMode) {
+        matcher = buildRegex()
+      }
+
+      var processFile = function(fInfo) {
+        try {
+        var filePath = fInfo.filepath
+        if (maxResults > 0 && collected.get() >= maxResults) return
+        var content = io.readFileString(filePath)
+        var lines = content.split(/\r?\n/)
+        for (var i = 0; i < lines.length; i++) {
+          if (maxResults > 0 && collected.get() >= maxResults) break
+          var line = lines[i]
+          var matched = false
+          if (regexMode) {
+            matcher.lastIndex = 0
+            matched = matcher.test(line)
+          } else {
+            if (!caseSensitive) {
+              matched = line.toLowerCase().indexOf(String(args.pattern).toLowerCase()) >= 0
+            } else {
+              matched = line.indexOf(args.pattern) >= 0
+            }
+          }
+          if (matched) {
+            collected.inc()
+            return {
+              path        : filePath,
+              relativePath: global.__toRelative__(filePath),
+              line        : i + 1,
+              preview     : line
+            }
+          } else {
+            return __
+          }
+        }
+        } catch(ee) {
+          return { error: ee }
+        }
+      }
+
+      return pForEach(listFilesRecursive(startPath), processFile).filter(r => r != null && isMap(r))
+    } catch (e) {
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# --------------------
+- name : Get File Info
+  check:
+    in:
+      path: isString
+  exec : | #js
+    try {
+      if (isUnDef(global.__fileResolve__)) {
+        throw new Error("File context not initialized")
+      }
+      var filePath = global.__fileResolve__(args.path)
+      if (!io.fileExists(filePath)) {
+        return "[ERROR] Path not found: " + args.path
+      }
+      var info = io.fileInfo(filePath)
+      if (isUnDef(info)) {
+        return "[ERROR] Unable to retrieve file info: " + args.path
+      }
+      info.path = isString(info.canonicalPath) ? info.canonicalPath : filePath
+      info.relativePath = global.__toRelative__(info.path)
+      return info
+    } catch (e) {
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# -----------------
+- name : Write File
+  check:
+    in:
+      path             : isString
+      content          : isString
+      encoding         : isString.default("utf-8")
+      createMissingDirs: toBoolean.isBoolean.default(true)
+      append           : toBoolean.isBoolean.default(false)
+  exec : | #js
+    try {
+      if (isUnDef(global.__fileResolve__)) {
+        throw new Error("File context not initialized")
+      }
+      global.__ensureWritable__("write operations")
+      var filePath = global.__fileResolve__(args.path)
+      var File = Packages.java.io.File
+      var targetFile = new File(filePath)
+      var parent = targetFile.getParentFile()
+      if (args.createMissingDirs !== false && parent !== null && !parent.exists()) {
+        parent.mkdirs()
+      }
+      io.writeFileString(filePath, args.content, args.encoding || "utf-8", args.append === true)
+      var info = io.fileInfo(filePath)
+      if (isDef(info)) {
+        info.path = isString(info.canonicalPath) ? info.canonicalPath : filePath
+        info.relativePath = global.__toRelative__(info.path)
+        info.encoding = args.encoding || "utf-8"
+        info.contentLength = args.content.length
+        info.append = args.append === true
+        return info
+      }
+      return {
+        path         : filePath,
+        relativePath : global.__toRelative__(filePath),
+        size         : args.content.length,
+        encoding     : args.encoding || "utf-8"
+      }
+    } catch (e) {
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# ------------------
+- name : Delete File
+  check:
+    in:
+      path    : isString
+      recursive: toBoolean.isBoolean.default(false)
+      confirm : toBoolean.isBoolean.default(false)
+  exec : | #js
+    try {
+      if (isUnDef(global.__fileResolve__)) {
+        throw new Error("File context not initialized")
+      }
+      global.__ensureWritable__("delete operations")
+      if (args.confirm !== true) {
+        return "[ERROR] Deletion blocked: confirm=true is required"
+      }
+      var targetPath = global.__fileResolve__(args.path)
+      if (!io.fileExists(targetPath)) {
+        return "[ERROR] Path not found: " + args.path
+      }
+      var info = io.fileInfo(targetPath)
+      if (isUnDef(info)) {
+        return "[ERROR] Unable to retrieve target info: " + args.path
+      }
+      if (info.isDirectory === true && args.recursive !== true) {
+        return "[ERROR] Path is a directory. Set recursive=true to delete directories"
+      }
+      if (info.isDirectory === true) {
+        var entries = global.__listEntries__(targetPath, {
+          recursive    : true,
+          includeHidden: true
+        })
+        entries.sort(function(a, b) {
+          var left = String(a.canonicalPath || a.path || "")
+          var right = String(b.canonicalPath || b.path || "")
+          return right.length - left.length
+        })
+        entries.forEach(function(entry) {
+          try {
+            io.rm(entry.canonicalPath || entry.path)
+          } catch (innerErr) {
+            throw innerErr
+          }
+        })
+      }
+
+      io.rm(targetPath)
+      return {
+        path         : targetPath,
+        relativePath : global.__toRelative__(targetPath),
+        deleted      : true,
+        type         : info.isDirectory === true ? "directory" : "file"
+      }
+    } catch (e) {
+      return "[ERROR] " + (e.message || String(e))
+    }
