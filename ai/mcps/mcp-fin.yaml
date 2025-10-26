@@ -1,0 +1,122 @@
+# Author: OpenAI Assistant, Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP Yahoo Finance information server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Initialise YFinance
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-fin
+        title  : OpenAF mini-a MCP Yahoo Finance information server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+
+      get-ticker-data:
+        name       : get-ticker-data
+        description: Retrieves time series price data and indicators for a Yahoo Finance ticker symbol.
+        inputSchema:
+          type      : object
+          properties:
+            symbol:
+              type        : string
+              description : The Yahoo Finance ticker symbol to query (e.g., AAPL, MSFT, ^GSPC).
+            raw:
+              type        : boolean
+              description : If true returns the raw Yahoo Finance response without transformation.
+              default     : false
+          required: [ symbol ]
+        annotations:
+          title         : get-ticker-data
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-ticker-fundamentals:
+        name       : get-ticker-fundamentals
+        description: Retrieves fundamental company information for a Yahoo Finance ticker symbol.
+        inputSchema:
+          type      : object
+          properties:
+            symbol:
+              type        : string
+              description : The Yahoo Finance ticker symbol to query (e.g., AAPL, MSFT, ^GSPC).
+            raw:
+              type        : boolean
+              description : If true returns the raw Yahoo Finance response without transformation.
+              default     : false
+          required: [ symbol ]
+        annotations:
+          title         : get-ticker-fundamentals
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      get-ticker-data        : Get ticker data
+      get-ticker-fundamentals: Get ticker fundamentals
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20251012
+  - APIs       : 20220515
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-fin.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# --------------------------
+- name : Initialise YFinance
+  check:
+    in:
+      libs: isString.default("")
+  exec : | #js
+    if (global.__yfinanceInitialised__) return
+
+    global.__yfinanceAPI__ = require("apiYFinance.js")
+    global.__yfinanceInitialised__ = true
+
+# ----------------------
+- name : Get ticker data
+  check:
+    in:
+      symbol: isString
+      raw   : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (!global.__yfinanceInitialised__) {
+      $job("Initialise YFinance")
+    }
+    return global.__yfinanceAPI__.getTicketData(args.symbol, args.raw)
+
+# ------------------------------
+- name : Get ticker fundamentals
+  check:
+    in:
+      symbol: isString
+      raw   : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (!global.__yfinanceInitialised__) {
+      $job("Initialise YFinance")
+    }
+    return global.__yfinanceAPI__.getTicketFundamentals(args.symbol, args.raw)
