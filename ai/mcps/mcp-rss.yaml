@@ -1,0 +1,223 @@
+# Author: OpenAI Assistant, Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP RSS utility server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : userAgent
+    desc     : Optional User-Agent header to use when requesting RSS feeds or metadata
+    example  : "mini-a-mcp-rss"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-rss
+        title  : OpenAF mini-a MCP RSS utility server
+        version: 1.0.0
+
+    ((fnsMeta)): &MCPFNSMETA
+
+      get-rss-feed:
+        name       : get-rss-feed
+        description: Retrieves and normalises items from a RSS/Atom feed URL. Use also 'find-rss-url' to locate known feed URLs.
+        inputSchema:
+          type      : object
+          properties:
+            url:
+              type       : string
+              description: The RSS/Atom URL to retrieve.
+            nodesc:
+              type       : boolean
+              description: If true removes descriptions from the output.
+              default    : false
+            path:
+              type       : string
+              description: Optional JSON path to the array of items (defaults to rss.channel.item or detected path).
+            userAgent:
+              type       : string
+              description: Overrides the HTTP User-Agent header used for the request.
+          required: [ url ]
+        annotations:
+          title         : get-rss-feed
+          readOnlyHint  : true
+          idempotentHint: true
+
+      find-rss-url:
+        name       : find-rss-url
+        description: Finds RSS/Atom feed URLs for known sources using the ojob.io/news catalogue.
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: Word or partial name to search for in the feed catalogue.
+          required: [ query ]
+        annotations:
+          title         : find-rss-url
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      get-rss-feed: Get RSS feed
+      find-rss-url: Find RSS URL
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-rss.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+init:
+  defaultPath: rss.channel.item
+  catalogueAPI:
+  - name: aws
+    url : https://aws.amazon.com/blogs/aws/feed
+  - name: adoptium
+    url : https://adoptium.net/rss.xml
+  - name: awsnews
+    url : https://aws.amazon.com/about-aws/whats-new/recent/feed/
+  - name: azure
+    url : https://azure.microsoft.com/en-us/blog/feed
+  - name: bbc
+    url : http://feeds.bbci.co.uk/news/rss.xml?edition=int
+  - name: cnet
+    url : https://www.cnet.com/rss/news/
+  - name: engadget
+    url : https://www.engadget.com/rss.xml
+  - name: facebook
+    url : https://engineering.fb.com/feed/
+  - name: gcp
+    url : https://cloudblog.withgoogle.com/rss
+  - name: github
+    url : https://github.blog/feed/
+  - name: github-changelog
+    url : https://github.blog/changelog/feed/
+  - name: google
+    url : https://www.blog.google/rss/
+  - name: hackernews
+    url : http://feeds.feedburner.com/TheHackersNews?format=xml
+  - name: helm
+    url : https://helm.sh/blog/index.xml
+  - name: k8s
+    url : https://kubernetes.io/feed.xml
+  - name: macrumors
+    url : http://feeds.macrumors.com/MacRumors-All
+  - name: microsoft
+    url : https://blogs.microsoft.com/feed/
+  - name: microsoft-insider
+    url : https://insider.microsoft365.com/rss/blog
+  - name: nytimes
+    url : https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/section/world/rss.xml
+  - name: openai
+    url : https://openai.com/blog/rss.xml
+  - name: oraclecloud
+    url : https://blogs.oracle.com/cloud-infrastructure/rss
+  - name: ovh
+    url : https://blog.ovhcloud.com/feed/
+  - name: redhatcloud
+    url : https://cloud.redhat.com/blog/rss.xml
+  - name: scaleway
+    url : https://blog.scaleway.com/rss/
+  - name: slashdot
+    url : http://rss.slashdot.org/Slashdot/slashdotMain
+  - name: techcrunch
+    url : https://techcrunch.com/rss
+  - name: the-register
+    url : https://www.theregister.com/headlines.rss
+  - name: the-verge
+    url : https://www.theverge.com/rss/index.xml
+  - name: tomshardware
+    url : https://www.tomshardware.com/feeds/all
+  - name: wired
+    url : http://feeds.wired.com/wired/index
+
+jobs:
+# -----------
+- name : Init
+  exec : | #js
+    // Initialization job (no operation needed for now)
+    global.catalogueAPI = args.init.catalogueAPI
+    global.defaultPath  = args.init.defaultPath
+
+# -------------------
+- name : Get RSS feed
+  check:
+    in:
+      url      : isString
+      nodesc   : toBoolean.isBoolean.default(false)
+      path     : isString.default(__)
+      userAgent: isString.default(__)
+  exec : | #js
+    var fnText = v => {
+      if (isUnDef(v) || v === null) return ""
+      if (isMap(v) && isDef(v.null)) v = v.null
+      return String(v).replace(/<.+?>/g, "").replace(/(( |\n)( |\n))+/g, "$1").trim()
+    }
+
+    var normalise = item => {
+      if (isUnDef(item.date) && isDef(item.published)) item.date = new Date(item.published)
+      if (isUnDef(item.description) && isDef(item.content)) item.description = String(item.content).replace(/<[^>]+>/g, "").trim()
+      if (isDef(item.id) && isUnDef(item.link) && String(item.id).startsWith("http")) item.link = item.id
+      return item
+    }
+
+    if (isUnDef(args.path)) args.path = global.defaultPath
+
+    var rest = $rest({ requestHeaders: { "User-Agent": args.userAgent || "mini-a-mcp-rss" } })
+    var xml = rest.get(args.url)
+    var rssObj = af.fromXML2Obj(xml)
+    var wrapper = $$(rssObj)
+    var items = wrapper.get(args.path)
+
+    if (isUnDef(items) && args.path != "feed.entry") {
+      items = wrapper.get("feed.entry")
+    }
+
+    if (isUnDef(items)) return []
+
+    var mapped = (isArray(items) ? items : [ items ]).map(normalise).map(item => {
+      var base = {
+        title: fnText(item.title),
+        date : isDef(item.date) ? new Date(item.date) : new Date(isDef(item.pubDate) ? item.pubDate : Date.now()),
+        link : item.link
+      }
+      if (!args.nodesc) base.description = fnText(item.description)
+      return base
+    })
+
+    return mapped
+
+# -------------------
+- name : Find RSS URL
+  check:
+    in:
+      query    : isString
+  exec : | #js
+    var rest = $rest({ requestHeaders: { "User-Agent": args.userAgent || "mini-a-mcp-rss" } })
+    
+    var results = global.catalogueAPI.filter(api => api.name.toLowerCase().includes(args.query.toLowerCase()))
+    return results
