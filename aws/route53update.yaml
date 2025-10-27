@@ -22,15 +22,19 @@ help:
     desc     : The record TTL in seconds (defaults to 300)
     example  : 300
     mandatory: false
+  - name     : exiterror
+    desc     : If "true" the job will exit with error if the update fails
+    example  : "true"
+    mandatory: false
 
 todo:
 - Update Route 53 entry
 
 ojob:
   opacks      :
-  - openaf: 20230704
+  - openaf: 20250725
   - AWS
-  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  catch       : printErrnl("[" + job.name + "] " + exception); if (args.exiterror) exit(-1, true)
   logToConsole: true   # to change when finished
   loadLibs    :
   - aws.js
@@ -40,14 +44,20 @@ jobs:
 - name : Update Route 53 entry
   check:
     in:
-      id   : isString
-      rec  : isString
-      value: isString
-      type : isString.default("A")
-      ttl  : toNumber.isNumber.default(300)
-  exec : |
+      id       : isString
+      rec      : isString
+      value    : isString
+      type     : isString.default("A")
+      ttl      : toNumber.isNumber.default(300)
+      exiterror: toBoolean.isBoolean.default(false)
+  exec : | #js
+    var res
     var aws = new AWS()
     args.value = $t(args.value, args)
-    var res = aws.ROUTE53_setRecord(args.id, args.rec, args.type, args.value, args.ttl)
+    res = aws.ROUTE53_setRecord(args.id, args.rec, args.type, args.value, args.ttl)
+
+    if (isDef(res) && isDef(res.error)) {
+      throw new Error("Error updating Route 53 record: " + stringify(res.error))
+    }
 
     ow.oJob.output({ id: args.id, rec: args.rec, value: args.value, type: args.type, ttl: args.ttl, response: res }, args)
