@@ -94,18 +94,32 @@ include:
 init:
   defaultPath: rss.channel.item
   catalogueAPI:
-  - name: aws
-    url : https://aws.amazon.com/blogs/aws/feed
   - name: adoptium
     url : https://adoptium.net/rss.xml
+  - name: arstechnica
+    url : https://feeds.arstechnica.com/arstechnica/index
+  - name: aws
+    url : https://aws.amazon.com/blogs/aws/feed
   - name: awsnews
     url : https://aws.amazon.com/about-aws/whats-new/recent/feed/
   - name: azure
     url : https://azure.microsoft.com/en-us/blog/feed
   - name: bbc
     url : http://feeds.bbci.co.uk/news/rss.xml?edition=int
+  - name: bleepingcomputer
+    url : https://www.bleepingcomputer.com/feed/
   - name: cnet
     url : https://www.cnet.com/rss/news/
+  - name: cloudflare
+    url : https://blog.cloudflare.com/rss/
+  - name: cnn
+    url : http://rss.cnn.com/rss/edition.rss
+  - name: datadog
+    url : https://www.datadoghq.com/blog/rss.xml
+  - name: devto
+    url : https://dev.to/feed
+  - name: docker
+    url : https://www.docker.com/blog/feed/
   - name: engadget
     url : https://www.engadget.com/rss.xml
   - name: facebook
@@ -116,20 +130,40 @@ init:
     url : https://github.blog/feed/
   - name: github-changelog
     url : https://github.blog/changelog/feed/
+  - name: gitlab
+    url : https://about.gitlab.com/atom.xml
   - name: google
     url : https://www.blog.google/rss/
+  - name: grafana
+    url : https://grafana.com/blog/index.xml
   - name: hackernews
     url : http://feeds.feedburner.com/TheHackersNews?format=xml
+  - name: hackernoon
+    url : https://hackernoon.com/feed
+  - name: hashicorp
+    url : https://www.hashicorp.com/blog/feed.xml
   - name: helm
     url : https://helm.sh/blog/index.xml
+  - name: infoq
+    url : https://www.infoq.com/feed/
   - name: k8s
     url : https://kubernetes.io/feed.xml
   - name: macrumors
     url : http://feeds.macrumors.com/MacRumors-All
+  - name: medium-engineering
+    url : https://medium.com/feed/tag/engineering
   - name: microsoft
     url : https://blogs.microsoft.com/feed/
   - name: microsoft-insider
     url : https://insider.microsoft365.com/rss/blog
+  - name: mongodb
+    url : https://www.mongodb.com/blog/rss.xml
+  - name: mozilla
+    url : https://blog.mozilla.org/feed/
+  - name: netflix
+    url : https://netflixtechblog.com/feed
+  - name: nginx
+    url : https://www.nginx.com/feed/
   - name: nytimes
     url : https://www.nytimes.com/svc/collections/v1/publish/https://www.nytimes.com/section/world/rss.xml
   - name: openai
@@ -138,22 +172,48 @@ init:
     url : https://blogs.oracle.com/cloud-infrastructure/rss
   - name: ovh
     url : https://blog.ovhcloud.com/feed/
+  - name: postgresql
+    url : https://www.postgresql.org/versions.rss
+  - name: prometheus
+    url : https://prometheus.io/blog/feed.xml
+  - name: redhat
+    url : https://www.redhat.com/en/rss/blog
   - name: redhatcloud
     url : https://cloud.redhat.com/blog/rss.xml
+  - name: reddit-programming
+    url : https://www.reddit.com/r/programming/.rss
+  - name: reuters-tech
+    url : https://www.reuters.com/technology/feed/
+  - name: rust
+    url : https://blog.rust-lang.org/feed.xml
   - name: scaleway
     url : https://blog.scaleway.com/rss/
   - name: slashdot
     url : http://rss.slashdot.org/Slashdot/slashdotMain
+  - name: smashingmagazine
+    url : https://www.smashingmagazine.com/feed/
+  - name: spotify
+    url : https://engineering.atspotify.com/feed/
+  - name: stackoverflow
+    url : https://stackoverflow.blog/feed/
   - name: techcrunch
     url : https://techcrunch.com/rss
+  - name: terraform
+    url : https://www.hashicorp.com/blog/products/terraform/feed.xml
   - name: the-register
     url : https://www.theregister.com/headlines.rss
   - name: the-verge
     url : https://www.theverge.com/rss/index.xml
   - name: tomshardware
     url : https://www.tomshardware.com/feeds/all
+  - name: ubuntu
+    url : https://ubuntu.com/blog/feed
+  - name: venturebeat
+    url : https://venturebeat.com/feed/
   - name: wired
     url : http://feeds.wired.com/wired/index
+  - name: zdnet
+    url : https://www.zdnet.com/news/rss.xml
 
 jobs:
 # -----------
