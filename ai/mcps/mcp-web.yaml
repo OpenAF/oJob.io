@@ -1,0 +1,119 @@
+# Author: OpenAF Assistant
+help:
+  text   : A STDIO/HTTP MCP web search and URL fetching server using jsoup
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-web
+        title  : OpenAF mini-a MCP web search and URL fetching server
+        version: 1.0.0
+
+    ((fnsMeta)): &MCPFNSMETA
+
+      web-search:
+        name       : web-search
+        description: Performs a web search using DuckDuckGo and returns search results with titles, descriptions, and links.
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: The search query to search for.
+            limit:
+              type       : number
+              description: Maximum number of results to return (default 12).
+              default    : 12
+            searchEngine:
+              type       : string
+              description: Search engine to use (currently only "duckduckgo" or "ddg" supported).
+              default    : duckduckgo
+          required: [ query ]
+        annotations:
+          title         : web-search
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get-url:
+        name       : get-url
+        description: Fetches and processes a URL, returning content in different formats (html, basic, text, or map).
+        inputSchema:
+          type      : object
+          properties:
+            url:
+              type       : string
+              description: The URL to fetch.
+            style:
+              type       : string
+              description: Output format - "html" (raw HTML), "basic" (cleaned HTML), "text" (simple text), or "map" (JSON map representation).
+              enum       : [ html, basic, text, map ]
+              default    : basic
+          required: [ url ]
+        annotations:
+          title         : get-url
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      web-search: Web search
+      get-url   : Get URL
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - Jsoup
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-web.pid
+    killPrevious: true
+  loadLibs    :
+  - jsoup.js
+  - webSearch.js
+
+include:
+- oJobMCP.yaml
+
+init:
+  defaultUserAgent: mini-a-mcp-web
+
+jobs:
+# -----------------
+- name : Web search
+  check:
+    in:
+      query       : isString
+      limit       : toNumber.isNumber.default(12)
+      searchEngine: isString.default("duckduckgo")
+  exec : | #js
+    var ws = new WebSearch()
+    return ws.search(args.query, args.limit, args.searchEngine)
+
+# --------------
+- name : Get URL
+  check:
+    in:
+      url      : isString
+      style    : isString.oneOf([ "html", "basic", "text", "map" ]).default("basic")
+  exec : | #js
+    var ws = new WebSearch()
+    return ws.getURL(args.url, args.style)
