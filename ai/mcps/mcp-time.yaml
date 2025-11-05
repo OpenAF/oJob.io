@@ -44,94 +44,77 @@ todo:
           readOnlyHint  : true
           idempotentHint: true
 
-      convert-time:
-        name       : convert-time
-        description: Converts a date/time value between timezones and formats.
+      timezone-tools:
+        name       : timezone-tools
+        description: Performs timezone conversions, offset comparisons, or listings depending on the requested operation.
         inputSchema:
           type      : object
           properties:
+            operation:
+              type        : string
+              description : Operation to perform. Supported values are convert, difference, and list.
+              enum        : [ convert, difference, list ]
             targetTimezone:
               type        : string
-              description : Target IANA timezone identifier.
+              description : Target IANA timezone identifier (required for operation=convert).
               example     : "America/New_York"
             sourceTimezone:
               type        : string
-              description : Source IANA timezone identifier (defaults to system timezone).
+              description : Source IANA timezone identifier (defaults to the system timezone when omitted).
               example     : "Europe/Lisbon"
             datetime:
               type        : string
-              description : Date/time value to convert. If omitted, the current moment is used.
+              description : Date/time reference (convert/difference). Defaults to the current moment when omitted.
               example     : "2024-06-01T10:15:00"
             inputFormat:
               type        : string
-              description : Optional Java time pattern describing the provided datetime when it lacks timezone information.
+              description : Optional Java time pattern when parsing datetimes without timezone offsets.
               example     : "yyyy-MM-dd'T'HH:mm:ss"
             outputFormat:
               type        : string
-              description : Optional Java time pattern for the formatted output field.
+              description : Optional Java time pattern used to format the convert output.
               example     : "EEE, dd MMM yyyy HH:mm z"
-            locale:
-              type        : string
-              description : Optional BCP 47 language tag used for parsing/formatting with custom patterns.
-              example     : "en-US"
-          required: [ targetTimezone ]
-        annotations:
-          title         : convert-time
-          readOnlyHint  : true
-          idempotentHint: true
-
-      timezone-difference:
-        name       : timezone-difference
-        description: Calculates the offset difference between two timezones at a specific moment.
-        inputSchema:
-          type      : object
-          properties:
             firstTimezone:
               type        : string
-              description : First IANA timezone identifier.
+              description : First IANA timezone identifier (required for operation=difference).
               example     : "Europe/London"
             secondTimezone:
               type        : string
-              description : Second IANA timezone identifier.
+              description : Second IANA timezone identifier (required for operation=difference).
               example     : "Asia/Tokyo"
-            datetime:
-              type        : string
-              description : Date/time reference (defaults to now). Accepts ISO strings or custom format.
-              example     : "2024-12-01T08:00:00"
-            inputFormat:
-              type        : string
-              description : Optional Java time pattern when parsing without timezone information.
-              example     : "yyyy-MM-dd HH:mm"
             locale:
               type        : string
-              description : Optional BCP 47 language tag to apply with custom input formats.
-              example     : "en-GB"
-          required: [ firstTimezone, secondTimezone ]
+              description : Optional BCP 47 language tag applied to parsing/formatting (convert/difference).
+              example     : "en-US"
+            search:
+              type        : string
+              description : Case-insensitive substring filter used when listing timezones.
+              example     : "America"
+          required: [ operation ]
         annotations:
-          title         : timezone-difference
+          title         : timezone-tools
           readOnlyHint  : true
           idempotentHint: true
-
-      list-timezones:
-        name       : list-timezones
-        description: Lists available IANA timezone identifiers, optionally filtered by a substring search.
+      sleep:
+        name       : sleep
+        description: Pauses execution for the specified number of milliseconds.
         inputSchema:
           type      : object
           properties:
-            search:
-              type        : string
-              description : Optional case-insensitive substring to filter timezone identifiers.
-              example     : "America"
-          required: []
+            milliseconds:
+              type        : integer
+              minimum     : 0
+              description : Number of milliseconds to pause execution.
+              example     : 1000
+          required: [ milliseconds ]
         annotations:
-          title         : list-timezones
-          readOnlyHint  : true
-          idempotentHint: true
+          title         : sleep
+          readOnlyHint  : false
+          idempotentHint: false
     ((fns    )): &MCPFNS
-      current-time      : Current time information
-      convert-time      : Convert between timezones
-      timezone-difference: Compare timezone offsets
-      list-timezones    : List available timezones
+      current-time   : Current time information
+      timezone-tools : Timezone utilities
+      sleep          : Sleep
   ((else)):
   - (stdioMCP ): *MCPSERVER
     ((fnsMeta)): *MCPFNSMETA
@@ -153,7 +136,7 @@ include:
 - oJobMCP.yaml
 
 jobs:
-# ------------------
+# -------------------------------
 - name : Current time information
   check:
     in:
@@ -205,148 +188,172 @@ jobs:
       locale                : String(locale.toLanguageTag())
     }
 
-# ----------------
-- name : Convert between timezones
+# -------------------------
+- name : Timezone utilities
   check:
     in:
-      targetTimezone: isString
+      operation     : isString
+      targetTimezone: isString.default(__)
       sourceTimezone: isString.default(__)
       datetime      : isString.default(__)
       inputFormat   : isString.default(__)
       outputFormat  : isString.default(__)
+      firstTimezone : isString.default(__)
+      secondTimezone: isString.default(__)
       locale        : isString.default(__)
+      search        : isString.default(__)
   exec : | #js
-    var ZoneId = java.time.ZoneId
-    var ZonedDateTime = java.time.ZonedDateTime
-    var LocalDateTime = java.time.LocalDateTime
-    var DateTimeFormatter = java.time.format.DateTimeFormatter
-    var Locale = java.util.Locale
-
-    var sourceZone = isDef(args.sourceTimezone) ? ZoneId.of(args.sourceTimezone) : ZoneId.systemDefault()
-    var targetZone = ZoneId.of(args.targetTimezone)
-    var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
-
-    var formatterOut = isDef(args.outputFormat) ? DateTimeFormatter.ofPattern(args.outputFormat).withLocale(locale) : null
-
-    function parseDateTime(value) {
-      if (isUnDef(value) || value === null || value === "") {
-        return ZonedDateTime.now(sourceZone)
-      }
-
-      if (isDef(args.inputFormat)) {
-        var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)
-        var local = LocalDateTime.parse(value, fmt)
-        return local.atZone(sourceZone)
-      }
-
-      try {
-        return ZonedDateTime.parse(value)
-      } catch(e) {
-        var local = LocalDateTime.parse(value)
-        return local.atZone(sourceZone)
-      }
+    var allowedOps = ["convert", "difference", "list"]
+    var op = isDef(args.operation) ? String(args.operation).toLowerCase() : null
+    if (isUnDef(op) || allowedOps.indexOf(op) < 0) {
+      throw new Error("operation must be one of convert, difference, list")
     }
 
-    var parsed = parseDateTime(args.datetime)
-    var converted = parsed.withZoneSameInstant(targetZone)
-
-    return {
-      sourceTimezone        : String(sourceZone.getId()),
-      targetTimezone        : String(targetZone.getId()),
-      sourceIso8601         : String(parsed.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
-      targetIso8601         : String(converted.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
-      targetZonedISO        : String(converted.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
-      formatted             : formatterOut ? String(converted.format(formatterOut)) : String(converted.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
-      sourceOffsetSeconds   : Number(parsed.getOffset().getTotalSeconds()),
-      targetOffsetSeconds   : Number(converted.getOffset().getTotalSeconds()),
-      unixEpochSeconds      : Number(converted.toEpochSecond()),
-      unixEpochMilliseconds : Number(converted.toInstant().toEpochMilli())
-    }
-
-# -------------------------
-- name : Compare timezone offsets
-  check:
-    in:
-      firstTimezone : isString
-      secondTimezone: isString
-      datetime      : isString.default(__)
-      inputFormat   : isString.default(__)
-      locale        : isString.default(__)
-  exec : | #js
-    var ZoneId = java.time.ZoneId
-    var ZonedDateTime = java.time.ZonedDateTime
-    var LocalDateTime = java.time.LocalDateTime
-    var DateTimeFormatter = java.time.format.DateTimeFormatter
-    var Locale = java.util.Locale
-
-    var firstZone = ZoneId.of(args.firstTimezone)
-    var secondZone = ZoneId.of(args.secondTimezone)
-    var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
-
-    function parseMoment(value) {
-      if (isUnDef(value) || value === null || value === "") {
-        return ZonedDateTime.now(firstZone)
-      }
-
-      if (isDef(args.inputFormat)) {
-        var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)
-        var local = LocalDateTime.parse(value, fmt)
-        return local.atZone(firstZone)
-      }
-
-      try {
-        return ZonedDateTime.parse(value)
-      } catch(e) {
-        var local = LocalDateTime.parse(value)
-        return local.atZone(firstZone)
-      }
-    }
-
-    var base = parseMoment(args.datetime)
-    var instant = base.toInstant()
-
-    var firstOffset = firstZone.getRules().getOffset(instant).getTotalSeconds()
-    var secondOffset = secondZone.getRules().getOffset(instant).getTotalSeconds()
-    var differenceSeconds = secondOffset - firstOffset
-    var totalMinutes = Math.abs(differenceSeconds) / 60
-    var hours = Math.floor(totalMinutes / 60)
-    var minutes = Math.floor(totalMinutes % 60)
-
-    function pad2(value) {
-      var str = String(value)
-      return str.length < 2 ? ("0" + str).slice(-2) : str
-    }
-    var formattedDifference = (differenceSeconds >= 0 ? "+" : "-") + pad2(hours) + ":" + pad2(minutes)
-
-    return {
-      referenceIso8601    : String(base.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
-      firstTimezone       : String(firstZone.getId()),
-      secondTimezone      : String(secondZone.getId()),
-      firstOffsetSeconds  : Number(firstOffset),
-      secondOffsetSeconds : Number(secondOffset),
-      differenceSeconds   : Number(differenceSeconds),
-      differenceHours     : Number(differenceSeconds / 3600),
-      differenceFormatted : formattedDifference
-    }
-
-# ------------------
-- name : List available timezones
-  check:
-    in:
-      search: isString.default(__)
-  exec : | #js
-    var ZoneId = java.time.ZoneId
-    var zones = ZoneId.getAvailableZoneIds().iterator()
-    var list = []
-    while (zones.hasNext()) {
-      var id = String(zones.next())
-      if (isDef(args.search)) {
-        if (id.toLowerCase().indexOf(String(args.search).toLowerCase()) >= 0) {
+    if (op === "list") {
+      var ZoneIdList = java.time.ZoneId
+      var zones = ZoneIdList.getAvailableZoneIds().iterator()
+      var list = []
+      while (zones.hasNext()) {
+        var id = String(zones.next())
+        if (isDef(args.search)) {
+          if (id.toLowerCase().indexOf(String(args.search).toLowerCase()) >= 0) {
+            list.push(id)
+          }
+        } else {
           list.push(id)
         }
-      } else {
-        list.push(id)
+      }
+      list.sort()
+      return {
+        operation : op,
+        timezones : list
       }
     }
-    list.sort()
-    return list
+
+    var ZoneId = java.time.ZoneId
+    var ZonedDateTime = java.time.ZonedDateTime
+    var LocalDateTime = java.time.LocalDateTime
+    var DateTimeFormatter = java.time.format.DateTimeFormatter
+    var Locale = java.util.Locale
+    var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
+
+    if (op === "convert") {
+      if (isUnDef(args.targetTimezone)) {
+        throw new Error("targetTimezone is required for operation=convert")
+      }
+
+      var sourceZone = isDef(args.sourceTimezone) ? ZoneId.of(args.sourceTimezone) : ZoneId.systemDefault()
+      var targetZone = ZoneId.of(args.targetTimezone)
+      var formatterOut = isDef(args.outputFormat) ? DateTimeFormatter.ofPattern(args.outputFormat).withLocale(locale) : null
+
+      function parseDateTime(value) {
+        if (isUnDef(value) || value === null || value === "") {
+          return ZonedDateTime.now(sourceZone)
+        }
+
+        if (isDef(args.inputFormat)) {
+          var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)
+          var local = LocalDateTime.parse(value, fmt)
+          return local.atZone(sourceZone)
+        }
+
+        try {
+          return ZonedDateTime.parse(value)
+        } catch(e) {
+          var local = LocalDateTime.parse(value)
+          return local.atZone(sourceZone)
+        }
+      }
+
+      var parsed = parseDateTime(args.datetime)
+      var converted = parsed.withZoneSameInstant(targetZone)
+
+      return {
+        operation            : op,
+        sourceTimezone       : String(sourceZone.getId()),
+        targetTimezone       : String(targetZone.getId()),
+        sourceIso8601        : String(parsed.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+        targetIso8601        : String(converted.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+        targetZonedISO       : String(converted.format(DateTimeFormatter.ISO_ZONED_DATE_TIME)),
+        formatted            : formatterOut ? String(converted.format(formatterOut)) : String(converted.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+        sourceOffsetSeconds  : Number(parsed.getOffset().getTotalSeconds()),
+        targetOffsetSeconds  : Number(converted.getOffset().getTotalSeconds()),
+        unixEpochSeconds     : Number(converted.toEpochSecond()),
+        unixEpochMilliseconds: Number(converted.toInstant().toEpochMilli())
+      }
+    }
+
+    if (op === "difference") {
+      if (isUnDef(args.firstTimezone) || isUnDef(args.secondTimezone)) {
+        throw new Error("firstTimezone and secondTimezone are required for operation=difference")
+      }
+
+      var firstZone = ZoneId.of(args.firstTimezone)
+      var secondZone = ZoneId.of(args.secondTimezone)
+
+      function parseMoment(value) {
+        if (isUnDef(value) || value === null || value === "") {
+          return ZonedDateTime.now(firstZone)
+        }
+
+        if (isDef(args.inputFormat)) {
+          var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)
+          var local = LocalDateTime.parse(value, fmt)
+          return local.atZone(firstZone)
+        }
+
+        try {
+          return ZonedDateTime.parse(value)
+        } catch(e) {
+          var local = LocalDateTime.parse(value)
+          return local.atZone(firstZone)
+        }
+      }
+
+      var base = parseMoment(args.datetime)
+      var instant = base.toInstant()
+
+      var firstOffset = firstZone.getRules().getOffset(instant).getTotalSeconds()
+      var secondOffset = secondZone.getRules().getOffset(instant).getTotalSeconds()
+      var differenceSeconds = secondOffset - firstOffset
+      var totalMinutes = Math.abs(differenceSeconds) / 60
+      var hours = Math.floor(totalMinutes / 60)
+      var minutes = Math.floor(totalMinutes % 60)
+
+      function pad2(value) {
+        var str = String(value)
+        return str.length < 2 ? ("0" + str).slice(-2) : str
+      }
+      var formattedDifference = (differenceSeconds >= 0 ? "+" : "-") + pad2(hours) + ":" + pad2(minutes)
+
+      return {
+        operation           : op,
+        referenceIso8601    : String(base.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)),
+        firstTimezone       : String(firstZone.getId()),
+        secondTimezone      : String(secondZone.getId()),
+        firstOffsetSeconds  : Number(firstOffset),
+        secondOffsetSeconds : Number(secondOffset),
+        differenceSeconds   : Number(differenceSeconds),
+        differenceHours     : Number(differenceSeconds / 3600),
+        differenceFormatted : formattedDifference
+      }
+    }
+
+    throw new Error("Unsupported operation: " + op)
+
+# ------------
+- name : Sleep
+  check:
+    in:
+      milliseconds: isNumber
+  exec : | #js
+    var duration = Number(args.milliseconds)
+    if (!isFinite(duration) || duration < 0) {
+      throw new Error("milliseconds must be a non-negative number")
+    }
+
+    sleep(duration, true)
+
+    return {
+      sleptMilliseconds: duration
+    }

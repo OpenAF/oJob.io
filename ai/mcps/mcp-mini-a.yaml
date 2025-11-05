@@ -1,0 +1,358 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP server that exposes the Mini-A agent runner
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : knowledge
+    desc     : Knowledge pack or path to preload for each goal (server launch only)
+    example  : "- prefer bullet lists"
+    mandatory: false
+  - name     : rules
+    desc     : Custom rules to enforce on every run (string or JSON, server launch only)
+    example  : "[ 'avoid-shell' ]"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-agent
+        title  : OpenAF mini-a MCP agent runner server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      run-goal:
+        name       : run-goal
+        description: Execute the Mini-A autonomous agent for a goal with optional settings.
+        inputSchema:
+          type      : object
+          properties:
+            goal:
+              type       : string
+              description: Goal for Mini-A to achieve.
+            format:
+              type       : string
+              description: Output format for the final answer (md, json, raw).
+              enum       : [ md, json, raw ]
+            raw:
+              type       : boolean
+              description: Return answer without formatting helpers.
+            chatbotmode:
+              type       : boolean
+              description: Run Mini-A as a conversational assistant.
+            useplanning:
+              type       : boolean
+              description: Enable planning workflow updates.
+            planmode:
+              type       : boolean
+              description: Run in plan-only mode (generate plan without executing).
+            planformat:
+              type       : string
+              description: Format of the provided plan file (markdown or json).
+            convertplan:
+              type       : boolean
+              description: Convert an existing plan to another format.
+          required: [ goal ]
+        annotations:
+          title         : run-goal
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      run-goal: Run Mini-A goal
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - mini-a
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-mini-a.pid
+    killPrevious: true
+  loadLibs    :
+  - mini-a.js
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  exec : | #js
+    if (isUnDef(global.__mini_a_serverDefaults)) {
+      global.__mini_a_serverDefaults = merge({}, args)
+    }
+# ---------------------------------
+- name : Ensure model configuration
+  exec : | #js
+    var hasModelOverride = isDef(args) && isDef(args.model) && ((isString(args.model) && args.model.trim().length > 0) || isMap(args.model) || isArray(args.model))
+    if (isUnDef(getEnv("OAF_MODEL")) && !hasModelOverride) {
+      throw "OAF_MODEL environment variable not set. Provide model= with your configuration or export OAF_MODEL before using run-goal."
+    }
+
+# ----------------------
+- name : Run Mini-A goal
+  from :
+  - Ensure model configuration
+  check:
+    in:
+      goal           : isString
+      knowledge      : isString.default(__)
+      mcp            : isString.default(__)
+      usetools       : toBoolean.isBoolean.default(false)
+      useutils       : toBoolean.isBoolean.default(false)
+      mcpdynamic     : toBoolean.isBoolean.default(false)
+      mcplazy        : toBoolean.isBoolean.default(false)
+      useshell       : toBoolean.isBoolean.default(false)
+      readwrite      : toBoolean.isBoolean.default(false)
+      shell          : isString.default(__)
+      shellallow     : isString.default(__)
+      shellbanextra  : isString.default(__)
+      shellallowpipes: toBoolean.isBoolean.default(false)
+      shellbatch     : toBoolean.isBoolean.default(false)
+      checkall       : toBoolean.isBoolean.default(false)
+      verbose        : toBoolean.isBoolean.default(false)
+      debug          : toBoolean.isBoolean.default(false)
+      rpm            : toNumber.isNumber.default(__)
+      rtm            : toNumber.isNumber.default(__)
+      tpm            : toNumber.isNumber.default(__)
+      maxsteps       : toNumber.isNumber.default(15)
+      maxcontext     : toNumber.isNumber.default(0)
+      toolcachettl   : toNumber.isNumber.default(__)
+      format         : isString.default(__)
+      raw            : toBoolean.isBoolean.default(false)
+      chatbotmode    : toBoolean.isBoolean.default(false)
+      useplanning    : toBoolean.isBoolean.default(false)
+      planmode       : toBoolean.isBoolean.default(false)
+      planfile       : isString.default(__)
+      planformat     : isString.default(__)
+      convertplan    : toBoolean.isBoolean.default(false)
+      outputfile     : isString.default(__)
+      resumefailed   : toBoolean.isBoolean.default(false)
+      outfile        : isString.default(__)
+      conversation   : isString.default(__)
+      libs           : isString.default(__)
+      rules          : isString.default(__)
+      state          : isString.default(__)
+      mode           : isString.default(__)
+      auditch        : isString.default(__)
+      model          : isString.default(__)
+      modellc        : isString.default(__)
+      __format       : isString.default(__)
+  exec : | #js
+    var baseArgs = {}
+    if (isObject(global.__mini_a_serverDefaults)) {
+      baseArgs = jsonParse(stringify(global.__mini_a_serverDefaults, __, ""), __, __, true)
+    }
+
+    var incomingArgs = jsonParse(stringify(args || {}, __, ""), __, __, true)
+    var allowedRemoteKeys = {
+      goal        : true,
+      format      : true,
+      raw         : true,
+      chatbotmode : true,
+      useplanning : true,
+      planmode    : true,
+      planformat  : true,
+      convertplan : true
+    }
+
+    var mergedArgs = merge({}, baseArgs)
+    Object.keys(incomingArgs).forEach(function(key) {
+      if (allowedRemoteKeys[key] === true) {
+        mergedArgs[key] = incomingArgs[key]
+      }
+    })
+
+    var preparedArgs = merge({}, mergedArgs)
+
+    var booleanKeys = [
+      "usetools", "useutils", "mcpdynamic", "mcplazy", "useshell", "readwrite",
+      "shellallowpipes", "shellbatch", "checkall", "verbose", "debug", "raw",
+      "chatbotmode", "useplanning", "planmode", "convertplan", "resumefailed"
+    ]
+    booleanKeys.forEach(function(key) {
+      if (isDef(preparedArgs[key])) {
+        preparedArgs[key] = toBoolean(preparedArgs[key])
+      }
+    })
+
+    var numberKeys = [ "rpm", "rtm", "tpm", "maxsteps", "maxcontext", "toolcachettl" ]
+    numberKeys.forEach(function(key) {
+      if (isDef(preparedArgs[key])) {
+        preparedArgs[key] = toNumber(preparedArgs[key])
+      }
+    })
+
+    var applyModePreset = function(targetArgs) {
+      if (targetArgs.__modeApplied === true) return
+      if (!isString(targetArgs.mode)) return
+      var modeName = targetArgs.mode.trim()
+      if (modeName.length === 0) return
+
+      var presets = {}
+      try {
+        var modesPath = getOPackPath("mini-a") + "/mini-a-modes.yaml"
+        var loaded = io.readFileYAML(modesPath)
+        if (isMap(loaded) && isMap(loaded.modes)) {
+          presets = loaded.modes
+        } else if (isMap(loaded)) {
+          presets = loaded
+        }
+      } catch(e) {
+        var errMsg = (isDef(e) && isString(e.message)) ? e.message : e
+        logWarn("Failed to load mode presets for '" + modeName + "': " + errMsg)
+        targetArgs.__modeApplied = true
+        return
+      }
+
+      // Load custom modes from user's home directory
+      var modesHome = isDef(__gHDir) ? __gHDir() : java.lang.System.getProperty("user.home")
+      var customModesPath = resolveCanonicalPath(modesHome, ".openaf-mini-a_modes.yaml")
+      if (io.fileExists(customModesPath)) {
+        try {
+          var customLoaded = io.readFileYAML(customModesPath)
+          var customPresets = {}
+          if (isMap(customLoaded) && isMap(customLoaded.modes)) {
+            customPresets = customLoaded.modes
+          } else if (isMap(customLoaded)) {
+            customPresets = customLoaded
+          }
+          // Merge custom modes with default modes (custom overrides defaults)
+          if (isMap(customPresets) && Object.keys(customPresets).length > 0) {
+            presets = merge(presets, customPresets)
+          }
+        } catch(e) {
+          var errMsg = (isDef(e) && isString(e.message)) ? e.message : e
+          logWarn("Failed to load custom mode presets from '" + customModesPath + "': " + errMsg)
+        }
+      }
+
+      if (!isMap(presets) || isUnDef(presets[modeName])) {
+        logWarn("Mode '" + modeName + "' requested but not found in presets.")
+        targetArgs.__modeApplied = true
+        return
+      }
+
+      var presetValues = presets[modeName]
+      if (!isMap(presetValues)) {
+        logWarn("Mode '" + modeName + "' preset is not an object.")
+        targetArgs.__modeApplied = true
+        return
+      }
+
+      Object.keys(presetValues).forEach(function(key) {
+        if (key === "mode") return
+        if (isUnDef(targetArgs[key])) {
+          targetArgs[key] = presetValues[key]
+        }
+      })
+
+      targetArgs.__modeApplied = true
+    }
+
+    applyModePreset(preparedArgs)
+
+    if (isDef(preparedArgs.mcpConfig)) {
+      preparedArgs.mcp = stringify(preparedArgs.mcpConfig, __, "")
+      delete preparedArgs.mcpConfig
+    }
+
+    [ "knowledge", "rules", "state", "model", "modellc", "auditch" ].forEach(function(key) {
+      if (isDef(preparedArgs[key]) && !isString(preparedArgs[key])) {
+        preparedArgs[key] = stringify(preparedArgs[key], __, "")
+      }
+    })
+
+    if (isDef(preparedArgs.libs) && isArray(preparedArgs.libs)) {
+      preparedArgs.libs = preparedArgs.libs.join(",")
+    }
+
+    if (isDef(preparedArgs.mcp) && !isString(preparedArgs.mcp)) {
+      preparedArgs.mcp = stringify(preparedArgs.mcp, __, "")
+    }
+
+    if (isString(preparedArgs.goal)) {
+      preparedArgs.goal = preparedArgs.goal.trim()
+    }
+
+    if (isString(preparedArgs.format) && isUnDef(preparedArgs.__format)) {
+      preparedArgs.__format = preparedArgs.format
+    }
+    if (isString(preparedArgs.__format) && isUnDef(preparedArgs.format)) {
+      preparedArgs.format = preparedArgs.__format
+    }
+
+    var agent = new MiniA()
+
+    if (isObject(global.__mini_a_metrics)) {
+      Object.keys(global.__mini_a_metrics).forEach(function(key) {
+        var metric = global.__mini_a_metrics[key]
+        if (isObject(metric) && typeof metric.set === "function") {
+          metric.set(0)
+        } else if (isObject(metric) && typeof metric.reset === "function") {
+          try { metric.reset() } catch(ignore) {}
+        }
+      })
+    }
+
+    var answer
+    var metrics
+    var agentState
+    var errorMessage
+
+    try {
+      agent.init(preparedArgs)
+      answer = agent.start(preparedArgs)
+      metrics = agent.getMetrics()
+      agentState = jsonParse(stringify(agent._agentState || {}, __, ""), __, __, true)
+    } catch(e) {
+      metrics = agent.getMetrics()
+      errorMessage = isDef(e) && isString(e.message) ? e.message : stringify(e, __, "")
+    }
+
+    if (isUnDef(answer) && isString(preparedArgs.outfile) && preparedArgs.outfile.length > 0) {
+      answer = "(written to " + preparedArgs.outfile + ")"
+    }
+
+    var result = {
+      goal        : preparedArgs.goal,
+      format      : preparedArgs.format,
+      answer      : answer,
+      metrics     : metrics,
+      state       : agentState,
+      status      : agent.state,
+      planMode    : preparedArgs.planmode,
+      planning    : {
+        enabled: toBoolean(preparedArgs.useplanning)
+      }
+    }
+
+    if (isDef(preparedArgs.conversation)) {
+      result.conversationFile = preparedArgs.conversation
+    }
+    if (isDef(preparedArgs.outfile)) {
+      result.outfile = preparedArgs.outfile
+    }
+    if (isDef(preparedArgs.outputfile)) {
+      result.planOutputFile = preparedArgs.outputfile
+    }
+    if (isDef(errorMessage)) {
+      result.error = errorMessage
+    }
+
+    return result
