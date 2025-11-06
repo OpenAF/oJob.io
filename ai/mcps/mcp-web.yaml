@@ -80,7 +80,7 @@ ojob:
   - oJob-common: 20250914
   - Jsoup
   catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
-  logToConsole: true
+  logToConsole: false
   argsFromEnvs: true
   daemon      : true
   unique      :
