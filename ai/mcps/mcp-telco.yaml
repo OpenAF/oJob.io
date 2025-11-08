@@ -1,0 +1,103 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP telco utilities server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-telco
+        title  : OpenAF mini-a MCP telco utilities server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      country-by-code:
+        name       : country-by-code
+        description: Retrieves country information for the provided calling code.
+        inputSchema:
+          type      : object
+          properties:
+            code:
+              type        : string
+              description : The country calling code (without the leading '+').
+              example     : "1"
+          required: [ code ]
+        annotations:
+          title         : country-by-code
+          readOnlyHint  : true
+          idempotentHint: true
+      phone-number-info:
+        name       : phone-number-info
+        description: Provides detailed information about a phone number using Google's libphonenumber.
+        inputSchema:
+          type      : object
+          properties:
+            number:
+              type        : string
+              description : The phone number to inspect (E.164 or national format).
+              example     : "+14155552671"
+            country:
+              type        : string
+              description : The country/region from which the number is dialed.
+              example     : "US"
+              default     : "US"
+          required: [ number ]
+        annotations:
+          title         : phone-number-info
+          readOnlyHint  : true
+          idempotentHint: true
+    ((fns    )): &MCPFNS
+      country-by-code : Country by code
+      phone-number-info: Phone number info
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - APIs       : 20220515
+  - GooglePhoneNumber: 20221216
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  loadLibs    :
+  - apis.js
+  - googlePhoneNumber.js
+  unique      :
+    pidFile     : .mcp-telco.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ----------------------
+- name : Country by code
+  check:
+    in:
+      code: isString
+  exec : | #js
+    return apis.Countries.getCountryByCallingCode(args.code)
+
+# ---------------------
+- name : Phone number info
+  check:
+    in:
+      number : isString
+      country: isString.default("US")
+  exec : | #js
+    var g = new GooglePhoneNumber()
+    return { phoneInfo: g.getInfo(args.number, args.country) }
