@@ -1,0 +1,464 @@
+# Author: Claude Code Assistant
+help:
+  text   : A STDIO/HTTP MCP mathematical operations server
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-math
+        title  : OpenAF mini-a MCP mathematical operations server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      calculate:
+        name       : calculate
+        description: Performs basic and advanced mathematical operations on numbers.
+        inputSchema:
+          type      : object
+          properties:
+            operation:
+              type        : string
+              description : The mathematical operation to perform (add, subtract, multiply, divide, power, sqrt, abs, sin, cos, tan, log, ln, exp, ceil, floor, round).
+              example     : "add"
+            values:
+              type        : array
+              description : Array of numeric values to operate on (single value for unary operations).
+              items       :
+                type: number
+              example     : [10, 5]
+            precision:
+              type        : number
+              description : Number of decimal places to round the result to (optional).
+              example     : 2
+          required  : [ operation, values ]
+        annotations:
+          title         : calculate
+          readOnlyHint  : true
+          idempotentHint: true
+
+      statistics:
+        name       : statistics
+        description: Calculates statistical measures for a dataset.
+        inputSchema:
+          type      : object
+          properties:
+            values:
+              type        : array
+              description : Array of numeric values to analyze.
+              items       :
+                type: number
+              example     : [1, 2, 3, 4, 5]
+            metrics:
+              type        : array
+              description : List of metrics to calculate (mean, median, mode, stddev, variance, min, max, sum, count, range). If omitted, returns all.
+              items       :
+                type: string
+              example     : ["mean", "median", "stddev"]
+          required  : [ values ]
+        annotations:
+          title         : statistics
+          readOnlyHint  : true
+          idempotentHint: true
+
+      convert-unit:
+        name       : convert-unit
+        description: Converts values between units of measurement.
+        inputSchema:
+          type      : object
+          properties:
+            value:
+              type        : number
+              description : The numeric value to convert.
+              example     : 100
+            fromUnit:
+              type        : string
+              description : Source unit (m, km, mi, ft, in, cm, mm, kg, g, lb, oz, c, f, k, l, ml, gal).
+              example     : "km"
+            toUnit:
+              type        : string
+              description : Target unit (same categories as fromUnit).
+              example     : "mi"
+            precision:
+              type        : number
+              description : Number of decimal places to round the result to (optional).
+              example     : 2
+          required  : [ value, fromUnit, toUnit ]
+        annotations:
+          title         : convert-unit
+          readOnlyHint  : true
+          idempotentHint: true
+
+      number-info:
+        name       : number-info
+        description: Provides mathematical information about a number (prime check, factors, properties).
+        inputSchema:
+          type      : object
+          properties:
+            value:
+              type        : number
+              description : The number to analyze.
+              example     : 42
+          required  : [ value ]
+        annotations:
+          title         : number-info
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      calculate   : Calculate mathematical operations
+      statistics  : Calculate statistical metrics
+      convert-unit: Convert between units
+      number-info : Get number properties
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-math.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ----------------------------------------
+- name : Calculate mathematical operations
+  check:
+    in:
+      operation: isString
+      values   : isArray
+      precision: toNumber.isNumber.default(__)
+  exec : | #js
+    var ops = {
+      add     : function(vals) { return vals.reduce(function(a, b) { return a + b }, 0) },
+      subtract: function(vals) { return vals.reduce(function(a, b) { return a - b }) },
+      multiply: function(vals) { return vals.reduce(function(a, b) { return a * b }, 1) },
+      divide  : function(vals) { return vals.reduce(function(a, b) { if (b === 0) throw "Division by zero"; return a / b }) },
+      power   : function(vals) { if (vals.length !== 2) throw "Power requires exactly 2 values"; return Math.pow(vals[0], vals[1]) },
+      sqrt    : function(vals) { if (vals.length !== 1) throw "Square root requires exactly 1 value"; if (vals[0] < 0) throw "Cannot compute square root of negative number"; return Math.sqrt(vals[0]) },
+      abs     : function(vals) { if (vals.length !== 1) throw "Absolute value requires exactly 1 value"; return Math.abs(vals[0]) },
+      sin     : function(vals) { if (vals.length !== 1) throw "Sine requires exactly 1 value"; return Math.sin(vals[0]) },
+      cos     : function(vals) { if (vals.length !== 1) throw "Cosine requires exactly 1 value"; return Math.cos(vals[0]) },
+      tan     : function(vals) { if (vals.length !== 1) throw "Tangent requires exactly 1 value"; return Math.tan(vals[0]) },
+      log     : function(vals) { if (vals.length !== 1) throw "Log10 requires exactly 1 value"; if (vals[0] <= 0) throw "Logarithm undefined for non-positive values"; return Math.log10(vals[0]) },
+      ln      : function(vals) { if (vals.length !== 1) throw "Natural log requires exactly 1 value"; if (vals[0] <= 0) throw "Logarithm undefined for non-positive values"; return Math.log(vals[0]) },
+      exp     : function(vals) { if (vals.length !== 1) throw "Exponential requires exactly 1 value"; return Math.exp(vals[0]) },
+      ceil    : function(vals) { if (vals.length !== 1) throw "Ceiling requires exactly 1 value"; return Math.ceil(vals[0]) },
+      floor   : function(vals) { if (vals.length !== 1) throw "Floor requires exactly 1 value"; return Math.floor(vals[0]) },
+      round   : function(vals) { if (vals.length !== 1) throw "Round requires exactly 1 value"; return Math.round(vals[0]) }
+    }
+
+    var operation = String(args.operation).toLowerCase().trim()
+    if (!ops.hasOwnProperty(operation)) {
+      throw "Unknown operation: " + operation + ". Supported: " + Object.keys(ops).join(", ")
+    }
+
+    if (!Array.isArray(args.values) || args.values.length === 0) {
+      throw "values must be a non-empty array of numbers"
+    }
+
+    var values = args.values.map(function(v) {
+      var num = Number(v)
+      if (!isFinite(num)) throw "All values must be finite numbers"
+      return num
+    })
+
+    var result = ops[operation](values)
+
+    if (isDef(args.precision)) {
+      var precision = Math.max(0, Math.min(15, Math.floor(Number(args.precision))))
+      result = Number(result.toFixed(precision))
+    }
+
+    return {
+      operation: operation,
+      values   : values,
+      result   : result
+    }
+
+# ------------------------------------
+- name : Calculate statistical metrics
+  check:
+    in:
+      values : isArray
+      metrics: isArray.default(__)
+  exec : | #js
+    if (!Array.isArray(args.values) || args.values.length === 0) {
+      throw "values must be a non-empty array of numbers"
+    }
+
+    var values = args.values.map(function(v) {
+      var num = Number(v)
+      if (!isFinite(num)) throw "All values must be finite numbers"
+      return num
+    }).sort(function(a, b) { return a - b })
+
+    var n = values.length
+    var sum = values.reduce(function(a, b) { return a + b }, 0)
+    var mean = sum / n
+
+    var variance = values.reduce(function(acc, val) {
+      return acc + Math.pow(val - mean, 2)
+    }, 0) / n
+
+    var stddev = Math.sqrt(variance)
+
+    var median
+    if (n % 2 === 0) {
+      median = (values[n/2 - 1] + values[n/2]) / 2
+    } else {
+      median = values[Math.floor(n/2)]
+    }
+
+    var frequency = {}
+    var maxFreq = 0
+    values.forEach(function(val) {
+      frequency[val] = (frequency[val] || 0) + 1
+      maxFreq = Math.max(maxFreq, frequency[val])
+    })
+    var mode = Object.keys(frequency).filter(function(key) {
+      return frequency[key] === maxFreq
+    }).map(Number)
+
+    var allMetrics = {
+      count   : n,
+      sum     : sum,
+      mean    : mean,
+      median  : median,
+      mode    : mode.length === n ? null : mode,
+      min     : values[0],
+      max     : values[n - 1],
+      range   : values[n - 1] - values[0],
+      variance: variance,
+      stddev  : stddev
+    }
+
+    var requestedMetrics = args.metrics
+    if (isDef(requestedMetrics) && Array.isArray(requestedMetrics) && requestedMetrics.length > 0) {
+      var result = {}
+      requestedMetrics.forEach(function(metric) {
+        var key = String(metric).toLowerCase().trim()
+        if (allMetrics.hasOwnProperty(key)) {
+          result[key] = allMetrics[key]
+        }
+      })
+      return result
+    }
+
+    return allMetrics
+
+# ----------------------------
+- name : Convert between units
+  check:
+    in:
+      value    : toNumber.isNumber
+      fromUnit : isString
+      toUnit   : isString
+      precision: toNumber.isNumber.default(__)
+  exec : | #js
+    var conversions = {
+      // Length (to meters)
+      m : 1,
+      km: 1000,
+      cm: 0.01,
+      mm: 0.001,
+      mi: 1609.344,
+      ft: 0.3048,
+      in: 0.0254,
+      yd: 0.9144,
+
+      // Mass (to kilograms)
+      kg: 1,
+      g : 0.001,
+      lb: 0.453592,
+      oz: 0.0283495,
+
+      // Temperature (special handling)
+      c : 1,
+      f : 1,
+      k : 1,
+
+      // Volume (to liters)
+      l  : 1,
+      ml : 0.001,
+      gal: 3.78541,
+      qt : 0.946353,
+      pt : 0.473176,
+      cup: 0.236588
+    }
+
+    var categories = {
+      length: ['m', 'km', 'cm', 'mm', 'mi', 'ft', 'in', 'yd'],
+      mass  : ['kg', 'g', 'lb', 'oz'],
+      temp  : ['c', 'f', 'k'],
+      volume: ['l', 'ml', 'gal', 'qt', 'pt', 'cup']
+    }
+
+    var fromUnit = String(args.fromUnit).toLowerCase().trim()
+    var toUnit = String(args.toUnit).toLowerCase().trim()
+
+    if (!conversions.hasOwnProperty(fromUnit)) {
+      throw "Unknown source unit: " + fromUnit
+    }
+    if (!conversions.hasOwnProperty(toUnit)) {
+      throw "Unknown target unit: " + toUnit
+    }
+
+    // Find category
+    var category = null
+    for (var cat in categories) {
+      if (categories[cat].indexOf(fromUnit) >= 0 && categories[cat].indexOf(toUnit) >= 0) {
+        category = cat
+        break
+      }
+    }
+
+    if (!category) {
+      throw "Cannot convert between " + fromUnit + " and " + toUnit + " (different categories)"
+    }
+
+    var value = Number(args.value)
+    if (!isFinite(value)) throw "Value must be a finite number"
+
+    var result
+    if (category === 'temp') {
+      // Temperature conversion
+      if (fromUnit === 'c' && toUnit === 'f') result = (value * 9/5) + 32
+      else if (fromUnit === 'c' && toUnit === 'k') result = value + 273.15
+      else if (fromUnit === 'f' && toUnit === 'c') result = (value - 32) * 5/9
+      else if (fromUnit === 'f' && toUnit === 'k') result = (value - 32) * 5/9 + 273.15
+      else if (fromUnit === 'k' && toUnit === 'c') result = value - 273.15
+      else if (fromUnit === 'k' && toUnit === 'f') result = (value - 273.15) * 9/5 + 32
+      else result = value
+    } else {
+      // Standard conversion
+      var baseValue = value * conversions[fromUnit]
+      result = baseValue / conversions[toUnit]
+    }
+
+    if (isDef(args.precision)) {
+      var precision = Math.max(0, Math.min(15, Math.floor(Number(args.precision))))
+      result = Number(result.toFixed(precision))
+    }
+
+    return {
+      value   : value,
+      fromUnit: fromUnit,
+      toUnit  : toUnit,
+      result  : result,
+      category: category
+    }
+
+# ----------------------------
+- name : Get number properties
+  check:
+    in:
+      value: toNumber.isNumber
+  exec : | #js
+    var num = Number(args.value)
+
+    if (!isFinite(num)) {
+      return {
+        value     : num,
+        isFinite  : false,
+        isInteger : false,
+        isPositive: num > 0,
+        isNegative: num < 0,
+        isZero    : false
+      }
+    }
+
+    var isInteger = Number.isInteger(num)
+    var isPositive = num > 0
+    var isNegative = num < 0
+    var isZero = num === 0
+    var absNum = Math.abs(num)
+
+    // Prime check (only for positive integers)
+    var isPrime = false
+    if (isInteger && num > 1) {
+      isPrime = true
+      if (num === 2) isPrime = true
+      else if (num % 2 === 0) isPrime = false
+      else {
+        var sqrt = Math.sqrt(num)
+        for (var i = 3; i <= sqrt; i += 2) {
+          if (num % i === 0) {
+            isPrime = false
+            break
+          }
+        }
+      }
+    }
+
+    // Factors (only for positive integers <= 10000 for performance)
+    var factors = null
+    if (isInteger && num > 0 && num <= 10000) {
+      factors = []
+      for (var i = 1; i <= num; i++) {
+        if (num % i === 0) factors.push(i)
+      }
+    }
+
+    // Prime factorization (only for integers 2-10000)
+    var primeFactors = null
+    if (isInteger && num >= 2 && num <= 10000) {
+      primeFactors = []
+      var n = num
+      for (var i = 2; i <= n; i++) {
+        while (n % i === 0) {
+          primeFactors.push(i)
+          n = n / i
+        }
+      }
+    }
+
+    var result = {
+      value        : num,
+      isFinite     : true,
+      isInteger    : isInteger,
+      isPositive   : isPositive,
+      isNegative   : isNegative,
+      isZero       : isZero,
+      absoluteValue: absNum,
+      sign         : isZero ? 0 : (isPositive ? 1 : -1)
+    }
+
+    if (isInteger && num > 1) {
+      result.isPrime = isPrime
+    }
+
+    if (factors !== null) {
+      result.factors = factors
+      result.factorCount = factors.length
+    }
+
+    if (primeFactors !== null) {
+      result.primeFactors = primeFactors
+    }
+
+    if (isInteger && num > 0) {
+      result.isEven = num % 2 === 0
+      result.isOdd = num % 2 !== 0
+    }
+
+    return result

@@ -51,6 +51,18 @@ todo:
             useplanning:
               type       : boolean
               description: Enable planning workflow updates.
+            updatefreq:
+              type       : string
+              description: Plan update frequency (auto, always, checkpoints, never).
+            updateinterval:
+              type       : integer
+              description: Steps between plan updates when updatefreq=auto.
+            forceupdates:
+              type       : boolean
+              description: Force plan updates even when actions fail.
+            planlog:
+              type       : string
+              description: Optional plan update log file path.
             planmode:
               type       : boolean
               description: Run in plan-only mode (generate plan without executing).
@@ -137,6 +149,10 @@ jobs:
       raw            : toBoolean.isBoolean.default(false)
       chatbotmode    : toBoolean.isBoolean.default(false)
       useplanning    : toBoolean.isBoolean.default(false)
+      updatefreq     : isString.default("auto")
+      updateinterval : toNumber.isNumber.default(3)
+      forceupdates   : toBoolean.isBoolean.default(false)
+      planlog        : isString.default(__)
       planmode       : toBoolean.isBoolean.default(false)
       planfile       : isString.default(__)
       planformat     : isString.default(__)
@@ -166,6 +182,10 @@ jobs:
       raw         : true,
       chatbotmode : true,
       useplanning : true,
+      updatefreq  : true,
+      updateinterval: true,
+      forceupdates: true,
+      planlog     : true,
       planmode    : true,
       planformat  : true,
       convertplan : true
@@ -183,7 +203,7 @@ jobs:
     var booleanKeys = [
       "usetools", "useutils", "mcpdynamic", "mcplazy", "useshell", "readwrite",
       "shellallowpipes", "shellbatch", "checkall", "verbose", "debug", "raw",
-      "chatbotmode", "useplanning", "planmode", "convertplan", "resumefailed"
+      "chatbotmode", "useplanning", "forceupdates", "planmode", "convertplan", "resumefailed"
     ]
     booleanKeys.forEach(function(key) {
       if (isDef(preparedArgs[key])) {

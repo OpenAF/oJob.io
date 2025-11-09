@@ -92,8 +92,8 @@ include:
 - oJobMCP.yaml
 
 init:
-  defaultPath: rss.channel.item
-  catalogueAPI:
+  defaultPath : &DEFAULT_PATH rss.channel.item
+  catalogueAPI: &CATALOGUE_API
   - name: adoptium
     url : https://adoptium.net/rss.xml
   - name: arstechnica
@@ -214,17 +214,31 @@ init:
     url : http://feeds.wired.com/wired/index
   - name: zdnet
     url : https://www.zdnet.com/news/rss.xml
+  - name: airbnb
+    url : https://airbnb.tech/feed
+  - name: databricks
+    url : https://www.databricks.com/feed
+  - name: dropbox
+    url : https://dropbox.tech/feed
+  - name: google-research
+    url : https://blog.research.google/atom.xml
+  - name: huggingface
+    url : https://huggingface.co/blog/feed.xml
+  - name: lyft
+    url : https://eng.lyft.com/feed/
+  - name: nvidia
+    url : https://developer.nvidia.com/blog/feed/
+  - name: pinterest
+    url : https://medium.com/feed/pinterest-engineering
+  - name: slack
+    url : https://slack.engineering/feed
 
 jobs:
-# -----------
-- name : Init
-  exec : | #js
-    // Initialization job (no operation needed for now)
-    global.catalogueAPI = args.init.catalogueAPI
-    global.defaultPath  = args.init.defaultPath
-
 # -------------------
 - name : Get RSS feed
+  args :
+    catalogueAPI: *CATALOGUE_API
+    defaultPath : *DEFAULT_PATH
   check:
     in:
       url      : isString
@@ -245,13 +259,15 @@ jobs:
       return item
     }
 
-    if (isUnDef(args.path)) args.path = global.defaultPath
+    if (isUnDef(args.path)) args.path = args.defaultPath
 
-    var rest = $rest({ requestHeaders: { "User-Agent": args.userAgent || "mini-a-mcp-rss" } })
+    var rest = $rest({ requestHeaders: { "User-Agent": args.userAgent || __OpenAFUserAgent } })
     var xml = rest.get(args.url)
     var rssObj = af.fromXML2Obj(xml)
+    if (isUnDef(rssObj)) throw "Failed to parse RSS feed from URL: " + args.url
+
     var wrapper = $$(rssObj)
-    var items = wrapper.get(args.path)
+    var items = isDef(args.path) ? wrapper.get(args.path) : rssObj
 
     if (isUnDef(items) && args.path != "feed.entry") {
       items = wrapper.get("feed.entry")
@@ -273,11 +289,14 @@ jobs:
 
 # -------------------
 - name : Find RSS URL
+  args :
+    catalogueAPI: *CATALOGUE_API
+    defaultPath : *DEFAULT_PATH
   check:
     in:
       query    : isString
   exec : | #js
     var rest = $rest({ requestHeaders: { "User-Agent": args.userAgent || "mini-a-mcp-rss" } })
     
-    var results = global.catalogueAPI.filter(api => api.name.toLowerCase().includes(args.query.toLowerCase()))
+    var results = args.catalogueAPI.filter(api => api.name.toLowerCase().includes(args.query.toLowerCase()))
     return results
