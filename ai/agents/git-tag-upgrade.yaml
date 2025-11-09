@@ -1,0 +1,33 @@
+# Author: Nuno Aguiar
+help:
+  text   : Mini-A AI agent to change the a major git tag to the commit of another minor tag
+  expects: 
+  - name     : major
+    desc     : The major git tag to be moved
+    example  : v2.0.0
+    mandatory: true
+  - name     : minor
+    desc     : The minor git tag whose commit the major tag will point to
+    example  : v2.1.0
+    mandatory: true
+
+ojob:
+  opacks      :
+  - openaf: 20251108
+  - mini-a: 20251108
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+
+jobsInclude:
+- mini-a.yaml
+
+todo:
+- (todo): 
+  - (pass          ):
+      goal     : | #markdown
+        Change the git tag '{{major}}' to point to the commit of the tag '{{minor}}' and push the change to the remote repository.
+      useshell : true
+      readwrite: true
+  - MiniAgent
+  ((shareArgs   )): true
+  ((templateArgs)): true
