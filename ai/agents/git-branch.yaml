@@ -1,0 +1,29 @@
+# Author: Nuno Aguiar
+help:
+  text   : Mini-A AI agent to change the current git branch to a remote branch
+  expects: 
+  - name     : branch
+    desc     : The name of the remote branch to switch to
+    example  : feature/new-feature
+    mandatory: true
+
+ojob:
+  opacks      :
+  - openaf: 20251108
+  - mini-a: 20251108
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+
+jobsInclude:
+- mini-a.yaml
+
+todo:
+- (todo): 
+  - (pass          ):
+      goal     : | #markdown
+        Change the current git branch to the origin branch '{{branch}}'
+      useshell : true
+      readwrite: true
+  - MiniAgent
+  ((shareArgs   )): true
+  ((templateArgs)): true
