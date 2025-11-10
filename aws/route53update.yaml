@@ -50,10 +50,15 @@ jobs:
       type     : isString.default("A")
       ttl      : toNumber.isNumber.default(300)
       exiterror: toBoolean.isBoolean.default(false)
+      test     : toBoolean.isBoolean.default(true)
   exec : | #js
     var res
     var aws = new AWS()
     args.value = $t(args.value, args)
+    if (args.test) {
+      ow.loadNet()
+      if (!ow.net.testHost(args.value).reachable) throw new Error(`The IP address ${args.value} is not reachable!`)
+    }
     res = aws.ROUTE53_setRecord(args.id, args.rec, args.type, args.value, args.ttl)
 
     if (isDef(res) && isDef(res.error)) {
