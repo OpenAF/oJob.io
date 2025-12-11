@@ -1,0 +1,559 @@
+# Author: OpenAI Assistant, Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP office server exposing XLSX/DOCX helpers via plugin-XLS
+  expects:
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : root
+    desc     : "Base directory restricting all office file operations (default: current directory)"
+    example  : "/workspace"
+    mandatory: false
+  - name     : readwrite
+    desc     : 'If true, allows write operations (default: false)'
+    example  : "true"
+    mandatory: false
+
+todo:
+- Init office context
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-office
+        title  : OpenAF mini-a MCP office server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      xlsx-read-table:
+        name       : xlsx-read-table
+        description: Reads a worksheet segment as a JSON table using plugin-XLS getTable.
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: XLSX/XLS file path (relative to root when not absolute).
+              example    : "./data/report.xlsx"
+            sheet:
+              type       : string
+              description: Sheet name or zero-based index (as string). Defaults to the first sheet.
+              example    : "Sheet1"
+            startColumn:
+              type       : string
+              description: Column letter to start reading from.
+              example    : "A"
+              default    : "A"
+            startRow:
+              type       : integer
+              description: Row number to start reading from (1-based).
+              example    : 1
+              default    : 1
+            evaluateFormulas:
+              type       : boolean
+              description: Evaluate formulas before returning values.
+              example    : true
+              default    : true
+            maxRows:
+              type       : integer
+              description: Optional maximum number of rows to return (0 means no limit).
+              example    : 100
+              default    : 0
+          required  : [ path ]
+        annotations:
+          title         : xlsx-read-table
+          readOnlyHint  : true
+          idempotentHint: true
+
+      xlsx-write-table:
+        name       : xlsx-write-table
+        description: Writes a JSON array as a table into the given sheet using plugin-XLS setTable (requires readwrite=true).
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: XLSX/XLS target path (relative to root when not absolute).
+              example    : "./data/output.xlsx"
+            sheet:
+              type       : string
+              description: Sheet name or index (created when missing).
+              example    : "Sheet1"
+              default    : "Sheet1"
+            startColumn:
+              type       : string
+              description: Column letter where the header row is placed.
+              example    : "A"
+              default    : "A"
+            startRow:
+              type       : integer
+              description: Row number (1-based) for the header row.
+              example    : 1
+              default    : 1
+            rows:
+              type       : array
+              description: Array of row objects to persist (keys become headers).
+              items      :
+                type: object
+              example    : [{ "First": "AA1", "Last": "AA2" }]
+            createMissingDirs:
+              type       : boolean
+              description: Create parent directories when they do not exist.
+              example    : true
+              default    : true
+          required  : [ path, rows ]
+        annotations:
+          title         : xlsx-write-table
+          readOnlyHint  : false
+          idempotentHint: false
+
+      docx-read-paragraphs:
+        name       : docx-read-paragraphs
+        description: Reads paragraphs from a DOCX file using plugin-XLS DOC utilities.
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: DOCX file path (relative to root when not absolute).
+              example    : "./notes/doc1.docx"
+            maxParagraphs:
+              type       : integer
+              description: Maximum number of paragraphs to return (0 means all).
+              example    : 50
+              default    : 50
+            includeEmpty:
+              type       : boolean
+              description: Include empty paragraphs when true.
+              example    : false
+              default    : false
+          required  : [ path ]
+        annotations:
+          title         : docx-read-paragraphs
+          readOnlyHint  : true
+          idempotentHint: true
+
+      docx-write-paragraphs:
+        name       : docx-write-paragraphs
+        description: Writes paragraphs (and optional tables) into a DOCX file using plugin-XLS DOC helpers (requires readwrite=true).
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: DOCX target path (relative to root when not absolute).
+              example    : "./notes/doc1.docx"
+            paragraphs:
+              type       : array
+              description: Ordered paragraphs as strings or {text, style} objects.
+              items      :
+                oneOf:
+                - type: string
+                - type: object
+                  properties:
+                    text : { type: string, description: "Paragraph text" }
+                    style: { type: string, description: "Optional DOCX style name (e.g., Heading1)" }
+                  required: [ text ]
+              example    :
+                - "Heading"
+                - text : "Detail"
+                  style: "Heading2"
+            table:
+              type       : array
+              description: Optional table to append (array of objects; keys become headers).
+              items      :
+                type: object
+            append:
+              type       : boolean
+              description: Append to an existing file when true; otherwise starts a new document.
+              example    : false
+              default    : false
+            customHeadings:
+              type       : boolean
+              description: Preload custom heading styles before writing.
+              example    : true
+              default    : false
+            defaultStyle:
+              type       : string
+              description: Style name applied to string paragraphs when style is omitted.
+              example    : "Heading1"
+            createMissingDirs:
+              type       : boolean
+              description: Create parent directories when they do not exist.
+              example    : true
+              default    : true
+          required  : [ path, paragraphs ]
+        annotations:
+          title         : docx-write-paragraphs
+          readOnlyHint  : false
+          idempotentHint: false
+    ((fns    )): &MCPFNS
+      xlsx-read-table      : XLSX Read Table
+      xlsx-write-table     : XLSX Write Table
+      docx-read-paragraphs : DOCX Read Paragraphs
+      docx-write-paragraphs: DOCX Write Paragraphs
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - plugin-XLS : 20251124
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-office.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# --------------------------
+- name : Init office context
+  check:
+    in:
+      root     : isString.default(".")
+      readwrite: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (isUnDef(global.__officeContextInitialized__) || global.__officeContextInitialized__ !== true) {
+      global.__officeContextInitialized__ = true
+
+      var File = Packages.java.io.File
+      var rootPath = args.root || "."
+      var rootFile = new File(rootPath)
+      var canonicalRoot = String(rootFile.getCanonicalPath())
+
+      if (!rootFile.exists()) {
+        return "[ERROR] Root path not found: " + rootPath
+      }
+      if (!rootFile.isDirectory()) {
+        return "[ERROR] Root path is not a directory: " + canonicalRoot
+      }
+
+      global.__officeRoot__ = canonicalRoot
+      global.__officeReadWrite__ = args.readwrite === true
+
+      var FileSep = String(Packages.java.io.File.separator)
+      var rootCheck = canonicalRoot.endsWith(FileSep) ? canonicalRoot : canonicalRoot + FileSep
+
+      global.__officeWithinRoot__ = function(candidate) {
+        if (!isString(candidate)) return false
+        if (candidate === canonicalRoot) return true
+        return candidate.indexOf(rootCheck) === 0
+      }
+
+      global.__officeToRelative__ = function(targetPath) {
+        if (!isString(targetPath)) return targetPath
+        if (!global.__officeWithinRoot__(targetPath)) return targetPath
+        var relative = targetPath.substring(canonicalRoot.length)
+        if (relative.startsWith(FileSep)) relative = relative.substring(FileSep.length)
+        return relative.length === 0 ? "." : relative
+      }
+
+      global.__officeResolve__ = function(target) {
+        var FileRef = Packages.java.io.File
+        var candidate = new FileRef(target)
+        if (!candidate.isAbsolute()) {
+          candidate = new FileRef(global.__officeRoot__, target)
+        }
+        var resolved = String(candidate.getCanonicalPath())
+        if (!global.__officeWithinRoot__(resolved)) {
+          throw new Error("Path outside of allowed root: " + target)
+        }
+        return resolved
+      }
+
+      global.__officeEnsureWritable__ = function(operation) {
+        if (!global.__officeReadWrite__) {
+          throw new Error("Read-only mode. Set readwrite=true to allow " + operation)
+        }
+      }
+
+      global.__officeLoadXLS__ = function() {
+        if (global.__officeXLSLoaded__ === true) return
+        plugin("XLS")
+        global.__officeXLSLoaded__ = true
+      }
+
+      global.__officeLoadDOC__ = function() {
+        if (global.__officeDOCLoaded__ === true) return
+        plugin("XLS", "DOC")
+        global.__officeDOCLoaded__ = true
+      }
+    }
+
+# ----------------------
+- name : XLSX Read Table
+  check:
+    in:
+      path            : isString
+      sheet           : isString.default(__)
+      startColumn     : isString.default("A")
+      startRow        : toNumber.isNumber.default(1)
+      evaluateFormulas: toBoolean.isBoolean.default(true)
+      maxRows         : toNumber.isNumber.default(0)
+  exec : | #js
+    var xls
+    try {
+      if (isUnDef(global.__officeResolve__)) throw new Error("Office context not initialized")
+      var filePath = global.__officeResolve__(args.path)
+      if (!io.fileExists(filePath)) return "[ERROR] File not found: " + args.path
+
+      global.__officeLoadXLS__()
+      xls = new XLS(filePath)
+
+      var sheetNames = xls.getSheetNames()
+      var sheetRef = args.sheet
+      if (isUnDef(sheetRef) || sheetRef === null || sheetRef === "") {
+        if (!isArray(sheetNames) || sheetNames.length === 0) {
+          xls.close()
+          return "[ERROR] Workbook has no sheets: " + args.path
+        }
+        sheetRef = String(sheetNames[0])
+      } else {
+        sheetRef = String(sheetRef)
+      }
+
+      if (isArray(sheetNames) && sheetNames.length > 0) {
+        var allowedSheet = sheetNames.map(function(n) { return String(n); }).indexOf(sheetRef) >= 0
+        if (!allowedSheet) {
+          var numericIndex = Number(sheetRef)
+          if (!(isNumber(numericIndex) && !isNaN(numericIndex) && numericIndex >= 0 && numericIndex < sheetNames.length)) {
+            xls.close()
+            return "[ERROR] Sheet not found: " + sheetRef
+          }
+        }
+      }
+
+      var sheet = xls.getSheet(sheetRef)
+      var startCol = args.startColumn || "A"
+      var startRow = isNumber(args.startRow) ? args.startRow : 1
+      if (startRow < 1) startRow = 1
+      var evaluate = args.evaluateFormulas === true
+      var result = xls.getTable(sheet, evaluate, startCol, startRow)
+      var table = result.table || []
+      if (isNumber(args.maxRows) && args.maxRows > 0 && table.length > args.maxRows) {
+        table = table.slice(0, args.maxRows)
+      }
+      xls.close()
+
+      return {
+        path        : filePath,
+        relativePath: global.__officeToRelative__(filePath),
+        sheet       : sheetRef,
+        startColumn : startCol,
+        startRow    : startRow,
+        table       : table
+      }
+    } catch(e) {
+      try { if (isDef(xls)) xls.close() } catch(ignore) {}
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# -----------------------
+- name : XLSX Write Table
+  from : Init office context
+  check:
+    in:
+      path             : isString
+      sheet            : isString.default("Sheet1")
+      startColumn      : isString.default("A")
+      startRow         : toNumber.isNumber.default(1)
+      #rows             : isArray
+      createMissingDirs: toBoolean.isBoolean.default(true)
+  exec : | #js
+    var xls
+
+    if (isUnDef(args.path) || !isString(args.path) || args.path.trim().length === 0) {
+      return "[ERROR] 'path' is required and must be a non-empty string"
+    }
+
+    try {
+      if (isUnDef(global.__officeResolve__)) throw new Error("Office context not initialized")
+      global.__officeEnsureWritable__("writing XLSX data")
+
+      if (!isArray(args.rows) || args.rows.length === 0) {
+        return "[ERROR] 'rows' must include at least one entry"
+      }
+
+      var filePath = global.__officeResolve__(args.path)
+      var FileRef = Packages.java.io.File
+      var targetFile = new FileRef(filePath)
+      var parent = targetFile.getParentFile()
+      if (parent != null && !parent.exists()) {
+        if (args.createMissingDirs === true) {
+          io.mkdir(parent.getCanonicalPath())
+        } else {
+          return "[ERROR] Parent directory not found: " + parent.getCanonicalPath()
+        }
+      }
+
+      global.__officeLoadXLS__()
+      xls = targetFile.exists() ? new XLS(filePath) : new XLS()
+
+      var sheetRef = args.sheet || "Sheet1"
+      var sheet = xls.getSheet(String(sheetRef))
+      var startCol = args.startColumn || "A"
+      var startRow = isNumber(args.startRow) ? args.startRow : 1
+      if (startRow < 1) startRow = 1
+
+      xls.setTable(sheet, startCol, startRow, args.rows)
+      xls.writeFile(filePath)
+      xls.close()
+
+      return {
+        path        : filePath,
+        relativePath: global.__officeToRelative__(filePath),
+        sheet       : String(sheetRef),
+        rowsWritten : args.rows.length,
+        startColumn : startCol,
+        startRow    : startRow
+      }
+    } catch(e) {
+      try { if (isDef(xls)) xls.close() } catch(ignore) {}
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# ---------------------------
+- name : DOCX Read Paragraphs
+  from : Init office context
+  check:
+    in:
+      path         : isString
+      maxParagraphs: toNumber.isNumber.default(50)
+      includeEmpty : toBoolean.isBoolean.default(false)
+  exec : | #js
+    var doc
+    try {
+      if (isUnDef(global.__officeResolve__)) throw new Error("Office context not initialized")
+      var filePath = global.__officeResolve__(args.path)
+      if (!io.fileExists(filePath)) return "[ERROR] File not found: " + args.path
+
+      global.__officeLoadDOC__()
+      doc = new DOC(filePath)
+
+      var paragraphs = doc.getParagraphs()
+      var maxP = args.maxParagraphs
+      var includeEmpty = args.includeEmpty === true
+      var output = []
+
+      if (isDef(paragraphs)) {
+        for (var i = 0; i < paragraphs.length; i++) {
+          if (isNumber(maxP) && maxP > 0 && output.length >= maxP) break
+          var p = paragraphs[i]
+          if (isUnDef(p) || p === null) continue
+          var text = ""
+          if (isDef(p.getText)) {
+            text = String(p.getText())
+          } else {
+            text = String(p)
+          }
+          if (!includeEmpty && text.trim().length === 0) continue
+          output.push(text)
+        }
+      }
+
+      var total = isDef(paragraphs) ? paragraphs.length : 0
+      doc.close()
+
+      return {
+        path           : filePath,
+        relativePath   : global.__officeToRelative__(filePath),
+        paragraphs     : output,
+        totalParagraphs: total
+      }
+    } catch(e) {
+      try { if (isDef(doc)) doc.close() } catch(ignore) {}
+      return "[ERROR] " + (e.message || String(e))
+    }
+
+# ----------------------------
+- name : DOCX Write Paragraphs
+  from : Init office context
+  check:
+    in:
+      path             : isString
+      #paragraphs       : isArray
+      append           : toBoolean.isBoolean.default(false)
+      customHeadings   : toBoolean.isBoolean.default(false)
+      defaultStyle     : isString.default(__)
+      createMissingDirs: toBoolean.isBoolean.default(true)
+      table            : isArray.default(__)
+  exec : | #js
+    var doc
+    try {
+      if (isUnDef(global.__officeResolve__)) throw new Error("Office context not initialized")
+      global.__officeEnsureWritable__("writing DOCX data")
+
+      if ((!isArray(args.paragraphs) || args.paragraphs.length === 0) && (!isArray(args.table) || args.table.length === 0)) {
+        return "[ERROR] Provide at least one paragraph or table row to write"
+      }
+
+      var filePath = global.__officeResolve__(args.path)
+      var FileRef = Packages.java.io.File
+      var targetFile = new FileRef(filePath)
+      var parent = targetFile.getParentFile()
+      if (parent != null && !parent.exists()) {
+        if (args.createMissingDirs === true) {
+          io.mkdir(parent.getCanonicalPath())
+        } else {
+          return "[ERROR] Parent directory not found: " + parent.getCanonicalPath()
+        }
+      }
+
+      global.__officeLoadDOC__()
+      if (args.append === true && targetFile.exists()) {
+        doc = new DOC(filePath)
+      } else {
+        doc = new DOC()
+      }
+
+      if (args.customHeadings === true) {
+        doc.addCustomHeadings()
+      }
+
+      var defaultStyle = args.defaultStyle
+      var paragraphs = args.paragraphs || []
+      paragraphs.forEach(function(entry) {
+        if (isUnDef(entry) || entry === null) return
+        var text = entry
+        var style = defaultStyle
+        if (isObject(entry) && !isArray(entry)) {
+          if (isDef(entry.text)) text = entry.text
+          if (isDef(entry.style)) style = entry.style
+        }
+        if (isUnDef(text)) return
+        doc.writeParagraph(String(text), style)
+      })
+
+      if (isArray(args.table) && args.table.length > 0) {
+        doc.writeTable(args.table)
+      }
+
+      doc.writeFile(filePath)
+      doc.close()
+
+      var paragraphsWritten = isArray(paragraphs) ? paragraphs.length : 0
+      var rowsWritten = isArray(args.table) ? args.table.length : 0
+
+      return {
+        path        : filePath,
+        relativePath: global.__officeToRelative__(filePath),
+        appended    : args.append === true,
+        paragraphs  : paragraphsWritten,
+        tableRows   : rowsWritten
+      }
+    } catch(e) {
+      try { if (isDef(doc)) doc.close() } catch(ignore) {}
+      return "[ERROR] " + (e.message || String(e))
+    }
