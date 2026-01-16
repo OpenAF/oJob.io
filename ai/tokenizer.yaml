@@ -1,0 +1,90 @@
+help:
+  text   : Encode text using tiktoken
+  expects: 
+  - name     : text
+    desc     : Input text or file to encode
+    example  : Hello, world!
+    mandatory: true
+  - name     : model
+    desc     : Model name
+    example  : o200k_base
+    mandatory: false
+  - name     : detail
+    desc     : Whether to output detailed token bytes
+    example  : "true"
+    mandatory: false
+
+ojob:
+  catch : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  owraps:
+  - Python
+  logToConsole: false
+
+jobs:
+# --------------------
+- name: Setup tiktoken
+  lang: shell
+  exec: | #shell
+    # If pip3 exists use pip3 otherwise fallback to pip
+    command -v pip3 >/dev/null 2>&1 || alias pip3=pip
+    pip3 install tiktoken --break-system-packages 1>&2
+
+# ------------------
+- name : List models
+  deps :
+  - Setup tiktoken
+  to   :
+  - (output): args
+    ((path)): models
+  lang : python
+  exec : | #python
+    import tiktoken.model as model
+    args['models'] = sorted(model.MODEL_TO_ENCODING.keys())
+
+# -------------
+- name : Encode
+  deps :
+  - Setup tiktoken
+  to   : Output encode
+  lang : python
+  check:
+    in:
+      text : isString
+      model: isString.default("o200k_base")
+  exec : | #python
+    import tiktoken
+    enc = tiktoken.encoding_for_model(args['model'])
+
+    # Load text from file if it exists, otherwise use the text directly
+    if os.path.isfile(args['text'].strip()):
+      with open(args['text'].strip(), 'r') as f:
+        text_to_encode = f.read()
+    else:
+      text_to_encode = args['text']
+
+    args['tokens'] = enc.encode(text_to_encode)
+    args['tokensBytes'] = [str(enc.decode_single_token_bytes(token)) for token in args['tokens']]
+
+# --------------------
+- name : Output encode
+  check:
+    in:
+      details: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (args.details) {
+      ow.oJob.output({
+        tokens: args.tokens,
+        tokensBytes: args.tokensBytes.map(b => b.replace(/^b'(.+)'$/, "$1")),
+        length: args.tokens.length
+      }, args)
+    } else {
+      ow.oJob.output({ length: args.tokens.length }, args)
+    }
+
+todo:
+- Setup tiktoken
+- (if    ): isUnDef(args.model)
+  ((then)):
+  - List models
+  ((else)):
+  - Encode
