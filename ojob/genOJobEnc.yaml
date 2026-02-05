@@ -1,0 +1,75 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate encoded oJob versions
+  expects: 
+  - name     : origPath
+    desc     : A path where the original oJob files are located
+    example  : /orig/ojobs
+    mandatory: false
+  - name     : destPath
+    desc     : A path where the encoded oJob files will be saved
+    example  : /dest/ojobs
+    mandatory: false
+  - name     : origJob
+    desc     : An oJob name to be encoded (alternatively to origPath)
+    example  : MyJob
+    mandatory: false
+  - name     : destJob
+    desc     : The name of the encoded oJob (alternatively to destPath)
+    example  : MyJobEnc
+    mandatory: false
+
+todo:
+- (if    ): 'isDef(args.origPath)'
+  ((then)): 
+  - Encrypt oJobs
+  ((else)):
+  - Encrypt oJob
+
+ojob:
+  opacks      :
+  - openaf: 20260204
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+        
+
+jobs:
+# --------------------
+- name : Encrypt oJobs
+  check:
+    in:
+      origPath: isString
+      destPath: isString.default(__)
+  exec : | #js
+    if (isUnDef(args.destPath)) args.destPath = args.origPath
+    if (!io.fileExists(args.origPath)) throw "Original oJob path does not exist: " + args.origPath
+    if (!io.fileExists(args.destPath)) io.mkdir(args.destPath)
+
+    // Get list of oJob files in the original path and encrypt each one
+    var oJobs = $from( io.listFiles(args.origPath).files ).ends("filename", ".yaml").orEnds("filename", ".json").orEnds("filename", ".yml").select()
+    for (var i=0; i<oJobs.length; i++) {
+      var origJob = oJobs[i]
+      var destJob = args.destPath + "/" + origJob.filename + ".enc"
+
+      // Get contents and replace mention to other oJobs with their encrypted versions (if any)
+      var contents = af.fromBytes2String(io.readFileBytes(origJob.filepath))
+      oJobs.forEach(function(otherJob) {
+        // Ensure only replace file.yaml or file.json or file.yml and not any mention to file.yaml.enc or file.json.enc or file.yml.enc
+        var regex = new RegExp(otherJob.filename + "(?!\\.enc)", "g")
+        contents = contents.replace(regex, otherJob.filename + ".enc")
+      })
+
+      io.writeFileBytes(destJob, af.encryptBytes(af.fromString2Bytes(contents)))
+    }
+
+# -------------------
+- name : Encrypt oJob
+  check:
+    in:
+      origJob: isString
+      destJob: isString.default(__)
+  exec : | #js
+    if (isUnDef(args.destJob)) args.destJob = args.origJob + ".enc"
+    if (!io.fileExists(args.origJob)) throw "Original oJob file does not exist: " + args.origJob
+
+    io.writeFileBytes(args.destJob, af.encryptBytes(io.readFileBytes(args.origJob)))
