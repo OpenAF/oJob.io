@@ -1,0 +1,195 @@
+# Author: OpenAF Assistant
+help:
+  text   : Generates an oJob YAML MCP server skeleton (STDIO/HTTP) similar to ai/mcps/mcp-*.yaml.
+  expects:
+  - name     : name
+    desc     : MCP server short name (used in serverInfo.name and pid file)
+    example  : mini-a-custom
+    mandatory: false
+  - name     : title
+    desc     : MCP server title
+    example  : OpenAF mini-a MCP custom server
+    mandatory: false
+  - name     : description
+    desc     : MCP server description (help text + default function description)
+    example  : A STDIO/HTTP MCP custom server
+    mandatory: false
+  - name     : author
+    desc     : Author to place in the generated YAML comments
+    example  : OpenAF Assistant
+    mandatory: false
+  - name     : file
+    desc     : Output file path (if omitted prints to stdout)
+    example  : ai/mcps/mcp-custom.yaml
+    mandatory: false
+  - name     : fns
+    desc     : Comma separated MCP function ids
+    example  : sample-tool,health-check
+    mandatory: false
+  - name     : params
+    desc     : Comma separated input parameter names for every function
+    example  : input,context
+    mandatory: false
+  - name     : required
+    desc     : Comma separated required parameter names (subset of params)
+    example  : input
+    mandatory: false
+  - name     : readonly
+    desc     : If true generated annotations.readOnlyHint is true
+    example  : true
+    mandatory: false
+  - name     : idempotent
+    desc     : If true generated annotations.idempotentHint is true
+    example  : true
+    mandatory: false
+
+init:
+  tmpl: | #yaml
+    # Author: {{author}}
+    help:
+      text   : {{description}}
+      expects:
+      - name     : onport
+        desc     : If defined starts a MCP server on the provided port
+        example  : "8888"
+        mandatory: false
+
+    todo:
+    - (if    ): "isDef(args.onport)"
+      ((then)):
+      - (httpdStart   ): "${onport:-8080}"
+      - (httpdHealthz ): "${onport:-8080}"
+      - (httpdMetrics ): "${onport:-8080}"
+      - (httpdMCP     ): "${onport:-8080}"
+        ((description)): &MCPSERVER
+          serverInfo:
+            name   : {{name}}
+            title  : {{title}}
+            version: 1.0.0
+
+        ((fnsMeta)): &MCPFNSMETA
+    {{#each fns}}
+          {{id}}:
+            name       : {{id}}
+            description: {{description}}
+            inputSchema:
+              type      : object
+              properties:
+    {{#each ../params}}
+                {{name}}:
+                  type       : string
+                  description: Input parameter {{name}}
+    {{/each}}
+    {{#if ../required}}
+              required: [ {{{../required}}} ]
+    {{/if}}
+            annotations:
+              title         : {{id}}
+              readOnlyHint  : {{../readonly}}
+              idempotentHint: {{../idempotent}}
+
+    {{/each}}
+        ((fns    )): &MCPFNS
+    {{#each fns}}
+          {{id}}: {{title}}
+    {{/each}}
+
+      ((else)):
+      - (stdioMCP ): *MCPSERVER
+        ((fnsMeta)): *MCPFNSMETA
+        ((fns    )): *MCPFNS
+
+    ojob:
+      opacks      :
+      - openaf     : 20250915
+      - oJob-common: 20250914
+      catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+      logToConsole: false
+      argsFromEnvs: true
+      daemon      : true
+      unique      :
+        pidFile     : .{{pid}}.pid
+        killPrevious: true
+
+    include:
+    - oJobMCP.yaml
+
+    jobs:
+    {{#each fns}}
+    # -------{{sep}}
+    - name : {{title}}
+      check:
+        in:
+    {{#each ../params}}
+          {{name}}: isString.default(__)
+    {{/each}}
+      exec : |
+        // TODO: implement {{id}}
+        return {
+          status: "ok",
+          tool  : "{{id}}",
+          args  : args
+        }
+
+    {{/each}}
+
+todo:
+- Generate MCP server skeleton
+
+ojob:
+  opacks      :
+  - openaf: 20250915
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false
+
+jobs:
+# --------------------------------
+- name : Generate MCP server skeleton
+  exec : | #js
+    args.name        = _$(args.name, "name").default("mini-a-custom")
+    args.title       = _$(args.title, "title").default("OpenAF mini-a MCP custom server")
+    args.description = _$(args.description, "description").default("A STDIO/HTTP MCP custom server")
+    args.author      = _$(args.author, "author").default("OpenAF Assistant")
+    args.fns         = _$(args.fns, "fns").default("sample-tool")
+    args.params      = _$(args.params, "params").default("input")
+    args.required    = _$(args.required, "required").default(args.params.split(",")[0])
+    args.readonly    = _$(args.readonly, "readonly").default("true")
+    args.idempotent  = _$(args.idempotent, "idempotent").default("true")
+
+    var norm = s => String(s || "").trim()
+    var slug = norm(args.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    if (slug.length == 0) slug = "mcp-custom"
+
+    args.pid = slug
+
+    var toTitle = function(s) {
+      var parts = String(s || "").trim().split(/[\s_-]+/)
+      return parts.map(p => p.length > 0 ? p.substring(0, 1).toUpperCase() + p.substring(1) : "").join(" ")
+    }
+
+    args.fns = String(args.fns).split(",").map(r => norm(r)).filter(r => r.length > 0).map(r => ({
+      id         : r,
+      title      : toTitle(r),
+      description: "Executes " + toTitle(r).toLowerCase() + ".",
+      sep        : repeat(r.length + 8, "-")
+    }))
+
+    args.params = String(args.params).split(",").map(r => norm(r)).filter(r => r.length > 0).map(r => ({
+      name: r
+    }))
+
+    var req = String(args.required).split(",").map(r => norm(r)).filter(r => r.length > 0)
+    var available = {}
+    args.params.forEach(p => available[p.name] = true)
+    req = req.filter(r => available[r] === true)
+    args.required = req.map(r => "\"" + r + "\"").join(", ")
+
+    args.readonly = (String(args.readonly).toLowerCase() == "true")
+    args.idempotent = (String(args.idempotent).toLowerCase() == "true")
+
+    var out = templify(args.init.tmpl, args)
+
+    if (isDef(args.file))
+      io.writeFileString(args.file, out)
+    else
+      printnl(out)
