@@ -1,0 +1,206 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a sample MCP Server oJob that proxies an external oJobBrowse HTTP Browse API service 
+  expects: 
+  - name     : name
+    desc     : A name to identify the API service
+    example  : mybrowseapi
+    mandatory: false
+
+todo:
+- Generate MCP Browse API server
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  oj: |
+    # Author: Template for oJob Browse {{name}}
+    help:
+      text   : A STDIO/HTTP MCP server that proxies the external {{name}} service.
+      expects:
+      - name     : onport
+        desc     : If defined starts a MCP server on the provided port
+        example  : "8888"
+        mandatory: false
+      - name     : serviceURL
+        desc     : Base URL for the external {{name}} service
+        example  : "http://127.0.0.1:8091/api/browse"
+        mandatory: true
+      - name     : defaultBrowseUri
+        desc     : Optional default browse URI used when a tool call doesn't provide browseUri
+        example  : "/test"
+        mandatory: false
+
+    todo:
+    - {{shortname}} Init
+    - (if    ): "isDef(args.onport)"
+      ((then)):
+      - (httpdStart   ): "${onport:-8080}"
+      - (httpdHealthz ): "${onport:-8080}"
+      - (httpdMetrics ): "${onport:-8080}"
+      - (httpdMCP     ): "${onport:-8080}"
+        ((description)): &MCPSERVER
+          serverInfo:
+            name   : ojob-browse-{{shortname}}-remote
+            title  : {{name}} MCP server
+            version: 1.0.0
+
+        ((fnsMeta)): &MCPFNSMETA
+          browse-list:
+            name       : browse-list
+            description: Lists entries from an external {{name}} service.
+            inputSchema:
+              type      : object
+              properties:
+                browseUri:
+                  type       : string
+                  description: Browse URI configured in the remote {{name}} service.
+                path:
+                  type       : string
+                  description: Relative path to list.
+                serviceURL:
+                  type       : string
+                  description: Optional per-call override for the remote {{name}} service URL.
+              required: []
+            annotations:
+              title         : browse-list
+              readOnlyHint  : true
+              idempotentHint: true
+
+          browse-obj:
+            name       : browse-obj
+            description: Fetches an object from an external {{name}} service.
+            inputSchema:
+              type      : object
+              properties:
+                browseUri:
+                  type       : string
+                  description: Browse URI configured in the remote {{name}} service.
+                path:
+                  type       : string
+                  description: Relative path to the object.
+                raw:
+                  type       : boolean
+                  description: Forwards raw=true to the remote API when supported.
+                  default    : false
+                serviceURL:
+                  type       : string
+                  description: Optional per-call override for the remote {{name}} service URL.
+              required: [ path ]
+            annotations:
+              title         : browse-obj
+              readOnlyHint  : true
+              idempotentHint: true
+
+        ((fns    )): &MCPFNS
+          browse-list: {{shortname}} Browse list
+          browse-obj : {{shortname}} Browse object
+
+      ((else)):
+      - (stdioMCP ): *MCPSERVER
+        ((fnsMeta)): *MCPFNSMETA
+        ((fns    )): *MCPFNS
+
+    ojob:
+      opacks      :
+      - openaf     : 20250915
+      - oJob-common: 20250914
+      catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+      logToConsole: false
+      argsFromEnvs: true
+      daemon      : true
+      unique      :
+        pidFile     : .mcp-ojob-browse-{{shortname}}-remote.pid
+        killPrevious: true
+
+    include:
+    - oJobMCP.yaml
+
+    jobs:
+    # -----------
+    - name : {{shortname}} Init
+      exec : | #js
+        if (isUnDef(global.__ojobBrowseRemoteDefaults)) {
+          global.__ojobBrowseRemoteDefaults = {
+            serviceURL      : args.serviceURL,
+            defaultBrowseUri: args.defaultBrowseUri
+          }
+        }
+
+    # -------------------
+    - name : {{shortname}} Browse list
+      to   : Call browse API
+      args :
+        action: list
+      check:
+        in:
+          browseUri : isString.default(__)
+          path      : isString.default("")
+          serviceURL: isString.default(__)
+
+    # ---------------------
+    - name : {{shortname}} Browse object
+      to   : Call browse API
+      args :
+        action: obj
+      check:
+        in:
+          browseUri : isString.default(__)
+          path      : isString
+          raw       : toBoolean.isBoolean.default(false)
+          serviceURL: isString.default(__)
+
+    # ----------------------
+    - name : Call browse API
+      check:
+        in:
+          action    : isString.oneOf([ "list", "obj" ])
+          browseUri : isString.default(__)
+          path      : isString.default("")
+          raw       : toBoolean.isBoolean.default(false)
+          serviceURL: isString.default(__)
+      exec : | #js
+        var defaults = global.__ojobBrowseRemoteDefaults || {}
+        var endpoint = args.serviceURL || defaults.serviceURL || __
+        if (isUnDef(endpoint) || String(endpoint).trim().length === 0) {
+          throw new Error("Missing serviceURL. Provide serviceURL=<http-browse-api-url> when starting the MCP server or per tool call.")
+        }
+
+        var browseUri = args.browseUri
+        if (isUnDef(browseUri) || String(browseUri).trim().length === 0) {
+          browseUri = defaults.defaultBrowseUri || __
+        }
+
+        var query = {
+          action: args.action,
+          path  : args.path || ""
+        }
+
+        if (isDef(browseUri) && String(browseUri).trim().length > 0) query.browseUri = String(browseUri).trim()
+        if (args.action == "obj" && toBoolean(args.raw)) query.raw = "true"
+
+        var rest = $rest({ uriQuery: true, throwExceptions: false })
+        var data = rest.get(String(endpoint).trim(), query)
+
+        if (isMap(data) || isArray(data)) return data
+        return {
+          action   : args.action,
+          browseUri: query.browseUri,
+          path     : query.path,
+          result   : data
+        }
+
+
+jobs:
+# -----------------------------
+- name : Generate MCP Browse API server
+  check:
+    in:
+      name: isString.default("oJobBrowse HTTP Browse API service")
+  exec : |
+    args.shortname = args.name.toLowerCase().replace(/[^a-zA-Z0-9]+/g, "-")
+    tprint(args.init.oj, args)
