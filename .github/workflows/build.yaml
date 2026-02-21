@@ -138,6 +138,7 @@ jobs:
               shellPrefix: rebuild
             exec: |
               /tmp/oaf/ojob rebuild.yaml NAME=ojob.io URL=ojob.io PROTO=https
+              echo .
 
     # -----------------------
     - name: Copy build result
