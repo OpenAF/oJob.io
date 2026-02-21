@@ -100,6 +100,10 @@ jobs:
           - Run Rebuild
           - oJob Jobs Final Report
 
+          ojob:
+            opacks:
+            - oJob-common
+
           include:
           - oJobBasics.yaml
 
