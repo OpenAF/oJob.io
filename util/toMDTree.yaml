@@ -10,6 +10,10 @@ help:
     desc     : The markdown output file (otherwise stdout)
     example  : example.md
     mandatory: false
+  - name     : path
+    desc     : A path expression to filter data
+    example  : a.b
+    mandatory: false
   - name     : width
     desc     : The line width to use
     example  : 160
@@ -32,6 +36,7 @@ jobs:
     in:
       inputFile: isString.default(__)
       file     : isString.default(__)
+      path     : isString.default(__)
       width    : toNumber.isNumber.default(112)
   exec : |
     var data 
@@ -52,6 +57,8 @@ jobs:
         data = {}
       }
     }
+
+    if (isUnDef(args.path)) data = $path(data, args.path)
 
     var out = "````yaml\n" + printTree(data, args.width).replace(/\033\[[0-9;]*m/g, "") + "\n````\n"
 
