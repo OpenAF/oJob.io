@@ -98,6 +98,10 @@ jobs:
           - Copy files
           - Run Setup oJobIO
           - Run Rebuild
+          - oJob Jobs Final Report
+
+          include:
+          - oJobBasics.yaml
 
           jobs:
           - name: Install aux packs
