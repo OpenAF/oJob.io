@@ -58,7 +58,7 @@ jobs:
       }
     }
 
-    if (isUnDef(args.path)) data = $path(data, args.path)
+    if (isDef(args.path)) data = $path(data, args.path)
 
     var out = "````yaml\n" + printTree(data, args.width).replace(/\033\[[0-9;]*m/g, "") + "\n````\n"
 
