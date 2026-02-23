@@ -1,0 +1,97 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generate a sample oJob that produces an AI generated report and sends it by email. The report is generated in markdown format and then converted to HTML before being sent by email. The report generation uses mini-a to produce the report based on some input data and rules.
+
+todo:
+- Generate AI email report
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true   # to change when finished
+
+init:
+  oj: |
+    jobsInclude:
+    - mini-a.yaml
+    - md2email.yaml
+    - oJobEmail.yaml
+
+    ojob:
+      opacks:
+      - mini-a
+      - md2email
+      - oJob-common
+      catch : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+      logToConsole: true   # to change when finished
+
+    todo:
+    - Generate report
+    - Generate email report
+
+    jobs:
+    # ------------------------
+    - name : Send email report
+      to   :
+      - (email        ): openaf.io report
+        ((server     )): smtp.gmail.com
+        ((credentials)):
+          user: my-login@gmail.com
+          pass: abc123
+        ((useSSL     )): true
+        ((useTLS     )): true 
+        ((from       )): my-login@gmail.com
+        ((to         )):
+        - my-login@gmail.com
+        ((isHTML     )): true
+        ((output     )): "\{{{html}}}"
+
+    # ----------------------------
+    - name : Generate email report
+      args :
+        footer: |
+          <br/>
+          This is an AI automatically generated report. Always verify results.
+      exec : |
+        args.markdown = io.readFileString("report.md")
+      to   :
+      - MD2Email To Email HTML
+      - Send email report
+
+    # ----------------------
+    - name : Generate report
+      to   :
+      - (mini-a             ): |
+          Generate a report about something. Make the report visually appealing and easy to read. Use markdown formatting to structure the report, including headings, bullet points, and tables where appropriate. You can also use emojis to enhance the visual appeal of the report. 
+
+          To produce the report [...]
+
+        ((knowledge        )): |
+          This and that means that and this.
+
+        ((rules            )): |
+          - Do not include any recommendations in the report, only facts.
+          - If an artifact is not available, include that information in the report.
+          - If data cannot be retrieved at all produce just a report with the information that the data cannot be retrieved and include the error message if possible. Don't include any sample data in the report if the data cannot be retrieved.
+
+        ((mcp              )):
+        - type   : ojob
+          options:
+            job: mcps/mcp-web.yaml
+        - type   : ojob
+          options:
+            job: mcps/mcp-time.yaml
+
+        ((usetools         )): true
+        ((mcpproxy         )): true
+        ((debugch          )): "(type: file, options: (file: report-debug.log))"
+        ((auditch          )): "(type: file, options: (file: report-audit.log))"
+        ((mcpproxythreshold)): 128000
+        ((outfile          )): report.md
+
+jobs:
+# -------------------------------
+- name : Generate AI email report
+  exec : |
+    tprint(args.init.oj, args)
