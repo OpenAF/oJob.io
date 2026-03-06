@@ -1327,3 +1327,10 @@ data:
   e: |
     # opack install plugin-xls
     oafp cmd="kubectl get all -A -o json" path="items[].setp(@,'','m').spec.containers.map(&{ ns: get('m').metadata.namespace, kind: get('m').kind, name: get('m').metadata.name, container: name, image: image }, nvl(@, from_json('[]'))) | []" out=xls outxlsfile=list.xlsx
+- c: DB
+  s: DuckDB
+  d: Creates and queries a local DuckDB file database.
+  e: |
+    # opack install jdbc-duckdb
+    oafp libs="@jdbc-duckdb/jdbc-duckdb.js" in=ls data="." lsrecursive=true out=db dbjdbc="jdbc:duckdb:test.db"
+    oafp libs="@jdbc-duckdb/jdbc-duckdb.js" in=db indbjdbc="jdbc:duckdb:test.db" data="select isFile, count(*) as number_of_files, sum(size) sum_size from data group by isFile" out=ctable 

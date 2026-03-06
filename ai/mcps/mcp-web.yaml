@@ -6,8 +6,13 @@ help:
     desc     : If defined starts a MCP server on the provided port
     example  : "8888"
     mandatory: false
+  - name     : readwrite
+    desc     : If true, allows mutating HTTP methods in http-request (POST, PUT, PATCH, DELETE)
+    example  : "true"
+    mandatory: false
 
 todo:
+- Init web context
 - (if    ): "isDef(args.onport)"
   ((then)):
   - (httpdStart   ): "${onport:-8080}"
@@ -65,9 +70,40 @@ todo:
           readOnlyHint  : true
           idempotentHint: true
 
+      http-request:
+        name       : http-request
+        description: Executes HTTP REST requests against a URL and returns the raw $rest response map (GET and HEAD are allowed in read-only mode; POST/PUT/PATCH/DELETE require readwrite=true).
+        inputSchema:
+          type      : object
+          properties:
+            url:
+              type       : string
+              description: The URL to request.
+            method:
+              type       : string
+              description: HTTP method to use. HEAD is supported and does not require readwrite=true.
+              enum       : [ GET, HEAD, POST, PUT, PATCH, DELETE ]
+              default    : GET
+            data:
+              type       : object
+              description: Optional request payload map for POST, PUT and PATCH methods.
+            headers:
+              type       : object
+              description: Optional request headers map used for non-GET methods.
+            throwExceptions:
+              type       : boolean
+              description: If true, non-2xx responses throw exceptions when using non-GET methods.
+              default    : false
+          required: [ url ]
+        annotations:
+          title         : http-request
+          readOnlyHint  : false
+          idempotentHint: false
+
     ((fns    )): &MCPFNS
-      web-search: Web search
-      get-url   : Get URL
+      web-search  : Web search
+      get-url     : Get URL
+      http-request: HTTP Request
 
   ((else)):
   - (stdioMCP ): *MCPSERVER
@@ -97,6 +133,14 @@ init:
   defaultUserAgent: mini-a-mcp-web
 
 jobs:
+# -----------------------
+- name : Init web context
+  check:
+    in:
+      readwrite: toBoolean.isBoolean.default(false)
+  exec : | #js
+    global.__webReadWrite__ = args.readwrite === true
+
 # -----------------
 - name : Web search
   check:
@@ -113,7 +157,49 @@ jobs:
   check:
     in:
       url      : isString
-      style    : isString.oneOf([ "html", "basic", "text", "map" ]).default("basic")
+      style    : isString.oneOf([ "html", "basic", "text", "map" ]).default(__)
   exec : | #js
-    var ws = new WebSearch()
-    return ws.getURL(args.url, args.style)
+    var _s = $rest().get(args.url)
+    if (isDef(args.style)) {
+      var ws = new WebSearch()
+      return ws.getURL(_s, args.style)
+    } else {
+      return _s
+    }
+
+# -------------------
+- name : HTTP Request
+  check:
+    in:
+      url            : isString
+      method         : isString.oneOf([ "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE" ]).default("GET")
+      data           : isMap.default(__)
+      headers        : isMap.default(__)
+      throwExceptions: toBoolean.isBoolean.default(false)
+  exec : | #js
+    var method = String(args.method).toLowerCase()
+    if ([ "post", "put", "patch", "delete" ].indexOf(method) >= 0 && !global.__webReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
+    }
+
+    var r = $rest({
+      requestHeaders : args.headers,
+      throwExceptions: args.throwExceptions
+    })
+
+    switch(method) {
+    case "get":
+      return r.get(args.url)
+    case "head":
+      return r.head(args.url)
+    case "post":
+      return r.post(args.url, _$(args.data, "data").isMap().default({}))
+    case "put":
+      return r.put(args.url, _$(args.data, "data").isMap().default({}))
+    case "patch":
+      return r.patch(args.url, _$(args.data, "data").isMap().default({}))
+    case "delete":
+      return r.delete(args.url)
+    default:
+      throw "Unsupported HTTP method '" + args.method + "'."
+    }
