@@ -1,0 +1,235 @@
+# Author: Nuno Aguiar
+help:
+  text   : Generates a docker-compose for FalkorDB
+  expects:
+  - name     : serverOnly
+    desc     : "If serverOnly=true use the falkordb/falkordb-server image instead of the image with the browser."
+    mandatory: false
+    example  : "true"
+  - name     : tag
+    desc     : Docker image tag to use
+    mandatory: false
+    example  : latest
+  - name     : port
+    desc     : Host port to expose FalkorDB
+    mandatory: false
+    example  : 6379
+  - name     : browserPort
+    desc     : Host port to expose FalkorDB Browser when serverOnly=false
+    mandatory: false
+    example  : 3000
+  - name     : volume
+    desc     : Named volume to persist data to /data
+    mandatory: false
+    example  : falkordb_data
+  - name     : bind
+    desc     : Host path to bind mount to /data
+    mandatory: false
+    example  : ./falkordb-data
+  - name     : password
+    desc     : If defined will add Redis authentication with --requirepass
+    mandatory: false
+    example  : secret123
+  - name     : appendonly
+    desc     : "If appendonly=true will add --appendonly yes to REDIS_ARGS."
+    mandatory: false
+    example  : "true"
+  - name     : appendfsync
+    desc     : Redis appendfsync policy
+    mandatory: false
+    example  : everysec
+  - name     : maxmemory
+    desc     : Redis maxmemory value
+    mandatory: false
+    example  : 2gb
+  - name     : maxmemoryPolicy
+    desc     : Redis maxmemory-policy value
+    mandatory: false
+    example  : allkeys-lru
+  - name     : redisArgs
+    desc     : Additional raw Redis arguments appended to REDIS_ARGS
+    mandatory: false
+    example  : --save 60 1 --dir /data
+  - name     : threadCount
+    desc     : FalkorDB THREAD_COUNT
+    mandatory: false
+    example  : 4
+  - name     : cacheSize
+    desc     : FalkorDB CACHE_SIZE
+    mandatory: false
+    example  : 25
+  - name     : ompThreadCount
+    desc     : FalkorDB OMP_THREAD_COUNT
+    mandatory: false
+    example  : 2
+  - name     : nodeCreationBuffer
+    desc     : FalkorDB NODE_CREATION_BUFFER
+    mandatory: false
+    example  : 16384
+  - name     : boltPort
+    desc     : FalkorDB BOLT_PORT and exposed bolt port
+    mandatory: false
+    example  : 7687
+  - name     : maxQueuedQueries
+    desc     : FalkorDB MAX_QUEUED_QUERIES
+    mandatory: false
+    example  : 500
+  - name     : timeout
+    desc     : FalkorDB TIMEOUT (deprecated upstream in favor of timeoutMax and timeoutDefault)
+    mandatory: false
+    example  : 1000
+  - name     : timeoutMax
+    desc     : FalkorDB TIMEOUT_MAX
+    mandatory: false
+    example  : 30000
+  - name     : timeoutDefault
+    desc     : FalkorDB TIMEOUT_DEFAULT
+    mandatory: false
+    example  : 5000
+  - name     : resultsetSize
+    desc     : FalkorDB RESULTSET_SIZE
+    mandatory: false
+    example  : 1000
+  - name     : queryMemCapacity
+    desc     : FalkorDB QUERY_MEM_CAPACITY in bytes
+    mandatory: false
+    example  : 104857600
+  - name     : vkeyMaxEntityCount
+    desc     : FalkorDB VKEY_MAX_ENTITY_COUNT
+    mandatory: false
+    example  : 100000
+  - name     : effectsThreshold
+    desc     : FalkorDB EFFECTS_THRESHOLD
+    mandatory: false
+    example  : 300
+  - name     : cmdInfo
+    desc     : FalkorDB CMD_INFO (yes or no)
+    mandatory: false
+    example  : "yes"
+  - name     : maxInfoQueries
+    desc     : FalkorDB MAX_INFO_QUERIES
+    mandatory: false
+    example  : 1000
+  - name     : deltaMaxPendingChanges
+    desc     : FalkorDB DELTA_MAX_PENDING_CHANGES
+    mandatory: false
+    example  : 10000
+  - name     : importFolder
+    desc     : FalkorDB IMPORT_FOLDER absolute path
+    mandatory: false
+    example  : /var/lib/FalkorDB/import/
+  - name     : falkordbArgs
+    desc     : Additional raw FalkorDB module arguments appended to FALKORDB_ARGS
+    mandatory: false
+    example  : SOME_OPTION 1
+
+todo:
+- Check for docker
+- Generate docker-compose
+
+include:
+- ojob.io/docker/_common
+
+init:
+  dc  : &DC |
+    version: '3.8'
+
+    networks:
+      falkordb:
+        driver: bridge
+
+    services:
+      falkordb:
+        image         : {{image}}:{{tag}}
+        restart       : unless-stopped
+        container_name: falkordb
+        ports         :
+        - "{{port}}:6379"{{#if browser}}
+        - "{{browserPort}}:3000"{{/if}}{{#if boltPort}}
+        - "{{boltPort}}:{{boltPort}}"{{/if}}
+        {{#if env}}environment   :{{#if redisArgs}}
+        - REDIS_ARGS={{redisArgs}}{{/if}}{{#if falkordbArgs}}
+        - FALKORDB_ARGS={{falkordbArgs}}{{/if}}{{/if}}
+        healthcheck   :
+          test        : [ "CMD-SHELL", "redis-cli{{#if password}} -a '{{password}}'{{/if}} ping | grep PONG || exit 1" ]
+          interval    : 30s
+          timeout     : 10s
+          retries     : 3
+          start_period: 30s{{#if dataMount}}
+        volumes       :
+        - {{dataMount}}:{{dataPath}}{{/if}}
+        networks      :
+        - falkordb
+    {{#if volume}}
+
+    volumes:
+      {{volume}}:
+        driver: local
+    {{/if}}
+
+ojob:
+  opacks      :
+  - openaf: 20250725
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: false
+
+jobs:
+# ------------------------------
+- name : Generate docker-compose
+  exec : |
+    var data = {
+      browser    : !toBoolean(_$(args.serverOnly, "serverOnly").default("false")),
+      image      : toBoolean(_$(args.serverOnly, "serverOnly").default("false")) ? "falkordb/falkordb-server" : "falkordb/falkordb",
+      tag        : _$(args.tag, "tag").default("latest"),
+      port       : _$(args.port, "port").default("6379"),
+      browserPort: _$(args.browserPort, "browserPort").default("3000"),
+      password   : _$(args.password, "password").default(__),
+      volume     : _$(args.volume, "volume").default(__)
+    }
+
+    if (isDef(args.bind) && isDef(args.volume)) throw "Please use either 'bind' or 'volume', not both."
+
+    data.dataPath = "/data"
+    if (isDef(args.bind)) data.dataMount = args.bind
+    if (isDef(args.volume)) data.dataMount = args.volume
+
+    var redisArgs = []
+    var falkordbArgs = []
+
+    if (isDef(args.password)) redisArgs.push("--requirepass " + args.password)
+    if (toBoolean(_$(args.appendonly, "appendonly").default("false"))) redisArgs.push("--appendonly yes")
+    if (isDef(args.appendfsync)) redisArgs.push("--appendfsync " + args.appendfsync)
+    if (isDef(args.maxmemory)) redisArgs.push("--maxmemory " + args.maxmemory)
+    if (isDef(args.maxmemoryPolicy)) redisArgs.push("--maxmemory-policy " + args.maxmemoryPolicy)
+    if (isDef(args.redisArgs)) redisArgs.push(args.redisArgs)
+
+    ;[
+      [ "THREAD_COUNT"             , "threadCount"             ],
+      [ "CACHE_SIZE"               , "cacheSize"               ],
+      [ "OMP_THREAD_COUNT"         , "ompThreadCount"          ],
+      [ "NODE_CREATION_BUFFER"     , "nodeCreationBuffer"      ],
+      [ "BOLT_PORT"                , "boltPort"                ],
+      [ "MAX_QUEUED_QUERIES"       , "maxQueuedQueries"        ],
+      [ "TIMEOUT"                  , "timeout"                 ],
+      [ "TIMEOUT_MAX"              , "timeoutMax"              ],
+      [ "TIMEOUT_DEFAULT"          , "timeoutDefault"          ],
+      [ "RESULTSET_SIZE"           , "resultsetSize"           ],
+      [ "QUERY_MEM_CAPACITY"       , "queryMemCapacity"        ],
+      [ "VKEY_MAX_ENTITY_COUNT"    , "vkeyMaxEntityCount"      ],
+      [ "EFFECTS_THRESHOLD"        , "effectsThreshold"        ],
+      [ "CMD_INFO"                 , "cmdInfo"                 ],
+      [ "MAX_INFO_QUERIES"         , "maxInfoQueries"          ],
+      [ "DELTA_MAX_PENDING_CHANGES", "deltaMaxPendingChanges"  ],
+      [ "IMPORT_FOLDER"            , "importFolder"            ]
+    ].forEach(r => {
+      if (isDef(args[r[1]])) falkordbArgs.push(r[0] + " " + args[r[1]])
+    })
+
+    if (isDef(args.falkordbArgs)) falkordbArgs.push(args.falkordbArgs)
+
+    if (falkordbArgs.length > 0) data.falkordbArgs = falkordbArgs.join(" ")
+    if (redisArgs.length > 0) data.redisArgs = redisArgs.join(" ")
+    data.env = (falkordbArgs.length > 0 || redisArgs.length > 0)
+    if (isDef(args.boltPort)) data.boltPort = args.boltPort
+
+    tprint(args.init.dc, data)
