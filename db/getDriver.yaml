@@ -108,6 +108,26 @@ init:
       docs    : https://jdbc.postgresql.org/documentation/head/connect.html
       url     : jdbc:postgresql://{{host}}:{{port}}/{{database}} 
 
+    # Neo4j
+    - name    : neo4j
+      type    : maven
+      typeArgs:
+        groupId   : org.neo4j
+        artifactId: neo4j-jdbc-full-bundle
+      class   : org.neo4j.jdbc.Neo4jDriver
+      docs    : https://neo4j.com/docs/jdbc-manual/current/
+      url     : jdbc:neo4j://{{host}}:{{port}}/{{database}}
+
+    # AWS Neptune
+    - name    : neptune
+      type    : maven
+      typeArgs:
+        groupId   : software.amazon.neptune
+        artifactId: amazon-neptune-jdbc-driver
+      class   : software.aws.neptune.NeptuneDriver
+      docs    : https://github.com/aws/amazon-neptune-jdbc-driver
+      url     : jdbc:neptune:opencypher://{{host}}:{{port}}
+
     # Oracle
     - name    : oracle
       type    : maven
@@ -366,4 +386,3 @@ jobs:
     }
 
     ow.oJob.output(res, args);
-
