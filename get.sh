@@ -57,6 +57,17 @@ downloadURL() {
     mv $output.temp $output
 }
 
+buildOpenafUrl() {
+    local path="$1"
+    local distPrefix=""
+
+    if [ -n "$DIST" ]; then
+        distPrefix="${DIST%/}/"
+    fi
+
+    echo "http://openaf.io/${distPrefix}${path}"
+}
+
 help() {
   echo Done.
   echo
@@ -120,10 +131,10 @@ fi
 
 echo ---------------------
 echo Downloading openaf...
-url=http://openaf.io/$DIST/openaf.jar
+url=$(buildOpenafUrl "openaf.jar")
 output=openaf.jar.orig
 downloadURL
-url=http://openaf.io/$DIST/openaf.jar.repacked
+url=$(buildOpenafUrl "openaf.jar.repacked")
 output=openaf.jar
 downloadURL
 url=http://ojob.io/autoComplete.sh
