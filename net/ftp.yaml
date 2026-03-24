@@ -1,0 +1,777 @@
+# Author: Nuno Aguiar
+help:
+  text   : |
+    Performs a FTP operation over the provided server connection details.
+    Available operations:
+
+      ls          - List files in a remote folder (optionally recursive)
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=ls remote=/folder recursive=true
+
+      put         - Put a file in a remote path.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=put local=./file.txt remote=/folder/file.txt
+
+      get         - Get a remote file into a local path.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=get remote=/folder/file.txt local=./file.txt
+
+      mput        - Put several files matching a local wildcard into a remote folder.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=mput local=./dist/*.txt remote=/folder
+
+      mget        - Get several files matching a remote wildcard into a local folder.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=mget remote=/folder/*.txt local=./downloads
+
+      mv          - Moves/renames a remote file.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=mv source=/folder/a.txt target=/folder/b.txt
+
+      rm          - Removes a remote file.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=rm remote=/folder/file.txt
+
+      rmdir       - Removes remote files recursively under a remote path.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=rmdir remote=/folder
+
+      mkdir       - Creates a remote folder path recursively.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=mkdir remote=/folder/subfolder
+
+      stat        - Retrieves remote file metadata.
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=stat remote=/folder/file.txt
+
+      syncRemote  - Syncs files from a local folder to a remote folder (deleting/overwriting remotely as needed)
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=syncRemote local=. remote=/target go=true
+
+      syncLocal   - Syncs files from a remote folder to a local folder (deleting/overwriting locally as needed)
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=syncLocal local=. remote=/target go=true
+
+      sync        - Syncs files between a local folder and a remote folder (overwrites locally and remotely as needed)
+                    ojob ftp.yaml host=my.server user=myuser pass=mypass op=sync local=. remote=/target go=true
+
+    Authentication:
+
+      Use a $sec for a FTP object:
+      ojob ftp.yaml secRepo=... secBucket=... secPass=... secKey=...
+
+      Use directly (not secure):
+      ojob ftp.yaml host=... port=21 user=... pass=...
+
+    Notes:
+      Sync compares files using relative path + size + modified time (1 second tolerance).
+      FTP usually doesn't provide portable content hashes, so sync doesn't compare contents directly.
+
+  expects:
+  - name     : op
+    desc     : The operation to perform
+    example  : help
+    mandatory: true
+    options  :
+    - ls
+    - put
+    - get
+    - mput
+    - mget
+    - mv
+    - rm
+    - rmdir
+    - mkdir
+    - stat
+    - sync
+    - syncLocal
+    - syncRemote
+
+todo:
+- FTP
+
+ojob:
+  opacks      :
+  - openaf: 20250725
+  - oJob-common
+  catch       : logErr(exception);
+  logToConsole: false
+
+jobs:
+# ------------------
+- name: FTP connect
+  exec: | #js
+    if (isDef(args.secEnv)) args.secEnv = toBoolean(args.secEnv)
+    if (isDef(args.secKey)) args = $job("ojob sec get", args)
+    if (isDef(args._args)) {
+      args.host    = args._args.host
+      args.port    = args._args.port
+      args.user    = args._args.user
+      args.pass    = args._args.pass
+      args.account = args._args.account
+      args.passive = args._args.passive
+      args.binary  = args._args.binary
+      args.timeout = args._args.timeout
+    }
+
+    args.host    = _$(args.host, "host").isString().$_()
+    args.port    = _$(args.port, "port").default(21)
+    args.user    = _$(args.user, "user").isString().default("anonymous")
+    args.pass    = _$(args.pass, "pass").isString().default("anonymous@")
+    args.account = _$(args.account, "account").default(__)
+    args.passive = _$(args.passive, "passive").default(true)
+    args.binary  = _$(args.binary, "binary").default(true)
+    args.timeout = _$(args.timeout, "timeout").default(30000)
+
+    var FTPClient = Packages.org.apache.commons.net.ftp.FTPClient
+    var FTP = Packages.org.apache.commons.net.ftp.FTP
+    global.ftp = new FTPClient()
+    global.ftp.setDefaultTimeout(args.timeout)
+    global.ftp.setDataTimeout(args.timeout)
+    global.ftp.connect(args.host, Number(args.port))
+
+    var rc = global.ftp.getReplyCode()
+    if (!Packages.org.apache.commons.net.ftp.FTPReply.isPositiveCompletion(rc)) {
+      try { global.ftp.disconnect() } catch(e) {}
+      throw "FTP server refused connection (" + rc + ")."
+    }
+
+    var _loginOk = isDef(args.account) ? global.ftp.login(args.user, args.pass, args.account) : global.ftp.login(args.user, args.pass)
+    if (!_loginOk) {
+      try { global.ftp.logout(); global.ftp.disconnect() } catch(e) {}
+      throw "FTP authentication failed."
+    }
+
+    if (toBoolean(args.binary)) global.ftp.setFileType(FTP.BINARY_FILE_TYPE)
+    if (toBoolean(args.passive)) global.ftp.enterLocalPassiveMode()
+    global.ftp.setBufferSize(1024 * 1024)
+    global.ftp.setControlKeepAliveTimeout(30)
+
+    //ow.oJob.output({ }, args)
+
+# ---------------------
+- name: FTP disconnect
+  exec: | #js
+    try {
+      if (isDef(global.ftp)) {
+        try { global.ftp.logout() } catch(e1) {}
+        try { global.ftp.disconnect() } catch(e2) {}
+      }
+    } catch(e) {}
+    global.ftp = __
+
+# -----------------------
+- name: FTP helper funcs
+  exec: | #js
+    if (isDef(global.ftpFns)) return
+
+    global.ftpFns = {
+      normPath: p => {
+        p = _$(p).default("")
+        p = String(p).replace(/\\/g, "/")
+        p = p.replace(/\/+/g, "/")
+        if (p == "") return ""
+        if (p != "/" && p.endsWith("/")) p = p.substring(0, p.length - 1)
+        return p
+      },
+      joinPath: (a, b) => {
+        a = global.ftpFns.normPath(a)
+        b = global.ftpFns.normPath(b)
+        if (a == "") return b
+        if (a == "/") return (b.startsWith("/") ? b : "/" + b)
+        if (b == "" || b == "/") return a
+        if (b.startsWith("/")) return b
+        return a + "/" + b
+      },
+      parentPath: p => {
+        p = global.ftpFns.normPath(p)
+        if (p == "" || p == "/") return "/"
+        var i = p.lastIndexOf("/")
+        if (i < 0) return ""
+        if (i == 0) return "/"
+        return p.substring(0, i)
+      },
+      baseName: p => {
+        p = global.ftpFns.normPath(p)
+        if (p == "" || p == "/") return ""
+        var i = p.lastIndexOf("/")
+        return (i >= 0 ? p.substring(i + 1) : p)
+      },
+      relPath: (base, path) => {
+        base = global.ftpFns.normPath(base)
+        path = global.ftpFns.normPath(path)
+        if (base == "" || base == "/") return path.replace(/^\/+/, "")
+        if (path == base) return ""
+        if (path.startsWith(base + "/")) return path.substring(base.length + 1)
+        return path.replace(/^\/+/, "")
+      },
+      ensureLocalDir: p => {
+        if (isDef(p) && p != "" && !io.fileExists(p)) io.mkdir(p)
+      },
+      ensureRemoteDir: p => {
+        p = global.ftpFns.normPath(p)
+        if (p == "" || p == "/") return
+        var cur = ""
+        p.split("/").filter(r => r.length > 0).forEach(part => {
+          cur = global.ftpFns.joinPath(cur == "" ? "/" : cur, part)
+          if (!global.ftp.changeWorkingDirectory(cur)) {
+            global.ftp.makeDirectory(cur)
+          }
+        })
+      },
+      toMap: arr => {
+        var out = {}
+        arr.forEach(r => out[r.relativePath] = r)
+        return out
+      },
+      remoteItemToMap: (base, item) => {
+        var p = global.ftpFns.normPath(String(item.getName()))
+        if (!p.startsWith("/")) p = global.ftpFns.joinPath(base, p)
+        var ts = __
+        if (isDef(item.getTimestamp()) && isDef(item.getTimestamp().getTimeInMillis)) ts = Number(item.getTimestamp().getTimeInMillis())
+        return {
+          filepath    : p,
+          relativePath: global.ftpFns.relPath(base, p),
+          isDirectory : Boolean(item.isDirectory()),
+          isFile      : Boolean(item.isFile()),
+          size        : Number(item.getSize()),
+          lastModified: ts,
+          permissions : String(item.getRawListing())
+        }
+      },
+      listPathRaw: p => {
+        p = global.ftpFns.normPath(p)
+
+        var lst = __
+        try {
+          lst = af.fromJavaArray(global.ftp.mlistDir(p))
+        } catch(e1) {}
+
+        if (isUnDef(lst) || isNull(lst) || lst.length == 0) {
+          try {
+            lst = af.fromJavaArray(global.ftp.listFiles(p))
+          } catch(e2) {}
+        }
+
+        if (isUnDef(lst) || isNull(lst) || lst.length == 0) {
+          var cwd = __
+          try { cwd = String(global.ftp.printWorkingDirectory()) } catch(e3) {}
+          try {
+            if (global.ftp.changeWorkingDirectory(p)) {
+              lst = af.fromJavaArray(global.ftp.listFiles("."))
+            }
+          } catch(e4) {}
+          try {
+            if (isDef(cwd)) global.ftp.changeWorkingDirectory(cwd)
+          } catch(e5) {}
+        }
+
+        return _$(lst).default([])
+      },
+      listRemote: (base, recursive) => {
+        base = global.ftpFns.normPath(base)
+        var out = []
+        var _walk = p => {
+          var lst = global.ftpFns.listPathRaw(p)
+          lst.forEach(it => {
+            var name = String(it.getName())
+            if (name == "." || name == "..") return
+            var item = global.ftpFns.remoteItemToMap(p, it)
+            out.push(item)
+            if (recursive && item.isDirectory) _walk(item.filepath)
+          })
+        }
+        _walk(base)
+        return $from(out).sort("-isDirectory", "filepath").select()
+      },
+      listRemoteFiles: base => $from(global.ftpFns.listRemote(base, true)).equals("isFile", true).sort("relativePath").select(),
+      listLocalFiles: base => {
+        base = String(base)
+        if (!io.fileExists(base)) throw "Local path '" + base + "' doesn't exist."
+        if (io.fileInfo(base).isFile) throw "Path '" + base + "' is not a folder."
+        return $from(listFilesRecursive(base))
+               .equals("isFile", true)
+               .select(r => ({
+                 filepath    : r.canonicalPath,
+                 relativePath: String(r.filepath).replace(/\\/g, "/").replace(/^\.\//, ""),
+                 size        : Number(r.size),
+                 lastModified: Number(r.lastModified)
+               }))
+               .sort("relativePath")
+               .select()
+      },
+      getStat: p => {
+        p = global.ftpFns.normPath(p)
+        var parent = global.ftpFns.parentPath(p)
+        var name   = global.ftpFns.baseName(p)
+        var lst = global.ftpFns.listPathRaw(parent)
+        var res = lst.filter(it => String(it.getName()) == name).map(it => global.ftpFns.remoteItemToMap(parent, it))
+        return (res.length > 0 ? res[0] : __)
+      },
+      putFile: (local, remote) => {
+        if (!io.fileExists(local)) throw "File '" + local + "' doesn't exists."
+        global.ftpFns.ensureRemoteDir(global.ftpFns.parentPath(remote))
+        var fis = new java.io.FileInputStream(String(local))
+        try {
+          if (!global.ftp.storeFile(global.ftpFns.normPath(remote), fis)) throw String(global.ftp.getReplyString())
+        } finally {
+          try { fis.close() } catch(e) {}
+        }
+      },
+      getFile: (remote, local) => {
+        var parent = String(new java.io.File(String(local)).getParent())
+        if (parent != "null") global.ftpFns.ensureLocalDir(parent)
+        var fos = new java.io.FileOutputStream(String(local))
+        try {
+          if (!global.ftp.retrieveFile(global.ftpFns.normPath(remote), fos)) throw String(global.ftp.getReplyString())
+        } finally {
+          try { fos.close() } catch(e) {}
+        }
+      },
+      rmFile: remote => {
+        if (!global.ftp.deleteFile(global.ftpFns.normPath(remote))) throw String(global.ftp.getReplyString())
+      },
+      rmDirRecursive: remote => {
+        remote = global.ftpFns.normPath(remote)
+        var items = global.ftpFns.listRemote(remote, true)
+        $from(items).sort("-filepath").select().forEach(it => {
+          if (it.isFile) {
+            try { global.ftp.deleteFile(it.filepath) } catch(e) {}
+          } else {
+            try { global.ftp.removeDirectory(it.filepath) } catch(e) {}
+          }
+        })
+        try { global.ftp.removeDirectory(remote) } catch(e2) {}
+      },
+      mvFile: (source, target) => {
+        global.ftpFns.ensureRemoteDir(global.ftpFns.parentPath(target))
+        if (!global.ftp.rename(global.ftpFns.normPath(source), global.ftpFns.normPath(target))) throw String(global.ftp.getReplyString())
+      },
+      sameFile: (a, b) => {
+        var tsA = Number(_$(a.lastModified).default(0))
+        var tsB = Number(_$(b.lastModified).default(0))
+        return Number(a.size) == Number(b.size) && Math.abs(tsA - tsB) <= 1000
+      },
+      newerSide: (local, remote) => {
+        var tsL = Number(_$(local.lastModified).default(0))
+        var tsR = Number(_$(remote.lastModified).default(0))
+        if (Math.abs(tsL - tsR) <= 1000) return "same"
+        return (tsL > tsR ? "local" : "remote")
+      },
+      syncRemoteActions: (remoteBase, localBase) => {
+        var local = global.ftpFns.toMap(global.ftpFns.listLocalFiles(localBase))
+        var remote = global.ftpFns.toMap(global.ftpFns.listRemoteFiles(remoteBase))
+        var actions = []
+
+        Object.keys(local).sort().forEach(k => {
+          var rr = remote[k]
+          if (isUnDef(rr)) {
+            actions.push({ cmd: "put", local: local[k].filepath, remote: global.ftpFns.joinPath(remoteBase, k), relativePath: k })
+          } else if (!global.ftpFns.sameFile(local[k], rr)) {
+            actions.push({ cmd: "put", local: local[k].filepath, remote: rr.filepath, relativePath: k })
+          }
+        })
+
+        Object.keys(remote).sort().forEach(k => {
+          if (isUnDef(local[k])) actions.push({ cmd: "rm", remote: remote[k].filepath, relativePath: k })
+        })
+
+        return actions
+      },
+      syncLocalActions: (remoteBase, localBase) => {
+        var local = global.ftpFns.toMap(global.ftpFns.listLocalFiles(localBase))
+        var remote = global.ftpFns.toMap(global.ftpFns.listRemoteFiles(remoteBase))
+        var actions = []
+
+        Object.keys(remote).sort().forEach(k => {
+          var ll = local[k]
+          var lp = String(new java.io.File(String(localBase), String(k)).getPath())
+          if (isUnDef(ll)) {
+            actions.push({ cmd: "get", remote: remote[k].filepath, local: lp, relativePath: k })
+          } else if (!global.ftpFns.sameFile(remote[k], ll)) {
+            actions.push({ cmd: "get", remote: remote[k].filepath, local: lp, relativePath: k })
+          }
+        })
+
+        Object.keys(local).sort().forEach(k => {
+          if (isUnDef(remote[k])) actions.push({ cmd: "delLocal", local: local[k].filepath, relativePath: k })
+        })
+
+        return actions
+      },
+      syncActions: (remoteBase, localBase) => {
+        var local = global.ftpFns.toMap(global.ftpFns.listLocalFiles(localBase))
+        var remote = global.ftpFns.toMap(global.ftpFns.listRemoteFiles(remoteBase))
+        var keys = Object.keys(Object.assign({}, local, remote))
+        var actions = []
+
+        keys.sort().forEach(k => {
+          var ll = local[k]
+          var rr = remote[k]
+          if (isDef(ll) && isUnDef(rr)) {
+            actions.push({ cmd: "put", local: ll.filepath, remote: global.ftpFns.joinPath(remoteBase, k), relativePath: k })
+            return
+          }
+          if (isUnDef(ll) && isDef(rr)) {
+            actions.push({ cmd: "get", remote: rr.filepath, local: String(new java.io.File(String(localBase), String(k)).getPath()), relativePath: k })
+            return
+          }
+          if (!global.ftpFns.sameFile(ll, rr)) {
+            if (global.ftpFns.newerSide(ll, rr) == "remote") {
+              actions.push({ cmd: "get", remote: rr.filepath, local: String(new java.io.File(String(localBase), String(k)).getPath()), relativePath: k })
+            } else {
+              actions.push({ cmd: "put", local: ll.filepath, remote: rr.filepath, relativePath: k })
+            }
+          }
+        })
+
+        return actions
+      },
+      execActions: actions => {
+        actions.forEach(a => {
+          switch(a.cmd) {
+          case "put":
+            global.ftpFns.putFile(a.local, a.remote)
+            break
+          case "get":
+            global.ftpFns.getFile(a.remote, a.local)
+            break
+          case "rm":
+            global.ftpFns.rmFile(a.remote)
+            break
+          case "delLocal":
+            if (io.fileExists(a.local)) io.rm(a.local)
+            break
+          default:
+            throw "Unsupported action '" + a.cmd + "'."
+          }
+        })
+      }
+    }
+
+# -------------
+- name: FTP list
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote   : isString.default(__)
+      target   : isString.default(__)
+      recursive: toBoolean.isBoolean.default(false)
+  exec: | #js
+    var out = []
+    try {
+      var remote = args.remote
+      if (isUnDef(remote) && isDef(args.target)) remote = args.target
+      if (isUnDef(remote)) remote = ""
+
+      out = ftpFns.listRemote(remote, args.recursive).map(r => {
+        if (isDef(r.lastModified)) r.lastModified = (new Date(r.lastModified)).toISOString()
+        return r
+      })
+    } catch(e) {
+      logErr("List error: " + e)
+    }
+    $set("out", out)
+    ow.oJob.output(out, args)
+
+# ------------
+- name: FTP stat
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString
+  exec: | #js
+    var out = __
+    try {
+      out = global.ftpFns.getStat(args.remote)
+      if (isUnDef(out)) throw "Remote path '" + args.remote + "' not found."
+      if (isDef(out.lastModified)) out.lastModified = (new Date(out.lastModified)).toISOString()
+    } catch(e) {
+      logErr("Stat error: " + e)
+    }
+    $set("out", out)
+    ow.oJob.output(out, args)
+
+# -----------
+- name: FTP get
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString
+      local : isString
+  exec: | #js
+    try {
+      var st = global.ftpFns.getStat(args.remote)
+      if (isUnDef(st) || !st.isFile) throw "Remote file '" + args.remote + "' not found."
+      global.ftpFns.getFile(args.remote, args.local)
+    } catch(e) {
+      logErr("Get error: " + e)
+    }
+
+# -----------
+- name: FTP put
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString
+      local : isString
+  exec: | #js
+    try {
+      global.ftpFns.putFile(args.local, args.remote)
+    } catch(e) {
+      logErr("Put error: " + e)
+    }
+
+# ------------
+- name: FTP mget
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString
+      local : isString
+  exec: | #js
+    var out = { transfer: [] }
+    try {
+      global.ftpFns.ensureLocalDir(args.local)
+      if (io.fileInfo(args.local).isFile) throw "Path '" + args.local + "' not a folder."
+
+      var base = args.remote.substring(0, args.remote.lastIndexOf("/") + 1)
+      if (base == "") base = "/"
+      global.ftpFns.listRemoteFiles(base).forEach(file => {
+        if (ow.format.string.wildcardTest(file.filepath, args.remote)) {
+          var rel = global.ftpFns.relPath(base, file.filepath)
+          var lp = String(new java.io.File(String(args.local), String(rel)).getPath())
+          global.ftpFns.getFile(file.filepath, lp)
+          out.transfer.push({ local: lp, remote: file.filepath })
+        }
+      })
+    } catch(e) {
+      logErr("MGet error: " + e)
+    }
+    $set("out", out)
+    ow.oJob.output(out, args)
+
+# ------------
+- name: FTP mput
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString.default("/")
+      local : isString
+  exec: | #js
+    var out = { transfer: [] }
+    try {
+      var base = args.local.substring(0, args.local.lastIndexOf("/") + 1)
+      if (base == "") base = "."
+      if (!io.fileExists(base)) throw "Path '" + base + "' doesn't exist."
+      if (io.fileInfo(base).isFile) throw "Path '" + base + "' not a folder."
+
+      listFilesRecursive(base).forEach(file => {
+        if (file.isFile && ow.format.string.wildcardTest(file.filepath, args.local)) {
+          var rel = String(file.filepath).replace(/\\/g, "/")
+          var rp = global.ftpFns.joinPath(args.remote, rel)
+          global.ftpFns.putFile(file.canonicalPath, rp)
+          out.transfer.push({ remote: rp, local: file.canonicalPath })
+        }
+      })
+    } catch(e) {
+      logErr("MPut error: " + e)
+    }
+    $set("out", out)
+    ow.oJob.output(out, args)
+
+# -----------
+- name: FTP rm
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString
+  exec: | #js
+    try {
+      var st = global.ftpFns.getStat(args.remote)
+      if (isUnDef(st) || !st.isFile) throw "Remote file '" + args.remote + "' not found."
+      global.ftpFns.rmFile(args.remote)
+    } catch(e) {
+      logErr("Remove error: " + e)
+    }
+
+# --------------
+- name: FTP rmdir
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString.default("/")
+  exec: | #js
+    var out = []
+    try {
+      out = global.ftpFns.listRemote(args.remote, true).map(r => r.filepath)
+      global.ftpFns.rmDirRecursive(args.remote)
+    } catch(e) {
+      logErr("rmdir error: " + e)
+    }
+    $set("out", out)
+    ow.oJob.output(out, args)
+
+# --------------
+- name: FTP mkdir
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      remote: isString
+  exec: | #js
+    try {
+      global.ftpFns.ensureRemoteDir(args.remote)
+    } catch(e) {
+      logErr("mkdir error: " + e)
+    }
+
+# -----------
+- name: FTP mv
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      source: isString
+      target: isString
+  exec: | #js
+    try {
+      var st = global.ftpFns.getStat(args.source)
+      if (isUnDef(st) || !st.isFile) throw "Remote file '" + args.source + "' not found."
+      global.ftpFns.mvFile(args.source, args.target)
+    } catch(e) {
+      logErr("Move error: " + e)
+    }
+
+# -------------
+- name: FTP sync
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      local : isString
+      remote: isString.default("/")
+      go    : toBoolean.isBoolean.default(false)
+  exec: | #js
+    try {
+      var actions = global.ftpFns.syncActions(args.remote, args.local)
+      if (args.go) {
+        global.ftpFns.execActions(actions)
+      } else {
+        $set("out", actions)
+        ow.oJob.output(actions, args)
+      }
+    } catch(e) {
+      logErr("Sync error: " + e)
+    }
+
+# -------------------
+- name: FTP sync local
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      local : isString
+      remote: isString.default("/")
+      go    : toBoolean.isBoolean.default(false)
+  exec: | #js
+    try {
+      var actions = global.ftpFns.syncLocalActions(args.remote, args.local)
+      if (args.go) {
+        global.ftpFns.execActions(actions)
+      } else {
+        $set("out", actions)
+        ow.oJob.output(actions, args)
+      }
+    } catch(e) {
+      logErr("Sync local error: " + e)
+    }
+
+# --------------------
+- name: FTP sync remote
+  from:
+  - FTP helper funcs
+  - FTP connect
+  to:
+  - FTP disconnect
+  check:
+    in:
+      local : isString
+      remote: isString.default("/")
+      go    : toBoolean.isBoolean.default(false)
+  exec: | #js
+    try {
+      var actions = global.ftpFns.syncRemoteActions(args.remote, args.local)
+      if (args.go) {
+        global.ftpFns.execActions(actions)
+      } else {
+        $set("out", actions)
+        ow.oJob.output(actions, args)
+      }
+    } catch(e) {
+      logErr("Sync remote error: " + e)
+    }
+
+# -----------------------
+- name: Set format table
+  exec: | #js
+    if (args.op.toLowerCase() == "ls") args.__format = _$(args.__format).isString().default("table")
+
+# ---------
+- name: FTP
+  check:
+    in:
+      op: isString.oneOf(["ls","put","get","mput","mget","mv","rm","rmdir","mkdir","stat","sync","synclocal","syncremote"])
+  to:
+  - ojob options
+  - Set format table
+  args:
+    __key      : out
+    __optionOn : op
+    __lowerCase: true
+    __todos    :
+      ls        : FTP list
+      put       : FTP put
+      get       : FTP get
+      mput      : FTP mput
+      mget      : FTP mget
+      mv        : FTP mv
+      rm        : FTP rm
+      rmdir     : FTP rmdir
+      mkdir     : FTP mkdir
+      stat      : FTP stat
+      sync      : FTP sync
+      synclocal : FTP sync local
+      syncremote: FTP sync remote
