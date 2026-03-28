@@ -1,0 +1,301 @@
+# Author: Nuno Aguiar
+help:
+  text   : Starts a passthrough MCP server that allows the addition of extra tools from other MCP servers to a main one.
+  expects: 
+  - name     : mainmcp
+    desc     : A SLON/JSON connection string to the main MCP server to connect to.
+    example  : "(type: remote, url: 'http://server1:8888/mcp')"
+    mandatory: true
+  - name     : othermcps
+    desc     : A list of SLON/JSON connection strings to the other MCP servers to connect to and get tools from.
+    example  : "[(type: remote, url: 'http://server2:8888/mcp'), (type: remote, url: 'http://server3:8888/mcp')]"
+    mandatory: false
+  - name     : usesse
+    desc     : If true and onport is defined, returns HTTP MCP responses as SSE events.
+    example  : "true"
+    mandatory: false
+  - name     : uri
+    desc     : If onport is defined, exposes the HTTP MCP endpoint on this URI prefix instead of /.
+    example  : "/mcp"
+    mandatory: false
+
+ojob:
+  opacks      :
+  - openaf: 20260312
+  - oJob-common
+  daemon      : true
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+        
+todo:
+- Init
+- Prepare server
+
+jobs:
+# ---------------------
+- name : Prepare server
+  exec : | #js
+    ow.loadServer()
+
+    var description
+    var tools = []
+    var tool2mcp = {}
+
+    // Get the description from the main MCP server and store it in a global variable for later use by the tools
+    try {
+      log("Getting description from main MCP server...")
+      var mainmcp = global.connections[0]
+      if (isUnDef(mainmcp)) {
+        throw new Error(`Main MCP server connection not found`)
+      }
+      var desc = mainmcp.getInfo()
+      description = desc
+      log(`Got description from main MCP server: ` + af.toSLON(description))
+
+      var _tools = mainmcp.listTools()
+      if (isDef(_tools.tools)) {
+        _tools = _tools.tools
+        tool2mcp = _tools.reduce((acc, t) => {
+          acc[t.name] = mainmcp
+          return acc
+        }, {})
+        log(`Got ${_tools.length} tools from main MCP server`)
+      } else {
+        log(`No tools found in main MCP server description`)
+        _tools = []
+      }
+      tools = tools.concat(_tools)
+    } catch(e) {
+      logErr(`Failed to get description from main MCP server: ${e}`)
+      if (isDef(e.javaException)) e.javaException.printStackTrace()
+      description = {
+        name: "MCP server",
+        version: "1.0.0",
+        tools: []
+      }
+    }
+
+    // Get the tools from the other MCP connections and store them in a global variable for later use by the tools
+    for (var i = 1; i < global.connections.length; i++) {
+      try {
+        log(`Getting description from MCP server #${i}...`)
+        var mcp = global.connections[i]
+        var _tools = mcp.listTools()
+        if (isDef(_tools.tools)) {
+          _tools = _tools.tools
+          _tools.forEach(t => {
+            tool2mcp[t.name] = mcp
+          })
+        } else {
+          log(`No tools found in MCP server #${i} description`)
+          _tools = []
+        } 
+        log(`Got ${_tools.length} tools from MCP server #${i}`)
+        tools = tools.concat(_tools)
+        _tools.forEach(t => {
+          tool2mcp[t.name] = mcp
+        })
+      } catch(e) {
+        logErr(`Failed to get description from MCP server #${i}: ${e}`)
+        if (isDef(e.javaException)) e.javaException.printStackTrace()
+      }
+    }
+    
+    // Merge the description from the main MCP server with the tools from the other MCP servers and store it in a global variable for later use by the tools
+    description = merge({
+      protocolVersion: "2024-11-05",
+      serverInfo: {
+          name: "OpenAF",
+          title: "OpenAF server",
+          version: "1.0.0"
+      },
+      capabilities: {
+          prompts: {
+              listChanged: true
+          },
+          tools: {
+              listChanged: true
+          }
+      }
+    }, description)
+
+    // Create a function for each tool that calls the tool on the corresponding MCP server and store them in a global variable for later use by the tools
+    var fns = {}
+    tools.forEach(tl => {
+      var toolName = tl.name
+      fns[toolName] = function(args) {
+        // Find the tool in the list of tools from the other MCP servers
+        var _tool = tools.find(t => t.name === toolName)
+        if (!_tool) {
+          throw new Error(`Tool ${toolName} not found in any MCP server`)
+        }
+        // Get the connection of the MCP server that has the tool
+        var mcp = tool2mcp[toolName]
+        if (!mcp) {
+          throw new Error(`MCP server for tool ${toolName} not found`)
+        }
+        // Call the tool on the MCP server and return the result
+        try {
+          return mcp.callTool(toolName, args)
+        } catch(e) {
+          logErr(`Failed to call tool ${toolName} on MCP server: ${e}`)
+          if (isDef(e.javaException)) e.javaException.printStackTrace()
+          return {
+              content: [{
+                  type: "text",
+                  text: String(e.message)
+              }],
+              isError: true
+          }
+        }
+      }
+    })
+
+    // Create a function for each RPC method that calls the corresponding function and store them in a global variable for later use by the tools
+    var _rpcFns = {
+      "initialize"               : params => description,
+      "notifications/initialized": params => ({}),
+      "tools/call"               : params => {
+        var toolName = params.name
+        var args = params.arguments
+        if (!toolName) {
+          throw new Error(`Tool name is required in the request body`)
+        }
+        // Find the tool in the list of tools from the other MCP servers
+        var tool = tools.find(t => t.name === toolName)
+        if (!tool) {
+          throw new Error(`Tool ${toolName} not found in any MCP server`)
+        }
+        // Get the connection of the MCP server that has the tool
+        var mcp = tool2mcp[toolName]
+        if (!mcp) {
+          throw new Error(`MCP server for tool ${toolName} not found`)
+        }
+        // Call the tool on the MCP server and return the result
+        return mcp.callTool(toolName, args)
+      },
+      "tools/list"               : params => {
+        return { tools: tools }
+      },
+      "prompts/list"             : params => ([])
+    }
+
+    // Start the MCP server using HTTP or stdio based on the presence of the onport argument
+    if (isDef(args.onport)) {
+      var routeURI = String(_$(args.uri, "uri").isString().default("/")).trim()
+      if (routeURI.length == 0) routeURI = "/"
+      if (!routeURI.startsWith("/")) routeURI = "/" + routeURI
+      if (routeURI.length > 1 && routeURI.endsWith("/")) routeURI = routeURI.replace(/\/+$/, "")
+
+      log(`Starting HTTP MCP server on port ${args.onport} with URI ${routeURI}...`)
+      var hs = ow.server.httpd.start(args.onport)
+      ow.server.httpd.route(hs, {
+        [routeURI]: function(req, aHs) {
+          if (toBoolean(args.usesse)) {
+            var _rpcRes = ow.server.httpd.replyJSONRPC(aHs, req, _rpcFns, logErr)
+
+            var body = (isDef(req.files) && isDef(req.files.postData)) ? req.files.postData : __
+            if (isUnDef(body) && isDef(req.data)) body = req.data
+
+            var reqObj
+            try {
+              reqObj = jsonParse(body)
+            } catch(e) {
+              return { data: "Invalid JSON", mimetype: "text/plain", status: 400, header: {} }
+            }
+
+            // Notifications don't require a response payload.
+            if (isUnDef(reqObj.id)) {
+              return { data: "", mimetype: "text/plain", status: 204, header: {} }
+            }
+
+            var pis = new java.io.PipedInputStream()
+            var pos = new java.io.PipedOutputStream(pis)
+
+            $doV(function() {
+              try {
+                var _payload = _rpcRes
+                if (isMap(_rpcRes) && isDef(_rpcRes.data)) _payload = _rpcRes.data
+                if (isString(_payload)) {
+                  try { _payload = jsonParse(_payload) } catch(__e) {}
+                }
+
+                if (isDef(_payload) && _payload !== "") {
+                  var msg = "event: message\n"
+                  msg += "data: " + JSON.stringify(_payload) + "\n\n"
+                  pos.write(af.fromString2Bytes(msg))
+                  pos.flush()
+                }
+              } catch(e) {
+                try {
+                  var errMsg = "event: error\n"
+                  errMsg += "data: " + JSON.stringify({ message: String(e) }) + "\n\n"
+                  pos.write(af.fromString2Bytes(errMsg))
+                  pos.flush()
+                } catch(e2) {
+                  logErr("MCP stream error: " + String(e2))
+                }
+              } finally {
+                try { pos.close() } catch(e) {}
+              }
+            })
+
+            return {
+              status  : 200,
+              mimetype: "text/event-stream",
+              stream  : pis,
+              header  : {
+                "Cache-Control"    : "no-cache, no-transform",
+                "Connection"       : "keep-alive",
+                "Content-Encoding" : "identity",
+                "X-Accel-Buffering": "no"
+              }
+            }
+          }
+
+          return ow.server.httpd.replyMCP(aHs, req, _rpcFns, logErr)
+        }
+      }) 
+    } else {
+      ow.server.mcpStdio(description, tools, fns)
+    }
+
+# -----------
+- name : Init
+  check:
+    in:
+      mainmcp  : isString
+      othermcps: isString.default("[]")
+      usesse   : toBoolean.isBoolean.default(false)
+      uri      : isString.default("/")
+  exec : | #js
+    // Initialize the main MCP connection and store it in a global variable for later use by the tools
+    global.connections = []
+
+    // Connect to the main MCP server and store the connection in the global variable
+    try {
+      log("Connecting to main MCP server...")
+      var mainmcp = $mcp(af.fromJSSLON(args.mainmcp))
+      mainmcp.initialize()
+      global.connections.push(mainmcp)
+    } catch(e) {
+      logErr(`Failed to connect to main MCP server: ${e}`)
+      if (isDef(e.javaException)) e.javaException.printStackTrace()
+    }
+
+    // Connect to the other MCP servers
+    var othermcps = af.fromJSSLON(args.othermcps)
+    if (isArray(othermcps)) {
+      // Connect to the other MCP servers and store their connections in the global variable
+      pForEach(othermcps, (mcp, i) => {
+        try {
+          log(`Connecting to MCP server #${i+1}...`)
+          var mcp = $mcp(mcp)
+          mcp.initialize()
+          global.connections.push(mcp)
+        } catch(e) {
+          logErr(`Failed to connect to MCP server #${i+1}: ${e}`)
+          if (isDef(e.javaException)) e.javaException.printStackTrace()
+        }
+      })
+    }
