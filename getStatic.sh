@@ -55,14 +55,18 @@ downloadURL() {
     echo "Downloading from '$proto$_url' to '$_output'..."
     #echo "host = $host | port = $port | uri = $uri | output = $_output | PBSH = $PBSH"
     $PBSH -c "exec 3<>/dev/tcp/$host/$port && echo -e \"GET /$uri HTTP/1.1\nHost: $host\nUser-Agent: curl\nConnection: close\n\n\" >&3 && cat <&3" > "$_output"
-    if [ "$SYST" = "Darwin" ]
-    then    
-      sed -i '' '1,/connection: close/d' "$_output"
-    else
-      sed -i '1,/connection: close/d' "$_output"
+    # Strip HTTP headers only when present, without running sed over binary payloads.
+    # This avoids BSD sed "illegal byte sequence" errors and preserves embedded tar.gz data.
+    if LC_ALL=C head -n 1 "$_output" | grep -q '^HTTP/[0-9]'; then
+      {
+        while IFS= read -r _line || [ -n "$_line" ]; do
+          _line=${_line%$'\r'}
+          [ -z "$_line" ] && break
+        done
+        cat
+      } < "$_output" > "$_output.temp"
+      mv "$_output.temp" "$_output"
     fi
-    tail -n +2 $_output > $_output.temp
-    mv $_output.temp $_output
 }
 
 help() {
@@ -77,6 +81,7 @@ help() {
   echo "   export PATH=$(pwd):\$PATH && . $(pwd)/ojobAutoComplete.sh"
   echo 
   echo --------------------------------------
+  ./oaf --repack
 }
 
 # Determine architecture
@@ -88,9 +93,9 @@ case $ARCH in
     else 
       if [ "$MUSL" = "alpine" ]
       then
-	TARCH="alpine-x86_64"
+        TARCH="alpine-x86_64"
       else
-	TARCH="linux-x86_64"
+        TARCH="linux-x86_64"
       fi
     fi
     ;;
@@ -101,7 +106,7 @@ case $ARCH in
     else
       if [ "$MUSL" = "alpine" ]
       then
-	TARCH="alpine-aarch64"
+        TARCH="alpine-aarch64"
       else
         TARCH="linux-aarch64"
       fi
@@ -113,7 +118,7 @@ esac
 
 # Downloads
 # ---------
-
+ 
 echo ---------------------
 echo Downloading openaf...
 _url=http://openaf.io/${DIST:+${DIST}/}oaf-$TARCH
