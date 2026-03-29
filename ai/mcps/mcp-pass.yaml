@@ -18,6 +18,22 @@ help:
     desc     : If onport is defined, exposes the HTTP MCP endpoint on this URI prefix instead of /.
     example  : "/mcp"
     mandatory: false
+  - name     : serverdesc
+    desc     : Optional JSON/SLON map used to override the exposed server identity/description.
+    example  : "(serverInfo: (name: 'my-pass', title: 'My pass server', version: '1.0.0'))"
+    mandatory: false
+  - name     : includeTool
+    desc     : Optional comma-delimited list of tool names to include.
+    example  : "tool1,tool2"
+    mandatory: false
+  - name     : excludeTool
+    desc     : Optional comma-delimited list of tool names to exclude.
+    example  : "tool3,tool4"
+    mandatory: false
+  - name     : useprefix
+    desc     : Optional comma-delimited list of prefixes applied to tools per connection order; use an empty entry for no prefix.
+    example  : "main-,other1-,,other3-"
+    mandatory: false
 
 ojob:
   opacks      :
@@ -39,7 +55,131 @@ jobs:
 
     var description
     var tools = []
-    var tool2mcp = {}
+    var tool2meta = {}
+    var toolIndexByName = {}
+    var parseListArg = function(value) {
+      if (!isString(value)) return []
+      return String(value)
+        .split(",")
+        .map(v => String(v))
+    }
+    var normalizeToolList = function(value) {
+      return parseListArg(value)
+        .map(v => v.trim())
+        .filter(v => v.length > 0)
+    }
+    var includeTools = normalizeToolList(args.includeTool)
+    var excludeTools = normalizeToolList(args.excludeTool)
+    var includeLookup = includeTools.reduce((acc, name) => {
+      acc[name] = true
+      return acc
+    }, {})
+    var excludeLookup = excludeTools.reduce((acc, name) => {
+      acc[name] = true
+      return acc
+    }, {})
+    var prefixList = parseListArg(args.useprefix).map(v => String(v).trim())
+    var getPrefixForConnection = function(index) {
+      return index < prefixList.length ? prefixList[index] : ""
+    }
+    var shouldKeepTool = function(originalName, finalName) {
+      var included = includeTools.length === 0 || includeLookup[originalName] === true || includeLookup[finalName] === true
+      var excluded = excludeLookup[originalName] === true || excludeLookup[finalName] === true
+      return included && !excluded
+    }
+    var audit = function(event, details) {
+      if (!isArray(global.__mcpPassAuditTrail)) global.__mcpPassAuditTrail = []
+      var entry = merge({
+        at   : new Date().toISOString(),
+        event: event
+      }, isMap(details) ? details : {})
+      global.__mcpPassAuditTrail.push(entry)
+      log(`[audit] ${event}: ` + stringify(entry, __, ""))
+    }
+    var getRequestMeta = function(extraMeta) {
+      var meta = isMap(extraMeta) ? clone(extraMeta, true) : {}
+      return Object.keys(meta).length > 0 ? meta : __
+    }
+    var callRegisteredTool = function(toolName, args, extraMeta) {
+      var toolMeta = tool2meta[toolName]
+      if (!toolMeta) {
+        throw new Error(`Tool ${toolName} not found in any MCP server`)
+      }
+      var mcp = toolMeta.mcp
+      if (!mcp) {
+        throw new Error(`MCP server for tool ${toolName} not found`)
+      }
+      var meta = getRequestMeta(extraMeta)
+      audit("tool_call", {
+        requestedTool: toolName,
+        forwardedTool: toolMeta.sourceName,
+        connection   : toolMeta.connectionLabel,
+        prefix       : toolMeta.prefix
+      })
+      try {
+        return isDef(meta)
+          ? mcp.callTool(toolMeta.sourceName, args, meta)
+          : mcp.callTool(toolMeta.sourceName, args)
+      } catch(e) {
+        logErr(`Failed to call tool ${toolName} on MCP server (${toolMeta.sourceName}): ${e}`)
+        audit("tool_error", {
+          requestedTool: toolName,
+          forwardedTool: toolMeta.sourceName,
+          connection   : toolMeta.connectionLabel,
+          error        : String(isDef(e.message) ? e.message : e)
+        })
+        if (isDef(e.javaException)) e.javaException.printStackTrace()
+        return {
+            content: [{
+                type: "text",
+                text: String(isDef(e.message) ? e.message : e)
+            }],
+            isError: true
+        }
+      }
+    }
+    var registerToolsFromConnection = function(mcp, connectionIndex, connectionLabel) {
+      var registered = 0
+      var _tools = mcp.listTools()
+      if (isDef(_tools.tools)) {
+        _tools = _tools.tools
+      } else {
+        log(`No tools found in ${connectionLabel} description`)
+        _tools = []
+      }
+
+      var prefix = getPrefixForConnection(connectionIndex)
+      _tools.forEach(t => {
+        var originalName = String(t.name)
+        var finalName = prefix + originalName
+        if (!shouldKeepTool(originalName, finalName)) return
+
+        var clonedTool = clone(t, true)
+        clonedTool.name = finalName
+
+        if (connectionIndex > 0 && isDef(tool2meta[finalName])) {
+          logWarn(`Tool '${finalName}' from ${connectionLabel} overwrites previous mapping to '${tool2meta[finalName].sourceName}' on ${tool2meta[finalName].connectionLabel}`)
+        }
+
+        tool2meta[finalName] = {
+          name           : finalName,
+          sourceName     : originalName,
+          mcp            : mcp,
+          prefix         : prefix,
+          connectionIndex: connectionIndex,
+          connectionLabel: connectionLabel
+        }
+        if (isDef(toolIndexByName[finalName])) {
+          tools[toolIndexByName[finalName]] = clonedTool
+        } else {
+          toolIndexByName[finalName] = tools.length
+          tools.push(clonedTool)
+        }
+        registered++
+      })
+
+      return registered
+    }
 
     // Get the description from the main MCP server and store it in a global variable for later use by the tools
     try {
@@ -52,19 +192,8 @@ jobs:
       description = desc
       log(`Got description from main MCP server: ` + af.toSLON(description))
 
-      var _tools = mainmcp.listTools()
-      if (isDef(_tools.tools)) {
-        _tools = _tools.tools
-        tool2mcp = _tools.reduce((acc, t) => {
-          acc[t.name] = mainmcp
-          return acc
-        }, {})
-        log(`Got ${_tools.length} tools from main MCP server`)
-      } else {
-        log(`No tools found in main MCP server description`)
-        _tools = []
-      }
-      tools = tools.concat(_tools)
+      var _tools = registerToolsFromConnection(mainmcp, 0, "main MCP server")
+      log(`Registered ${_tools} tools from main MCP server`)
     } catch(e) {
       logErr(`Failed to get description from main MCP server: ${e}`)
       if (isDef(e.javaException)) e.javaException.printStackTrace()
@@ -80,21 +209,8 @@ jobs:
       try {
         log(`Getting description from MCP server #${i}...`)
         var mcp = global.connections[i]
-        var _tools = mcp.listTools()
-        if (isDef(_tools.tools)) {
-          _tools = _tools.tools
-          _tools.forEach(t => {
-            tool2mcp[t.name] = mcp
-          })
-        } else {
-          log(`No tools found in MCP server #${i} description`)
-          _tools = []
-        } 
-        log(`Got ${_tools.length} tools from MCP server #${i}`)
-        tools = tools.concat(_tools)
-        _tools.forEach(t => {
-          tool2mcp[t.name] = mcp
-        })
+        var _tools = registerToolsFromConnection(mcp, i, `MCP server #${i}`)
+        log(`Registered ${_tools} tools from MCP server #${i}`)
       } catch(e) {
         logErr(`Failed to get description from MCP server #${i}: ${e}`)
         if (isDef(e.javaException)) e.javaException.printStackTrace()
@@ -119,40 +235,33 @@ jobs:
       }
     }, description)
 
+    if (isString(args.serverdesc) && args.serverdesc.trim().length > 0) {
+      try {
+        var serverDesc = af.fromJSSLON(args.serverdesc)
+        if (!isMap(serverDesc)) throw new Error("serverdesc must evaluate to a map/object")
+        if (isMap(serverDesc.serverInfo) || isMap(serverDesc.capabilities) || isDef(serverDesc.protocolVersion)) {
+          description = merge(description, serverDesc)
+        } else {
+          description.serverInfo = merge(description.serverInfo, serverDesc)
+        }
+      } catch(e) {
+        logErr(`Failed to parse serverdesc: ${e}`)
+        if (isDef(e.javaException)) e.javaException.printStackTrace()
+      }
+    }
+
     // Create a function for each tool that calls the tool on the corresponding MCP server and store them in a global variable for later use by the tools
     var fns = {}
     tools.forEach(tl => {
       var toolName = tl.name
       fns[toolName] = function(args) {
-        // Find the tool in the list of tools from the other MCP servers
-        var _tool = tools.find(t => t.name === toolName)
-        if (!_tool) {
-          throw new Error(`Tool ${toolName} not found in any MCP server`)
-        }
-        // Get the connection of the MCP server that has the tool
-        var mcp = tool2mcp[toolName]
-        if (!mcp) {
-          throw new Error(`MCP server for tool ${toolName} not found`)
-        }
-        // Call the tool on the MCP server and return the result
-        try {
-          return mcp.callTool(toolName, args)
-        } catch(e) {
-          logErr(`Failed to call tool ${toolName} on MCP server: ${e}`)
-          if (isDef(e.javaException)) e.javaException.printStackTrace()
-          return {
-              content: [{
-                  type: "text",
-                  text: String(e.message)
-              }],
-              isError: true
-          }
-        }
+        return callRegisteredTool(toolName, args)
       }
     })
 
     // Create a function for each RPC method that calls the corresponding function and store them in a global variable for later use by the tools
-    var _rpcFns = {
+    var getRpcFns = function(reqMeta) {
+      return {
       "initialize"               : params => description,
       "notifications/initialized": params => ({}),
       "tools/call"               : params => {
@@ -166,18 +275,13 @@ jobs:
         if (!tool) {
           throw new Error(`Tool ${toolName} not found in any MCP server`)
         }
-        // Get the connection of the MCP server that has the tool
-        var mcp = tool2mcp[toolName]
-        if (!mcp) {
-          throw new Error(`MCP server for tool ${toolName} not found`)
-        }
-        // Call the tool on the MCP server and return the result
-        return mcp.callTool(toolName, args)
+        return callRegisteredTool(toolName, args, reqMeta)
       },
       "tools/list"               : params => {
         return { tools: tools }
       },
       "prompts/list"             : params => ([])
+    }
     }
 
     // Start the MCP server using HTTP or stdio based on the presence of the onport argument
@@ -191,6 +295,8 @@ jobs:
       var hs = ow.server.httpd.start(args.onport)
       ow.server.httpd.route(hs, {
         [routeURI]: function(req, aHs) {
+          var reqMeta = isMap(req) && isMap(req.header) ? { headers: clone(req.header, true) } : __
+          var _rpcFns = getRpcFns(reqMeta)
           if (toBoolean(args.usesse)) {
             var _rpcRes = ow.server.httpd.replyJSONRPC(aHs, req, _rpcFns, logErr)
 
@@ -264,13 +370,18 @@ jobs:
 - name : Init
   check:
     in:
-      mainmcp  : isString
-      othermcps: isString.default("[]")
-      usesse   : toBoolean.isBoolean.default(false)
-      uri      : isString.default("/")
+      mainmcp    : isString
+      othermcps  : isString.default("[]")
+      usesse     : toBoolean.isBoolean.default(false)
+      uri        : isString.default("/")
+      serverdesc : isString.default("")
+      includeTool: isString.default("")
+      excludeTool: isString.default("")
+      useprefix  : isString.default("")
   exec : | #js
     // Initialize the main MCP connection and store it in a global variable for later use by the tools
     global.connections = []
+    global.__mcpPassAuditTrail = []
 
     // Connect to the main MCP server and store the connection in the global variable
     try {
