@@ -1334,3 +1334,8 @@ data:
     # opack install jdbc-duckdb
     oafp libs="@jdbc-duckdb/jdbc-duckdb.js" in=ls data="." lsrecursive=true out=db dbjdbc="jdbc:duckdb:test.db"
     oafp libs="@jdbc-duckdb/jdbc-duckdb.js" in=db indbjdbc="jdbc:duckdb:test.db" data="select isFile, count(*) as number_of_files, sum(size) sum_size from data group by isFile" out=ctable 
+- c: AI
+  s: Ollama
+  d: List all Ollama cloud models available to use.
+  e: |
+    oafp url="https://ollama.com/api/tags" path="models[].name|sort(@)"
