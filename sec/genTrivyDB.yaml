@@ -37,7 +37,7 @@ init:
 
     # Run the first Docker command with retry logic
     echo "Running first Docker command with retry..."
-    retry_command docker run --pull always --rm -v trivy-db:/root/.cache/trivy aquasec/trivy image --download-db-only
+    retry_command docker run --pull always --rm -v trivy-db:/root/.cache/trivy aquasec/trivy:{{trivyVersion}} image --download-db-only
     first_command_success=$?
 
     # Wait for 15 seconds
@@ -46,7 +46,7 @@ init:
 
     # Run the second Docker command with retry logic
     echo "Running second Docker command with retry..."
-    retry_command docker run --rm -v trivy-db:/root/.cache/trivy aquasec/trivy image --download-java-db-only
+    retry_command docker run --rm -v trivy-db:/root/.cache/trivy aquasec/trivy:{{trivyVersion}} image --download-java-db-only
     second_command_success=$?
 
     # Check if both Docker commands succeeded
@@ -88,15 +88,26 @@ init:
     fi
 
 todo:
+- Get trivy latest version
 - (pass          ):
-    finalPath: '{{path}}'
-    tmpPath  : '{{tmppath}}'
+    finalPath   : '{{path}}'
+    tmpPath     : '{{tmppath}}'
+    trivyVersion: '{{trivyVersion}}'
   ((templateArgs)): true
 - (template ): *TMPL
   ((key    )): res
   ((out    )): out
 - (output   ): out
   ((path   )): output
+
+jobs:
+# ---------------------------------
+- name : Get trivy latest version
+  exec : |
+    ow.loadFormat()
+    var releases = $rest().get("https://api.github.com/repos/aquasecurity/trivy/releases")
+    var versions = $from(releases).equals("draft", false).equals("prerelease", false).select(r => r.tag_name.replace(/^v/, ""))
+    args.trivyVersion = ow.format.sortSemanticVersions(versions).reverse()[0]
 
 ojob:
   opacks      :

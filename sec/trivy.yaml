@@ -52,6 +52,14 @@ jobsInclude:
 - ojob.io/util/osArch
 
 jobs:
+# ---------------------------------
+- name : Get trivy latest version
+  exec : |
+    ow.loadFormat()
+    var releases = $rest().get("https://api.github.com/repos/aquasecurity/trivy/releases")
+    var versions = $from(releases).equals("draft", false).equals("prerelease", false).select(r => r.tag_name.replace(/^v/, ""))
+    args.trivyVersion = ow.format.sortSemanticVersions(versions).reverse()[0]
+
 # ------------------------------
 - name : Select trivy usage mode
   from :
@@ -106,17 +114,14 @@ jobs:
 
 # ----------------------------------
 - name : Install trivy temporarily
+  from :
+  - Get trivy latest version
   exec : |
-    args.trivyPath = io.createTempDir("trivy")  
+    args.trivyPath = io.createTempDir("trivy")
 
     var arch = $job("Get current OS and Arch", { quiet: true })
-    var res = $rest().get("https://api.github.com/repos/aquasecurity/trivy/releases")
-    var res2 = $from($from(res)
-                     .equals("draft", false)
-                     .equals("prerelease", false)
-                     .sort("-published_at")
-                     .at(0)
-                     .assets)
+    var res = $rest().get("https://api.github.com/repos/aquasecurity/trivy/releases/tags/v" + args.trivyVersion)
+    var res2 = $from(res.assets)
 
     switch(arch.os) {
     case "windows":
@@ -166,15 +171,16 @@ jobs:
 - name : Run trivy on a container
   from :
   - Process trivy options
+  - Get trivy latest version
   check:
     in:
       noparse: toBoolean.isBoolean.default(false)
   exec : |
     var res
     if (args.noparse) {
-      $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).exec()
+      $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy:" + args.trivyVersion + " -f json " + args.options).exec()
     } else {
-      res = $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy -f json " + args.options).getJson(0)
+      res = $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy:" + args.trivyVersion + " -f json " + args.options).getJson(0)
     }
 
     ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res, args)
