@@ -8,7 +8,7 @@ help:
     mandatory: false
   - name     : tag
     desc     : openaf/mini-a tag to use as base image
-    example  : latest
+    example  : deb-t8
     mandatory: false
 
 init:
@@ -16,12 +16,17 @@ init:
     FROM openaf/mini-a:{{tag}}
 
     USER root
-    RUN apk update \
-     && apk add --no-cache github-cli git \
-     && gh extension install github/gh-copilot --force \
-     && /openaf/opack install ghcopilot
+    RUN apt-get update \
+     && apt-get install -y --no-install-recommends gh git nodejs npm \
+     && npm install -g @github/copilot \
+     && /openaf/opack install ghcopilot \
+     && printf '%s\n' '#!/bin/sh' 'set -e' '' 'if [ "$#" -eq 0 ]; then' '  exec /openaf/opack exec mini-a' 'fi' '' 'exec "$@"' > /usr/local/bin/ghcopilot-entrypoint \
+     && chmod +x /usr/local/bin/ghcopilot-entrypoint \
+     && rm -rf /var/lib/apt/lists/*
 
     ENV OAF_MINI_A_LIBS="@AWS/aws.js,@ghcopilot/ghcopilot.js"
+    ENTRYPOINT ["/usr/local/bin/ghcopilot-entrypoint"]
+    CMD ["/openaf/opack", "exec", "mini-a"]
 
     USER openaf
 
@@ -43,8 +48,8 @@ jobs:
 - name : Build ghcopilot docker image
   check:
     in:
-      name: isString.default("openaf/ghcopilot")
-      tag : isString.default("latest")
+      name: isString.default("openaf/mini-a-ghc")
+      tag : isString.default("deb-t8")
   exec : | #js
     var dockerfile = "ojob_ghcopilot_" + genUUID() + ".Dockerfile"
 
@@ -83,7 +88,16 @@ jobs:
 
       ```bash
       docker run --rm -ti {{name}} gh auth login
-      docker run --rm -ti {{name}} gh copilot suggest -t shell "list files modified in git"
+      docker run --rm -ti {{name}} copilot
+      ```
+
+      The image build does not require `GH_TOKEN`; authentication is only needed when you
+      actually use Copilot in the container.
+
+      For non-interactive auth you can also pass `GH_TOKEN` or `GITHUB_TOKEN` at runtime:
+
+      ```bash
+      docker run --rm -ti -e GH_TOKEN=... {{name}} copilot
       ```
 
       ### Use mini-a with ghcopilot helpers
@@ -97,7 +111,7 @@ jobs:
       You can launch mini-a directly:
 
       ```bash
-      docker run --rm -ti {{name}} mini-a
+      docker run --rm -ti {{name}}
       ```
 
       > Tip: mount your workspace when needed:
