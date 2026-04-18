@@ -78,7 +78,7 @@ jobs:
 - name : Set or browse a theme
   exec : |
       if (isString(args.theme) && args.theme.length > 0) {
-        $job("Apply theme", { theme: args.theme })
+        $job("Apply theme", { theme: args.theme, init: args.init })
       } else {
         $job("Browse themes")
       }

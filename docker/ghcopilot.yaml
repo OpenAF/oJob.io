@@ -1,0 +1,120 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds a docker image based on openaf/mini-a with the ghcopilot oPack and GitHub Copilot CLI.
+  expects:
+  - name     : name
+    desc     : Docker image name
+    example  : openaf/ghcopilot
+    mandatory: false
+  - name     : tag
+    desc     : openaf/mini-a tag to use as base image
+    example  : deb-t8
+    mandatory: false
+
+init:
+  dockerfile: |
+    FROM openaf/mini-a:{{tag}}
+
+    USER root
+    RUN apt-get update \
+     && apt-get install -y --no-install-recommends gh git nodejs npm \
+     && npm install -g @github/copilot \
+     && /openaf/opack install ghcopilot \
+     && printf '%s\n' '#!/bin/sh' 'set -e' '' 'if [ "$#" -eq 0 ]; then' '  exec /openaf/opack exec mini-a' 'fi' '' 'exec "$@"' > /usr/local/bin/ghcopilot-entrypoint \
+     && chmod +x /usr/local/bin/ghcopilot-entrypoint \
+     && rm -rf /var/lib/apt/lists/*
+
+    ENV OAF_MINI_A_LIBS="@AWS/aws.js,@ghcopilot/ghcopilot.js"
+    ENTRYPOINT ["/usr/local/bin/ghcopilot-entrypoint"]
+    CMD ["/openaf/opack", "exec", "mini-a"]
+
+    USER openaf
+
+todo:
+- Check for docker
+- Build ghcopilot docker image
+
+include:
+- ojob.io/docker/_common
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true   # to change when finished
+
+jobs:
+# ----------------------------------
+- name : Build ghcopilot docker image
+  check:
+    in:
+      name: isString.default("openaf/mini-a-ghc")
+      tag : isString.default("deb-t8")
+  exec : | #js
+    var dockerfile = "ojob_ghcopilot_" + genUUID() + ".Dockerfile"
+
+    try {
+      io.writeFileString(dockerfile, templify(args.init.dockerfile, {
+        tag: args.tag
+      }))
+
+      print("🔨 Building docker image " + args.name + " from openaf/mini-a:" + args.tag + "...")
+      var cmds = ["docker", "build", "--pull", "--no-cache", "-t", args.name, "-f", dockerfile, "."]
+      var res = $sh(cmds).prefix("build").get(0)
+      if (res.exitcode != 0) throw "Docker build failed: " + res.stderr
+
+      print("✅ Docker image " + args.name + " built successfully.")
+    } finally {
+      if (io.fileExists(dockerfile)) io.rm(dockerfile)
+    }
+
+# ------------------------------
+- name : Build and usage
+  from:
+  - Build ghcopilot docker image
+  to:
+  - (printmd): |
+      ---
+
+      ✅ Docker image `{{name}}` is ready.
+
+      ### Quick usage
+
+      ```bash
+      docker run --rm -ti {{name}}
+      ```
+
+      ### Authenticate GitHub CLI and Copilot
+
+      ```bash
+      docker run --rm -ti {{name}} gh auth login
+      docker run --rm -ti {{name}} copilot
+      ```
+
+      The image build does not require `GH_TOKEN`; authentication is only needed when you
+      actually use Copilot in the container.
+
+      For non-interactive auth you can also pass `GH_TOKEN` or `GITHUB_TOKEN` at runtime:
+
+      ```bash
+      docker run --rm -ti -e GH_TOKEN=... {{name}} copilot
+      ```
+
+      ### Use mini-a with ghcopilot helpers
+
+      The image sets:
+
+      ```bash
+      OAF_MINI_A_LIBS="@AWS/aws.js,@ghcopilot/ghcopilot.js"
+      ```
+
+      You can launch mini-a directly:
+
+      ```bash
+      docker run --rm -ti {{name}}
+      ```
+
+      > Tip: mount your workspace when needed:
+      > `docker run --rm -ti -v $(pwd):/work -w /work {{name}}`
+
+      ---
