@@ -4,19 +4,19 @@ help:
   expects: 
   - name     : inputFile
     desc     : A YAML/JSON input file to use
-    example  : example.yaml
+    example  : "example.yaml"
     mandatory: false
   - name     : file
     desc     : The markdown output file (otherwise stdout)
-    example  : example.md
+    example  : "example.md"
     mandatory: false
   - name     : path
     desc     : A path expression to filter data
-    example  : a.b
+    example  : "a.b"
     mandatory: false
   - name     : width
     desc     : The line width to use
-    example  : 160
+    example  : "160"
     mandaotry: false
 
 todo:
@@ -25,7 +25,7 @@ todo:
 ojob:
   opacks      :
   - openaf: 20230325
-  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
   logToConsole: false   # to change when finished
         
 
@@ -60,7 +60,9 @@ jobs:
 
     if (isDef(args.path)) data = $path(data, args.path)
 
-    var out = "````yaml\n" + printTree(data, args.width).replace(/\033\[[0-9;]*m/g, "") + "\n````\n"
+    var _t = printTree(data, args.width)
+    _t = _t.replace(/\033\[[0-9;]*m/g, "")
+    var out = "```yaml\n" + _t + "\n```\n"
 
     if (isUnDef(args.file)) {
       print(out) 
