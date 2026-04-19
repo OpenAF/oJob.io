@@ -145,7 +145,7 @@ jobs:
 # --------------------------------
 - name: Use maven to get JAR files
   exec: |
-    $sh("mvn clean dependency:copy-dependencies")
+    $sh("mvn clean dependency:copy-dependencies -DoutputDirectory=.")
     .pwd(args.init.tmpfolder)
     .prefix("mvn")
     .get()
