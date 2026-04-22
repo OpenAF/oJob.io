@@ -1,0 +1,345 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP wiki knowledge base server backed by Mini-A wiki manager
+  expects:
+  - name     : onport
+    desc     : If defined starts an HTTP MCP server on this port; otherwise uses STDIO
+    example  : "8888"
+    mandatory: false
+  - name     : wikibackend
+    desc     : Wiki backend type (fs or s3)
+    example  : "fs"
+    mandatory: false
+  - name     : wikiaccess
+    desc     : Wiki access mode (ro or rw)
+    example  : "rw"
+    mandatory: false
+  - name     : wikiroot
+    desc     : "Base directory for fs backend (default: current directory)"
+    example  : "./wiki"
+    mandatory: false
+  - name     : wikibucket
+    desc     : S3 bucket for s3 backend
+    example  : "my-wiki-bucket"
+    mandatory: false
+  - name     : wikiprefix
+    desc     : S3 key prefix for s3 backend
+    example  : "wiki/"
+    mandatory: false
+  - name     : wikiurl
+    desc     : S3 endpoint/base URL
+    example  : "https://s3.amazonaws.com"
+    mandatory: false
+  - name     : wikiaccesskey
+    desc     : S3 access key
+    mandatory: false
+  - name     : wikisecret
+    desc     : S3 secret key
+    mandatory: false
+  - name     : wikiregion
+    desc     : S3 region
+    mandatory: false
+  - name     : wikiuseversion1
+    desc     : Force S3 signature version 1
+    example  : "false"
+    mandatory: false
+  - name     : wikiignorecertcheck
+    desc     : Ignore TLS cert validation on S3 endpoint
+    example  : "false"
+    mandatory: false
+  - name     : wikilintstaleddays
+    desc     : Default stale-days threshold for lint
+    example  : "90"
+    mandatory: false
+  - name     : toolPrefix
+    desc     : Optional prefix prepended to all tool names (e.g. "docs-" -> docs-list, docs-read, ...)
+    example  : "wiki-"
+    mandatory: false
+  - name     : label
+    desc     : Human-readable wiki label injected into templated tool descriptions
+    example  : "Team wiki"
+    mandatory: true
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((toolPrefix )): "${toolPrefix:-}"
+    ((tplDesc    )): true
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-wiki
+        title  : OpenAF mini-a MCP wiki server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      list:
+        name       : list
+        description: "List pages available in {{label}} with an optional path prefix."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Optional prefix/path to scope listed pages.
+            compact:
+              type       : boolean
+              description: Return compact output.
+              default    : false
+        annotations:
+          title         : list
+          readOnlyHint  : true
+          idempotentHint: true
+
+      read:
+        name       : read
+        description: "Read a wiki page from {{label}} by path."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Wiki page path to read.
+            compact:
+              type       : boolean
+              description: Return compact output (path/title/body only).
+              default    : false
+          required  : [ path ]
+        annotations:
+          title         : read
+          readOnlyHint  : true
+          idempotentHint: true
+
+      search:
+        name       : search
+        description: "Search {{label}} pages by keyword with optional result limits."
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: Text query to search in page metadata/body.
+            limit:
+              type       : integer
+              description: Maximum number of search results.
+              default    : 20
+          required  : [ query ]
+        annotations:
+          title         : search
+          readOnlyHint  : true
+          idempotentHint: true
+
+      write:
+        name       : write
+        description: "Create or update a wiki page in {{label}} (requires wikiaccess=rw)."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Wiki page path to create/update.
+            content:
+              type       : string
+              description: Raw markdown content to persist.
+          required  : [ path, content ]
+        annotations:
+          title         : write
+          readOnlyHint  : false
+          idempotentHint: false
+
+      delete:
+        name       : delete
+        description: "Delete a wiki page from {{label}} (requires wikiaccess=rw)."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Wiki page path to delete.
+          required  : [ path ]
+        annotations:
+          title         : delete
+          readOnlyHint  : false
+          idempotentHint: false
+
+      lint:
+        name       : lint
+        description: "Validate {{label}} health (links, stale pages, and wiki quality checks)."
+        inputSchema:
+          type      : object
+          properties:
+            staleDays:
+              type       : integer
+              description: Override stale-days threshold.
+            compact:
+              type       : boolean
+              description: Return only lint summary.
+              default    : false
+        annotations:
+          title         : lint
+          readOnlyHint  : true
+          idempotentHint: true
+
+      init:
+        name       : init
+        description: "Create baseline wiki pages (AGENTS.md and index.md) when missing in {{label}} (requires wikiaccess=rw)."
+        inputSchema:
+          type      : object
+        annotations:
+          title         : init
+          readOnlyHint  : false
+          idempotentHint: false
+
+    ((fns    )): &MCPFNS
+      list  : Wiki list pages
+      read  : Wiki read page
+      search: Wiki search pages
+      write : Wiki write page
+      delete: Wiki delete page
+      lint  : Wiki lint
+      init  : Wiki init
+  ((else)):
+  - (stdioMCP  ): *MCPSERVER
+    ((toolPrefix)): "${toolPrefix:-}"
+    ((tplDesc   )): true
+    ((fnsMeta   )): *MCPFNSMETA
+    ((fns       )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-wiki.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------------------
+- name : Init
+  check:
+    in:
+      wikibackend         : isString.default("fs")
+      wikiaccess          : isString.default("ro")
+      wikiroot            : isString.default(__)
+      wikibucket          : isString.default(__)
+      wikiprefix          : isString.default("wiki/")
+      wikiurl             : isString.default("https://s3.amazonaws.com")
+      wikiaccesskey       : isString.default(__)
+      wikisecret          : isString.default(__)
+      wikiregion          : isString.default(__)
+      wikiuseversion1     : toBoolean.isBoolean.default(false)
+      wikiignorecertcheck : toBoolean.isBoolean.default(false)
+      wikilintstaleddays  : toNumber.isNumber.default(90)
+      label               : isString.default("wiki")
+  exec : | #js
+    loadLib("mini-a-wiki.js")
+
+    args.wikibackend = String(args.wikibackend).toLowerCase().trim()
+    if (["fs", "s3"].indexOf(args.wikibackend) < 0) args.wikibackend = "fs"
+
+    args.wikiaccess = String(args.wikiaccess).toLowerCase().trim()
+    if (["ro", "rw"].indexOf(args.wikiaccess) < 0) args.wikiaccess = "ro"
+
+    var cfg = {
+      access : args.wikiaccess,
+      backend: args.wikibackend
+    }
+
+    if (args.wikibackend === "s3") {
+      cfg.bucket          = args.wikibucket
+      cfg.prefix          = args.wikiprefix
+      cfg.url             = args.wikiurl
+      cfg.accessKey       = args.wikiaccesskey
+      cfg.secret          = args.wikisecret
+      cfg.region          = args.wikiregion
+      cfg.useVersion1     = args.wikiuseversion1
+      cfg.ignoreCertCheck = args.wikiignorecertcheck
+    } else {
+      cfg.root = isString(args.wikiroot) && args.wikiroot.trim().length > 0 ? args.wikiroot.trim() : "."
+    }
+
+    global.__wikiManager = new MiniAWikiManager(cfg)
+    global.__wikiStaleDays = isNumber(args.wikilintstaleddays) ? Number(args.wikilintstaleddays) : 90
+    args.label = isString(args.label) && args.label.trim().length > 0
+      ? args.label.trim()
+      : (args.wikibackend === "s3" ? (isString(args.wikibucket) && args.wikibucket.length > 0 ? ("s3://" + args.wikibucket + "/" + args.wikiprefix) : "S3 wiki") : (cfg.root || "wiki"))
+
+# ----------------
+- name : Wiki list pages
+  check:
+    in:
+      path   : isString.default("")
+      compact: toBoolean.isBoolean.default(false)
+  exec : | #js
+    var pages = global.__wikiManager.list(args.path)
+    var result = { count: pages.length, pages: pages }
+    return args.compact ? result : result
+
+# ---------------
+- name : Wiki read page
+  check:
+    in:
+      path   : isString
+      compact: toBoolean.isBoolean.default(false)
+  exec : | #js
+    var page = global.__wikiManager.read(args.path)
+    if (!isObject(page)) return "[ERROR] Page not found: " + args.path
+    if (args.compact === true) return { path: page.path, title: isString(page.meta.title) ? page.meta.title : page.path, body: page.body }
+    return page
+
+# ------------------
+- name : Wiki search pages
+  check:
+    in:
+      query: isString
+      limit: toNumber.isNumber.default(20)
+  exec : | #js
+    var hits = global.__wikiManager.search(args.query, { limit: args.limit })
+    return { count: hits.length, results: hits }
+
+# -----------------
+- name : Wiki write page
+  check:
+    in:
+      path   : isString
+      content: isString
+  exec : | #js
+    if (global.__wikiManager._access !== "rw") return "[ERROR] wiki write requires wikiaccess=rw"
+    return global.__wikiManager.write(args.path, args.content)
+
+# ------------------
+- name : Wiki delete page
+  check:
+    in:
+      path: isString
+  exec : | #js
+    if (global.__wikiManager._access !== "rw") return "[ERROR] wiki delete requires wikiaccess=rw"
+    return global.__wikiManager.delete(args.path)
+
+# -----------
+- name : Wiki lint
+  check:
+    in:
+      staleDays: toNumber.isNumber.default(__)
+      compact  : toBoolean.isBoolean.default(false)
+  exec : | #js
+    var staleDays = isNumber(args.staleDays) ? args.staleDays : global.__wikiStaleDays
+    var lint = global.__wikiManager.lint(__, { staleDays: staleDays })
+    if (args.compact === true && isObject(lint) && isObject(lint.summary)) return lint.summary
+    return lint
+
+# -----------
+- name : Wiki init
+  exec : | #js
+    if (global.__wikiManager._access !== "rw") return "[ERROR] wiki init requires wikiaccess=rw"
+    return global.__wikiManager.init()

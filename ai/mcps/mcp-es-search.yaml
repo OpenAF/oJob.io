@@ -1,0 +1,458 @@
+# Author: Nuno Aguiar
+# ElasticSearch/OpenSearch MCP server — LLM-optimised full-text search.
+#
+# Document structure assumptions (all configurable via CLI params):
+#   content field : full text of the original document  (contentField, default: content)
+#   path field    : original file path of the source    (pathField,    default: path)
+#   title field   : document title, may be absent       (titleField,   default: title)
+#
+# Multi-instance coexistence: pass toolPrefix (e.g. toolPrefix=docs-) so tools are
+# exposed as docs-search/docs-get/docs-read/docs-info instead of the * defaults.
+# Use label for a human-readable name injected into descriptions via tplDesc.
+
+help:
+  text   : A STDIO/HTTP MCP ElasticSearch/OpenSearch full-text search server
+  expects:
+  - name     : url
+    desc     : ElasticSearch/OpenSearch base URL
+    example  : "http://localhost:9200"
+    mandatory: true
+  - name     : index
+    desc     : Default index to search
+    example  : "docs"
+    mandatory: true
+  - name     : toolPrefix
+    desc     : Optional prefix prepended to all tool names (e.g. "docs-" → docs-search, docs-get, …)
+    example  : "docs-"
+    mandatory: false
+  - name     : label
+    desc     : Human-readable label for this index used in tool descriptions (defaults to index name)
+    example  : "API documentation"
+    mandatory: false
+  - name     : user
+    desc     : HTTP Basic auth username
+    mandatory: false
+  - name     : password
+    desc     : HTTP Basic auth password
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts an HTTP MCP server on this port; otherwise uses STDIO
+    example  : "8888"
+    mandatory: false
+  - name     : pathField
+    desc     : "Document field holding the source file path (default: path)"
+    example  : "path"
+    mandatory: false
+  - name     : contentField
+    desc     : "Document field holding full text content (default: content)"
+    example  : "content"
+    mandatory: false
+  - name     : titleField
+    desc     : "Document field holding the document title (default: title)"
+    example  : "title"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((toolPrefix )): "${toolPrefix:-}"
+    ((tplDesc    )): true
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-es
+        title  : OpenAF mini-a MCP ElasticSearch/OpenSearch server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      search:
+        name       : search
+        description: "Full-text search in the {{index}} index ({{label}}) with optional metadata filtering and native highlights."
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: Free-text search query.
+            size:
+              type       : integer
+              description: Max number of results to return (default 5).
+            from:
+              type       : integer
+              description: Result offset for pagination (default 0).
+            fields:
+              type       : array
+              description: Fields to search across (default ["title","content"]).
+              items:
+                type: string
+            filter:
+              type       : object
+              description: Key-value metadata filter applied as AND terms (e.g. {"tag":"api"}).
+            highlight:
+              type       : boolean
+              description: Return highlighted excerpts around matches (default true).
+          required: [ query ]
+        annotations:
+          title         : search
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get:
+        name       : get
+        description: "Get a document by ID or path from the {{index}} index ({{label}}), returning metadata and an optional content preview."
+        inputSchema:
+          type      : object
+          properties:
+            id:
+              type       : string
+              description: Document _id (one of id or path is required).
+            path:
+              type       : string
+              description: Exact value of the path field (one of id or path is required).
+            preview_lines:
+              type       : integer
+              description: Number of content lines to include as preview (0 = none, default 0).
+        annotations:
+          title         : get
+          readOnlyHint  : true
+          idempotentHint: true
+
+      read:
+        name       : read
+        description: "Retrieve a portion of a document's content from the {{index}} index ({{label}}). Use this to avoid flooding context with full large documents."
+        inputSchema:
+          type      : object
+          properties:
+            id:
+              type       : string
+              description: Document _id.
+            mode:
+              type       : string
+              description: "Retrieval mode: head (first N lines), tail (last N lines), lines (line range), regex (pattern match). Default: head."
+            lines:
+              type       : integer
+              description: Lines to return for head/tail mode (default 50).
+            start_line:
+              type       : integer
+              description: First line for lines mode (1-based).
+            end_line:
+              type       : integer
+              description: Last line for lines mode (inclusive).
+            pattern:
+              type       : string
+              description: Regex pattern for regex mode.
+            context_lines:
+              type       : integer
+              description: Lines of context around each match in regex mode (default 2).
+            max_matches:
+              type       : integer
+              description: Max matches to return in regex mode (default 20).
+          required: [ id ]
+        annotations:
+          title         : read
+          readOnlyHint  : true
+          idempotentHint: true
+
+      info:
+        name       : info
+        description: "Get statistics and field mappings for the configured {{index}} ES/OpenSearch index ({{label}})."
+        inputSchema:
+          type      : object
+        annotations:
+          title         : info
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      search: ES search
+      get   : ES get
+      read  : ES read
+      info  : ES info
+  ((else)):
+  - (stdioMCP  ): *MCPSERVER
+    ((toolPrefix)): "${toolPrefix:-}"
+    ((tplDesc   )): true
+    ((fnsMeta   )): *MCPFNSMETA
+    ((fns       )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf        : 20250915
+  - oJob-common   : 20250914
+  - ElasticSearch : 1
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-es-search.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  check:
+    in:
+      toolPrefix  : isString.default("")
+      label       : isString.default("")
+      user        : isString.default(__)
+      password    : isString.default(__)
+      pathField   : isString.default("path")
+      contentField: isString.default("content")
+      titleField  : isString.default("title")
+  exec : | #js
+    if (isUnDef(global.__es)) {
+      //ow.loadJava()
+      //ow.java.setIgnoreSSLDomains(["127.0.0.1"])
+      loadLib(getOPackPath("ElasticSearch") + "/elasticsearch.js")
+      global.__es             = new ElasticSearch(args.url, args.user, args.password)
+      global.__esIndex        = args.index
+      global.__esLabel        = args.label || args.index
+      global.__esPathField    = args.pathField
+      global.__esContentField = args.contentField
+      global.__esTitleField   = args.titleField
+      // propagate resolved label back to args so tplDesc can render {{label}} in descriptions
+      args.label = global.__esLabel
+    }
+
+# ----------------
+- name : ES search
+  from : Init
+  check:
+    in:
+      query    : isString
+      size     : toNumber.isNumber.default(5)
+      from     : toNumber.isNumber.default(0)
+      fields   : isArray.default(__)
+      filter   : isMap.default(__)
+      highlight: toBoolean.isBoolean.default(true)
+  exec : | #js
+    var es           = global.__es
+    var index        = global.__esIndex
+    var pathField    = global.__esPathField
+    var contentField = global.__esContentField
+    var titleField   = global.__esTitleField
+
+    var queryBody = {
+      from : args.from,
+      size : args.size,
+      query: {
+        multi_match: {
+          query : args.query,
+          fields: isDef(args.fields) ? args.fields : [ titleField, contentField ]
+        }
+      }
+    }
+
+    if (isDef(args.filter) && Object.keys(args.filter).length > 0) {
+      var filterClauses = Object.keys(args.filter).map(function(k) {
+        return { term: { [k]: args.filter[k] } }
+      })
+      queryBody.query = {
+        bool: {
+          must  : queryBody.query,
+          filter: filterClauses
+        }
+      }
+    }
+
+    if (args.highlight) {
+      queryBody.highlight = {
+        fields: { [contentField]: { fragment_size: 200, number_of_fragments: 3 } }
+      }
+    }
+
+    var res   = es.search(index, queryBody)
+    var total = isDef(res.hits.total)
+                  ? (isMap(res.hits.total) ? res.hits.total.value : res.hits.total)
+                  : 0
+
+    return {
+      total_hits: total,
+      hits: res.hits.hits.map(function(h) {
+        var src = h._source || {}
+        return {
+          id          : h._id,
+          path        : src[pathField],
+          title       : src[titleField],
+          score       : h._score,
+          content_size: (src[contentField] || "").length,
+          highlights  : (args.highlight && isDef(h.highlight)) ? (h.highlight[contentField] || []) : []
+        }
+      })
+    }
+
+# -------------
+- name : ES get
+  from : Init
+  check:
+    in:
+      id           : isString.default(__)
+      path         : isString.default(__)
+      preview_lines: toNumber.isNumber.default(0)
+  exec : | #js
+    if (isUnDef(args.id) && isUnDef(args.path)) {
+      args._err = "Either id or path must be provided"
+      return
+    }
+
+    var es           = global.__es
+    var index        = global.__esIndex
+    var pathField    = global.__esPathField
+    var contentField = global.__esContentField
+    var titleField   = global.__esTitleField
+
+    var queryBody = isDef(args.id)
+      ? { query: { ids: { values: [args.id] } }, size: 1 }
+      : { query: { term: { [pathField]: args.path } }, size: 1 }
+
+    var res = es.search(index, queryBody)
+    if (!res.hits.hits.length) {
+      args._err = "Document not found"
+      return
+    }
+
+    var h       = res.hits.hits[0]
+    var src     = h._source || {}
+    var content = src[contentField] || ""
+    var linesArr = content.split("\n")
+
+    var meta = {}
+    Object.keys(src).forEach(function(k) {
+      if (k !== contentField) meta[k] = src[k]
+    })
+
+    var out = {
+      id           : h._id,
+      path         : src[pathField],
+      title        : src[titleField],
+      content_size : content.length,
+      content_lines: linesArr.length,
+      metadata     : meta
+    }
+
+    if (args.preview_lines > 0) {
+      out.preview = linesArr.slice(0, args.preview_lines).join("\n")
+    }
+
+    return out
+
+# --------------
+- name : ES read
+  from : Init
+  check:
+    in:
+      id           : isString
+      mode         : isString.default("head")
+      lines        : toNumber.isNumber.default(50)
+      start_line   : toNumber.isNumber.default(__)
+      end_line     : toNumber.isNumber.default(__)
+      pattern      : isString.default(__)
+      context_lines: toNumber.isNumber.default(2)
+      max_matches  : toNumber.isNumber.default(20)
+  exec : | #js
+    var es           = global.__es
+    var index        = global.__esIndex
+    var pathField    = global.__esPathField
+    var contentField = global.__esContentField
+
+    var res = es.search(index, { query: { ids: { values: [args.id] } }, size: 1 })
+    if (!res.hits.hits.length) {
+      args._err = "Document not found: " + args.id
+      return
+    }
+
+    var src      = res.hits.hits[0]._source || {}
+    var content  = src[contentField] || ""
+    var linesArr = content.split("\n")
+    var total    = linesArr.length
+    var out, fromLine, toLine
+
+    switch (args.mode) {
+      case "head":
+        fromLine = 1
+        toLine   = Math.min(args.lines, total)
+        out      = linesArr.slice(0, args.lines).join("\n")
+        break
+      case "tail":
+        fromLine = Math.max(1, total - args.lines + 1)
+        toLine   = total
+        out      = linesArr.slice(-args.lines).join("\n")
+        break
+      case "lines":
+        var s = isDef(args.start_line) ? args.start_line - 1 : 0
+        var e = isDef(args.end_line)   ? args.end_line        : total
+        fromLine = s + 1
+        toLine   = e
+        out      = linesArr.slice(s, e).join("\n")
+        break
+      case "regex":
+        var re      = new RegExp(args.pattern)
+        var ctx     = args.context_lines
+        var matches = []
+        linesArr.forEach(function(line, i) {
+          if (re.test(line) && matches.length < args.max_matches) {
+            var start = Math.max(0, i - ctx)
+            var end   = Math.min(total - 1, i + ctx)
+            matches.push({
+              line_number: i + 1,
+              match      : line,
+              context    : linesArr.slice(start, end + 1).join("\n")
+            })
+          }
+        })
+        return {
+          id           : args.id,
+          path         : src[pathField],
+          mode         : args.mode,
+          total_lines  : total,
+          matched_count: matches.length,
+          matches      : matches
+        }
+      default:
+        args._err = "Unknown mode '" + args.mode + "'. Use: head, tail, lines, regex."
+        return
+    }
+
+    return {
+      id         : args.id,
+      path       : src[pathField],
+      mode       : args.mode,
+      content    : out,
+      total_lines: total,
+      from_line  : fromLine,
+      to_line    : toLine
+    }
+
+# --------------
+- name : ES info
+  from : Init
+  exec : | #js
+    var es       = global.__es
+    var defIndex = global.__esIndex
+    var statsArr = es.getIndice(defIndex)
+    var mapping  = es.getIndexMapping(defIndex)
+    var fields   = []
+
+    if (isDef(mapping) && isDef(mapping.mappings) && isDef(mapping.mappings.properties)) {
+      Object.keys(mapping.mappings.properties).forEach(function(f) {
+        fields.push({
+          name: f,
+          type: mapping.mappings.properties[f].type || "object"
+        })
+      })
+    }
+
+    var st = isArray(statsArr) && statsArr.length ? statsArr[0] : {}
+    return {
+      index     : defIndex,
+      docs_count: isDef(st["docs.count"]) ? Number(st["docs.count"]) : __,
+      store_size: isDef(st["store.size"]) ? Number(st["store.size"]) : __,
+      fields    : fields
+    }

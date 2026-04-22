@@ -1,0 +1,402 @@
+# Author: OpenAI Assistant, Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP generic browse server backed by the oJob-common HTTP Browse API
+  expects:
+  - name     : browseAPIURL
+    desc     : Base URL of a HTTP Browse API endpoint
+    example  : "http://127.0.0.1:8091/api/browse"
+    mandatory: true
+  - name     : browseUri
+    desc     : Target browse URI exposed by the HTTP Browse API
+    example  : "/files"
+    mandatory: true
+  - name     : label
+    desc     : Human-readable label injected into tool descriptions (defaults to browseUri)
+    example  : "Local files"
+    mandatory: false
+  - name     : toolPrefix
+    desc     : Optional prefix prepended to all tool names (e.g. "files-" -> files-list, files-get, files-info)
+    example  : "files-"
+    mandatory: false
+  - name     : headers
+    desc     : Optional HTTP headers map sent to the HTTP Browse API on every request
+    example  : "(Authorization: Bearer ...)"
+    mandatory: false
+  - name     : defaultParams
+    desc     : Optional query parameters map merged into every Browse API request
+    example  : "(pageSize: 100)"
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts an HTTP MCP server on this port; otherwise uses STDIO
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((toolPrefix )): "${toolPrefix:-}"
+    ((tplDesc    )): true
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-oaf-browse
+        title  : OpenAF mini-a MCP browse server for {{label}}
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      list:
+        name       : list
+        description: "List entries from {{label}} via the HTTP Browse API target {{browseUri}}."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Relative path under {{browseUri}} to list. Defaults to the target root.
+            params:
+              type       : object
+              description: Optional query parameters merged into the Browse API request (e.g. page, pageSize or target-specific filters).
+          required: [ ]
+        annotations:
+          title         : list
+          readOnlyHint  : true
+          idempotentHint: true
+
+      get:
+        name       : get
+        description: "Get an object from {{label}} via the HTTP Browse API target {{browseUri}}."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Relative path under {{browseUri}} to retrieve.
+            params:
+              type       : object
+              description: Optional query parameters merged into the Browse API request.
+          required: [ path ]
+        annotations:
+          title         : get
+          readOnlyHint  : true
+          idempotentHint: true
+
+      search:
+        name       : search
+        description: "Search {{label}} list entries using a regular expression across all returned fields."
+        inputSchema:
+          type      : object
+          properties:
+            pattern:
+              type       : string
+              description: JavaScript regular expression pattern used to match entry values.
+            path:
+              type       : string
+              description: Relative path under {{browseUri}} where the browse traversal starts.
+            params:
+              type       : object
+              description: Optional query parameters merged into every list call.
+            caseSensitive:
+              type       : boolean
+              description: When true keeps regex case-sensitive; otherwise applies the "i" flag.
+            maxDepth:
+              type       : integer
+              description: Maximum browse depth (0 = only current path). Default 3.
+            maxPaths:
+              type       : integer
+              description: Maximum number of paths to browse while traversing. Default 250.
+            maxResults:
+              type       : integer
+              description: Maximum matches returned. Default 100.
+          required: [ pattern ]
+        annotations:
+          title         : search
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      list: Browse list
+      get : Browse get
+      search: Browse search
+      
+  ((else)):
+  - (stdioMCP  ): *MCPSERVER
+    ((toolPrefix)): "${toolPrefix:-}"
+    ((tplDesc   )): true
+    ((fnsMeta   )): *MCPFNSMETA
+    ((fns       )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-oaf-browse.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  check:
+    in:
+      label       : isString.default("")
+      headers     : isMap.default(__)
+      defaultParams: isMap.default({})
+  exec : | #js
+    if (isUnDef(global.__browseApiCall__)) {
+
+      _$(args.browseAPIURL, "browseAPIURL").isString().$_()
+      _$(args.browseUri, "browseUri").isString().$_()    
+
+      global.__browseAPIURL__      = String(args.browseAPIURL).replace(/\/+$/, "")
+      global.__browseTargetUri__   = String(args.browseUri).startsWith("/") ? String(args.browseUri) : "/" + String(args.browseUri)
+      global.__browseLabel__       = (isString(args.label) && args.label.length > 0 ? args.label : global.__browseTargetUri__)
+      global.__browseApiHeaders__  = isMap(args.headers) ? clone(args.headers) : __
+      global.__browseDefaultParams__ = isMap(args.defaultParams) ? clone(args.defaultParams) : {}
+
+      args.browseAPIURL = global.__browseAPIURL__
+      args.browseUri    = global.__browseTargetUri__
+      args.label        = global.__browseLabel__
+
+      global.__browseApiCall__ = function(action, path, params) {
+        var _query = merge({
+          action   : action,
+          browseUri: global.__browseTargetUri__
+        }, isMap(global.__browseDefaultParams__) ? clone(global.__browseDefaultParams__) : {})
+
+        if (isString(path) && path.length > 0) _query.path = path
+        if (isMap(params)) _query = merge(_query, params)
+
+        var _pairs = []
+        Object.keys(_query).forEach(function(k) {
+          if (isUnDef(_query[k])) return
+
+          var _value = _query[k]
+          if (isMap(_value) || isArray(_value)) _value = stringify(_value, __, "")
+          _pairs.push(encodeURIComponent(k) + "=" + encodeURIComponent(String(_value)))
+        })
+
+        var _url = global.__browseAPIURL__ + (_pairs.length > 0 ? "?" + _pairs.join("&") : "")
+        var _response = $rest({
+          requestHeaders : global.__browseApiHeaders__,
+          throwExceptions: true
+        }).get(_url)
+
+        if (isString(_response)) {
+          var _trimmed = _response.trim()
+          if ((_trimmed.startsWith("{") && _trimmed.endsWith("}")) || (_trimmed.startsWith("[") && _trimmed.endsWith("]"))) {
+            try {
+              return jsonParse(_response)
+            } catch(__e) {}
+          }
+        }
+
+        return _response
+      }
+    }
+
+# ------------------
+- name : Browse list
+  from : Init
+  check:
+    in:
+      path  : isString.default("")
+      params: isMap.default({})
+  exec : | #js
+    var _res = global.__browseApiCall__("list", args.path, args.params)
+    return _res.list
+
+# -----------------
+- name : Browse get
+  from : Init
+  check:
+    in:
+      path  : isString
+      params: isMap.default({})
+  exec : | #js
+    return global.__browseApiCall__("obj", args.path, args.params)
+
+# --------------------
+- name : Browse search
+  from : Init
+  check:
+    in:
+      pattern      : isString
+      path         : isString.default("")
+      params       : isMap.default({})
+      caseSensitive: toBoolean.isBoolean.default(false)
+      maxDepth     : toNumber.isNumber.default(3)
+      maxPaths     : toNumber.isNumber.default(250)
+      maxResults   : toNumber.isNumber.default(100)
+  exec : | #js
+    var _flags = args.caseSensitive ? "g" : "gi"
+    var _rx = new RegExp(args.pattern, _flags)
+    var _startPath = String(args.path || "")
+    var _maxDepth = Math.max(0, Number(args.maxDepth || 0))
+    var _maxPaths = Math.max(1, Number(args.maxPaths || 0))
+    var _maxResults = Math.max(1, Number(args.maxResults || 0))
+    var _visited = {}
+    ow.loadObj()
+    var _results = new ow.obj.syncArray()
+
+    var _stringify = function(v) {
+      if (isUnDef(v) || isNull(v)) return __
+      if (isString(v) || isNumber(v) || isBoolean(v)) return String(v)
+      try {
+        return stringify(v, __, "")
+      } catch(__e) {
+        return __
+      }
+    }
+
+    var _matchesAnyField = function(entry) {
+      if (!isMap(entry)) return false
+      var _keys = Object.keys(entry)
+      var _match = $atomic(0, "long")
+      pForEach(_keys, function(k) {
+        if (_match.get() === 1) return
+        var _value = _stringify(entry[k])
+        if (isUnDef(_value)) return
+        _rx.lastIndex = 0
+        if (_rx.test(_value)) _match.set(1)
+      })
+      return _match.get() === 1
+    }
+
+    var _normalizePath = function(v) {
+      if (!isString(v)) return __
+      var _p = String(v).trim()
+      if (_p.length <= 0) return __
+      return _p
+    }
+
+    var _extractChildPaths = function(entry) {
+      if (!isMap(entry)) return []
+      var _candidates = []
+      ;["path", "filepath", "filePath", "relativePath", "canonicalPath"].forEach(function(k) {
+        var _p = _normalizePath(entry[k])
+        if (isDef(_p)) _candidates.push(_p)
+      })
+
+      var _kind = String(entry.type || entry.kind || entry.entryType || "").toLowerCase()
+      var _isDir = (
+        entry.isDirectory === true ||
+        entry.isDir === true ||
+        entry.directory === true ||
+        _kind.indexOf("dir") >= 0 ||
+        _kind.indexOf("folder") >= 0
+      )
+      if (!_isDir) return []
+      return _candidates
+    }
+
+    var _toInt = function(v, _fallback) {
+      var _n = Number(v)
+      if (isNaN(_n) || !isFinite(_n)) return _fallback
+      return Math.floor(_n)
+    }
+
+    var _fetchListEntries = function(_path) {
+      var _baseParams = isMap(args.params) ? clone(args.params) : {}
+      var _initial = global.__browseApiCall__("list", _path, _baseParams)
+      var _allEntries = isMap(_initial) && isArray(_initial.list) ? _initial.list.slice(0) : []
+
+      var _pageInfo = isMap(_initial) ? _initial.pageInfo : __
+      if (!isMap(_pageInfo)) return _allEntries
+
+      var _currentPage = _toInt(_pageInfo.page, _toInt(_baseParams.page, 1))
+      if (_currentPage < 1) _currentPage = 1
+      var _totalPages = _toInt(_pageInfo.totalPages, __)
+      var _hasNext = _pageInfo.hasNext === true
+
+      if (!(isDef(_totalPages) && _totalPages > _currentPage) && !_hasNext) return _allEntries
+
+      // Protect against malformed pagination metadata causing endless loops.
+      var _safetyMaxPages = 10000
+      var _nextPage = _currentPage + 1
+      while (_nextPage <= _safetyMaxPages) {
+        if (isDef(_totalPages) && _nextPage > _totalPages) break
+        if (!isDef(_totalPages) && !_hasNext) break
+
+        var _pageParams = merge(clone(_baseParams), { page: _nextPage })
+        var _nextRes = global.__browseApiCall__("list", _path, _pageParams)
+        if (!isMap(_nextRes)) break
+
+        var _nextEntries = isArray(_nextRes.list) ? _nextRes.list : []
+        if (_nextEntries.length > 0) _allEntries = _allEntries.concat(_nextEntries)
+
+        var _nextInfo = isMap(_nextRes.pageInfo) ? _nextRes.pageInfo : __
+        if (!isMap(_nextInfo)) break
+        _hasNext = _nextInfo.hasNext === true
+
+        var _nextReportedPage = _toInt(_nextInfo.page, _nextPage)
+        if (_nextReportedPage < _nextPage) _nextReportedPage = _nextPage
+        _totalPages = _toInt(_nextInfo.totalPages, _totalPages)
+
+        if (!(isDef(_totalPages) && _nextReportedPage < _totalPages) && !_hasNext) break
+        _nextPage = _nextReportedPage + 1
+      }
+
+      return _allEntries
+    }
+
+    var _level = [ _startPath ]
+    var _depth = 0
+    while (_level.length > 0 && _depth <= _maxDepth && Object.keys(_visited).length < _maxPaths && _results.length() < _maxResults) {
+      var _batchPaths = []
+      _level.forEach(function(_path) {
+        var _k = String(_path || "")
+        if (_visited[_k] === true || _batchPaths.length >= _maxPaths) return
+        _visited[_k] = true
+        _batchPaths.push(_path)
+      })
+
+      var _nextPaths = []
+      var _batchResults = pForEach(_batchPaths, function(_path) {
+        try {
+          var _entries = _fetchListEntries(_path)
+          return {
+            path   : _path,
+            entries: _entries
+          }
+        } catch(_e) {
+          return {
+            path   : _path,
+            entries: [],
+            error  : String(_e.message || _e)
+          }
+        }
+      })
+
+      _batchResults.forEach(function(_r) {
+        if (!isMap(_r) || !isArray(_r.entries)) return
+        _r.entries.forEach(function(_entry) {
+          if (_results.length() >= _maxResults) return
+          if (_matchesAnyField(_entry)) {
+            _results.add({
+              fromPath: _r.path,
+              entry   : _entry
+            })
+          }
+          _extractChildPaths(_entry).forEach(function(_childPath) {
+            if (_visited[_childPath] !== true && _nextPaths.indexOf(_childPath) < 0 && Object.keys(_visited).length + _nextPaths.length < _maxPaths) {
+              _nextPaths.push(_childPath)
+            }
+          })
+        })
+      })
+
+      _level = _nextPaths
+      _depth++
+    }
+
+    return _results.toArray()

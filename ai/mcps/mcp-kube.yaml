@@ -73,20 +73,36 @@ todo:
           properties:
             resource:
               type       : string
-              description: Resource identifier to fetch (for example `pods`, `deployments`, `pod`, `pods-metrics`).
-              enum       : [pods, deployments, statefulsets, clusterroles, clusterrolebindings, roles, rolebindings, ingresses, networkpolicies, resourcequotas, storageclasses, services, service-accounts, serviceaccounts, secrets, replicasets, persistent-volume-claims, persistentvolumeclaims, persistent-volumes, persistentvolumes, nodes, configmaps, jobs, daemonsets, cronjobs, endpoints, pod, events, pods-metrics, pod-metrics, nodes-metrics, node-metrics]
+              description: Resource identifier to fetch (for example `pods`, `deployments`, `hpas`, `object`, `objects`, `pods-metrics`).
+              enum       : [pods, pod, deployments, statefulsets, clusterroles, clusterrolebindings, roles, rolebindings, horizontalpodautoscalers, hpas, hpa, ingresses, ingressclasses, networkpolicies, endpointslices, resourcequotas, limitranges, storageclasses, services, service-accounts, serviceaccounts, secrets, replicasets, replicationcontrollers, persistent-volume-claims, persistentvolumeclaims, persistent-volumes, persistentvolumes, nodes, configmaps, jobs, daemonsets, cronjobs, poddisruptionbudgets, leases, priorityclasses, runtimeclasses, certificatesigningrequests, csrs, customresourcedefinitions, crds, apiservices, endpoints, version, events, object, objects, kind, pods-metrics, pod-metrics, nodes-metrics, node-metrics]
             namespace:
               type       : string
               description: Namespace scope when applicable (defaults to the configured namespace).
               example    : production
             name:
               type       : string
-              description: Resource name when required (for example pod name or node for metrics).
+              description: Resource name when required (for example pod name, HPA name or generic object name).
               example    : web-658d9c56fb-abc12
             node:
               type       : string
               description: Alias for `name` when requesting node metrics.
               example    : ip-10-0-0-123
+            apiVersion:
+              type       : string
+              description: API version for generic object requests (for example `argoproj.io/v1alpha1`).
+              example    : argoproj.io/v1alpha1
+            kind:
+              type       : string
+              description: Kubernetes kind for generic object requests (for example `Application`).
+              example    : Application
+            plural:
+              type       : string
+              description: Resource plural for generic object requests (for example `applications`).
+              example    : applications
+            namespaced:
+              type       : boolean
+              description: Whether the generic resource is namespaced (defaults to true for generic object requests).
+              example    : true
             full:
               type       : boolean
               description: When supported, return the complete resource definition.
@@ -281,45 +297,85 @@ jobs:
       namespace: isString.default(__)
       name     : isString.default(__)
       node     : isString.default(__)
+      apiVersion: isString.default(__)
+      kind     : isString.default(__)
+      plural   : isString.default(__)
+      namespaced: toBoolean.isBoolean.default(__)
       full     : toBoolean.isBoolean.default(false)
   exec : | #js
     var key = String(args.resource || "").toLowerCase()
     key = key.replace(/[_\s]+/g, "-")
-    var map = {
-      "pods"                   : "pods",
-      "deployments"            : "deployments",
-      "statefulsets"           : "statefulsets",
-      "clusterroles"           : "clusterroles",
-      "clusterrolebindings"    : "clusterrolebindings",
-      "roles"                  : "roles",
-      "rolebindings"           : "rolebindings",
-      "ingresses"              : "ingresses",
-      "networkpolicies"        : "networkpolicies",
-      "resourcequotas"         : "resourcequotas",
-      "storageclasses"         : "storageclasses",
-      "services"               : "services",
-      "service-accounts"       : "service-accounts",
-      "serviceaccounts"        : "service-accounts",
-      "secrets"                : "secrets",
-      "replicasets"            : "replicasets",
-      "persistent-volume-claims": "persistent-volume-claims",
-      "persistentvolumeclaims" : "persistent-volume-claims",
-      "persistent-volumes"     : "persistent-volumes",
-      "persistentvolumes"      : "persistent-volumes",
-      "nodes"                  : "nodes",
-      "configmaps"             : "configmaps",
-      "jobs"                   : "jobs",
-      "daemonsets"             : "daemonsets",
-      "cronjobs"               : "cronjobs",
-      "endpoints"              : "endpoints",
-      "pod"                    : "pod",
-      "events"                 : "events",
-      "pods-metrics"           : "pods-metrics",
-      "pod-metrics"            : "pods-metrics",
-      "nodes-metrics"          : "nodes-metrics",
-      "node-metrics"           : "node-metrics"
+    var normalizeResource = function(value) {
+      value = String(value || "").toLowerCase()
+      value = value.replace(/[_\s]+/g, "-")
+      var aliases = {
+        "pods"                     : "pods",
+        "pod"                      : "pod",
+        "deployments"              : "deployments",
+        "statefulsets"             : "statefulsets",
+        "clusterroles"             : "clusterroles",
+        "clusterrolebindings"      : "clusterrolebindings",
+        "roles"                    : "roles",
+        "rolebindings"             : "rolebindings",
+        "horizontalpodautoscalers" : "horizontalpodautoscalers",
+        "hpas"                     : "horizontalpodautoscalers",
+        "hpa"                      : "hpa",
+        "ingresses"                : "ingresses",
+        "ingressclasses"           : "ingressclasses",
+        "networkpolicies"          : "networkpolicies",
+        "endpointslices"           : "endpointslices",
+        "resourcequotas"           : "resourcequotas",
+        "limitranges"              : "limitranges",
+        "storageclasses"           : "storageclasses",
+        "services"                 : "services",
+        "service-accounts"         : "service-accounts",
+        "serviceaccounts"          : "service-accounts",
+        "secrets"                  : "secrets",
+        "replicasets"              : "replicasets",
+        "replicationcontrollers"   : "replicationcontrollers",
+        "persistent-volume-claims" : "persistent-volume-claims",
+        "persistentvolumeclaims"   : "persistent-volume-claims",
+        "persistent-volumes"       : "persistent-volumes",
+        "persistentvolumes"        : "persistent-volumes",
+        "nodes"                    : "nodes",
+        "configmaps"               : "configmaps",
+        "jobs"                     : "jobs",
+        "daemonsets"               : "daemonsets",
+        "cronjobs"                 : "cronjobs",
+        "poddisruptionbudgets"     : "poddisruptionbudgets",
+        "leases"                   : "leases",
+        "priorityclasses"          : "priorityclasses",
+        "runtimeclasses"           : "runtimeclasses",
+        "certificatesigningrequests": "certificatesigningrequests",
+        "csrs"                     : "certificatesigningrequests",
+        "customresourcedefinitions": "customresourcedefinitions",
+        "crds"                     : "customresourcedefinitions",
+        "apiservices"              : "apiservices",
+        "endpoints"                : "endpoints",
+        "version"                  : "version",
+        "events"                   : "events",
+        "object"                   : "object",
+        "objects"                  : "objects",
+        "kind"                     : "kind",
+        "pods-metrics"             : "pods-metrics",
+        "pod-metrics"              : "pods-metrics",
+        "nodes-metrics"            : "nodes-metrics",
+        "node-metrics"             : "node-metrics"
+      }
+      return aliases[value]
     }
-    var normalized = map[key]
+    var genericResource = function() {
+      if (isUnDef(args.apiVersion) || isUnDef(args.kind) || isUnDef(args.plural)) {
+        throw "[ERROR] 'apiVersion', 'kind' and 'plural' are required for generic resource requests"
+      }
+      return {
+        apiVersion: args.apiVersion,
+        kind      : args.kind,
+        plural    : args.plural,
+        namespaced: isDef(args.namespaced) ? args.namespaced : true
+      }
+    }
+    var normalized = normalizeResource(key)
     if (!isDef(normalized)) {
       throw "[ERROR] Unsupported resource '" + args.resource + "'"
     }
@@ -327,60 +383,76 @@ jobs:
     var ns = args.namespace
     var full = args.full === true
     var client = $kube(global.__kubeParams__)
+    var listFns = {
+      "pods"                   : "getPods",
+      "deployments"            : "getDeployments",
+      "statefulsets"           : "getStatefulSets",
+      "clusterroles"           : "getClusterRoles",
+      "clusterrolebindings"    : "getClusterRoleBindings",
+      "roles"                  : "getRoles",
+      "rolebindings"           : "getRoleBindings",
+      "horizontalpodautoscalers": "getHPAs",
+      "ingresses"              : "getIngresses",
+      "ingressclasses"         : "getIngressClasses",
+      "networkpolicies"        : "getNetworkPolicies",
+      "endpointslices"         : "getEndpointSlices",
+      "resourcequotas"         : "getResourceQuotas",
+      "limitranges"            : "getLimitRanges",
+      "storageclasses"         : "getStorageClasses",
+      "services"               : "getServices",
+      "service-accounts"       : "getServiceAccounts",
+      "secrets"                : "getSecrets",
+      "replicasets"            : "getReplicaSets",
+      "replicationcontrollers" : "getReplicationControllers",
+      "persistent-volume-claims": "getPersistentVolumeClaims",
+      "persistent-volumes"     : "getPersistentVolumes",
+      "nodes"                  : "getNodes",
+      "configmaps"             : "getConfigMaps",
+      "jobs"                   : "getJobs",
+      "daemonsets"             : "getDaemonSets",
+      "cronjobs"               : "getCronJobs",
+      "poddisruptionbudgets"   : "getPodDisruptionBudgets",
+      "leases"                 : "getLeases",
+      "priorityclasses"        : "getPriorityClasses",
+      "runtimeclasses"         : "getRuntimeClasses",
+      "certificatesigningrequests": "getCertificateSigningRequests",
+      "customresourcedefinitions": "getCustomResourceDefinitions",
+      "apiservices"            : "getAPIServices",
+      "endpoints"              : "getEndpoints"
+    }
+
+    if (isDef(listFns[normalized])) {
+      var fnName = listFns[normalized] + (full ? "Full" : "")
+      return client[fnName](ns)
+    }
 
     switch (normalized) {
-      case "pods":
-        return full ? client.getPodsFull(ns) : client.getPods(ns)
-      case "deployments":
-        return full ? client.getDeploymentsFull(ns) : client.getDeployments(ns)
-      case "statefulsets":
-        return full ? client.getStatefulSetsFull(ns) : client.getStatefulSets(ns)
-      case "clusterroles":
-        return full ? client.getClusterRolesFull(ns) : client.getClusterRoles(ns)
-      case "clusterrolebindings":
-        return full ? client.getClusterRoleBindingsFull(ns) : client.getClusterRoleBindings(ns)
-      case "roles":
-        return full ? client.getRolesFull(ns) : client.getRoles(ns)
-      case "rolebindings":
-        return full ? client.getRoleBindingsFull(ns) : client.getRoleBindings(ns)
-      case "ingresses":
-        return full ? client.getIngressesFull(ns) : client.getIngresses(ns)
-      case "networkpolicies":
-        return full ? client.getNetworkPoliciesFull(ns) : client.getNetworkPolicies(ns)
-      case "resourcequotas":
-        return full ? client.getResourceQuotasFull(ns) : client.getResourceQuotas(ns)
-      case "storageclasses":
-        return full ? client.getStorageClassesFull(ns) : client.getStorageClasses(ns)
-      case "services":
-        return full ? client.getServicesFull(ns) : client.getServices(ns)
-      case "service-accounts":
-        return full ? client.getServiceAccountsFull(ns) : client.getServiceAccounts(ns)
-      case "secrets":
-        return full ? client.getSecretsFull(ns) : client.getSecrets(ns)
-      case "replicasets":
-        return full ? client.getReplicaSetsFull(ns) : client.getReplicaSets(ns)
-      case "persistent-volume-claims":
-        return full ? client.getPersistentVolumeClaimsFull(ns) : client.getPersistentVolumeClaims(ns)
-      case "persistent-volumes":
-        return full ? client.getPersistentVolumesFull(ns) : client.getPersistentVolumes(ns)
-      case "nodes":
-        return full ? client.getNodesFull(ns) : client.getNodes(ns)
-      case "configmaps":
-        return full ? client.getConfigMapsFull(ns) : client.getConfigMaps(ns)
-      case "jobs":
-        return full ? client.getJobsFull(ns) : client.getJobs(ns)
-      case "daemonsets":
-        return full ? client.getDaemonSetsFull(ns) : client.getDaemonSets(ns)
-      case "cronjobs":
-        return full ? client.getCronJobsFull(ns) : client.getCronJobs(ns)
-      case "endpoints":
-        return full ? client.getEndpointsFull(ns) : client.getEndpoints(ns)
       case "pod":
         var podName = args.name
         if (isUnDef(podName)) {
           throw "[ERROR] 'name' is required when resource is 'pod'"
         }
-        return client.get("pods", podName, ns)
+        return client.get({
+          apiVersion: "v1",
+          kind      : "Pod",
+          plural    : "pods",
+          namespaced: true
+        }, podName, ns)
+      case "hpa":
+        if (isUnDef(args.name)) {
+          throw "[ERROR] 'name' is required when resource is 'hpa'"
+        }
+        return client.getHPA(args.name, ns)
+      case "object":
+      case "kind":
+        if (isUnDef(args.name)) {
+          throw "[ERROR] 'name' is required when resource is '" + normalized + "'"
+        }
+        return client.get(genericResource(), args.name, ns)
+      case "objects":
+        return client.list(genericResource(), ns, full)
+      case "version":
+        return client.getVersion()
       case "events":
         return client.events(ns)
       case "pods-metrics":
@@ -459,4 +531,3 @@ jobs:
         $kube(global.__kubeParams__).ns(prevNS)
       }
     }
-

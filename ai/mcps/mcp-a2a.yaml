@@ -1,0 +1,458 @@
+# Author: OpenAF Assistant
+help:
+  text   : A STDIO/HTTP MCP server that exposes external A2A-protocol agents as tools for a Mini-A instance.
+           Fetches each agent's Agent Card (/.well-known/agent.json), registers its skills, and routes
+           tool calls via JSON-RPC 2.0 over HTTP as defined by the Google Agent2Agent (A2A) standard.
+  expects:
+  - name     : agents
+    desc     : Comma-separated list of A2A agent base URLs to connect to
+    example  : "http://agent1:9000,http://agent2:9000"
+    mandatory: true
+  - name     : onport
+    desc     : If defined, starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+  - name     : apitoken
+    desc     : Optional Bearer token sent with every A2A HTTP request
+    example  : "my-secret-token"
+    mandatory: false
+  - name     : pollinterval
+    desc     : Polling interval in milliseconds while waiting for task completion (default 1000)
+    example  : "500"
+    mandatory: false
+  - name     : timeout
+    desc     : Default task timeout in seconds (default 120)
+    example  : "60"
+    mandatory: false
+  - name     : serverdesc
+    desc     : Optional JSON/SLON map to override the MCP server identity derived from the agent card (name, title, version).
+    example  : "(name: 'my-a2a', title: 'My A2A Bridge', version: '2.0.0')"
+    mandatory: false
+
+todo:
+- Init A2A context
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((tplDesc    )): true
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : "{{servername}}"
+        title  : "{{servertitle}}"
+        version: "{{serverversion}}"
+    ((fnsMeta)): &MCPFNSMETA
+
+      a2a-agents:
+        name       : a2a-agents
+        description: Lists all registered A2A agents and their declared skills. Use this before calling
+                     a2a-task to discover available agent names, skill IDs, and their descriptions.
+        inputSchema:
+          type      : object
+          properties:
+            refresh:
+              type       : boolean
+              description: If true, re-fetches every agent card before returning the list.
+              default    : false
+          required  : []
+        annotations:
+          title         : List A2A agents and skills
+          readOnlyHint  : true
+          idempotentHint: true
+
+      a2a-task:
+        name       : a2a-task
+        description: Sends a task to an external A2A-protocol agent and waits for the result.
+                     Use a2a-agents first to discover valid agent names and skill IDs.
+        inputSchema:
+          type      : object
+          properties:
+            agent:
+              type       : string
+              description: Name or base URL of the target A2A agent (as returned by a2a-agents).
+            input:
+              type       : string
+              description: Natural-language task description or structured request to send to the agent.
+            skill:
+              type       : string
+              description: Optional skill ID to target on the agent. When omitted the agent's default
+                           behaviour applies.
+            timeout:
+              type       : integer
+              description: Task timeout in seconds. Overrides the server-level default.
+              minimum    : 1
+          required  : [ agent, input ]
+        annotations:
+          title         : Send task to A2A agent
+          readOnlyHint  : false
+          idempotentHint: false
+
+    ((fns    )): &MCPFNS
+      a2a-agents: List A2A agents
+      a2a-task  : Call A2A agent task
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((tplDesc )): true
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-a2a.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ----------------------
+- name : Init A2A context
+  check:
+    in:
+      agents      : isString
+      apitoken    : isString.default(__)
+      pollinterval: toNumber.isNumber.default(1000)
+      timeout     : toNumber.isNumber.default(120)
+      serverdesc  : isString.default("")
+  exec : | #js
+    global.__a2aState__ = {
+      agents      : [],
+      apitoken    : args.apitoken,
+      pollInterval: Math.max(200, Number(args.pollinterval)),
+      timeout     : Math.max(1,   Number(args.timeout))
+    }
+
+    var urls = String(args.agents).split(",").map(function(u) { return u.trim() }).filter(function(u) { return u.length > 0 })
+    urls.forEach(function(baseUrl) {
+      try {
+        var card = $rest({ requestHeaders: global.__a2aState__.apitoken ? { Authorization: "Bearer " + global.__a2aState__.apitoken } : {} })
+                     .get(baseUrl + "/.well-known/agent.json")
+
+        if (!isMap(card) || !isString(card.name)) {
+          logWarn("[a2a] Could not load agent card from " + baseUrl + " — skipping")
+          return
+        }
+
+        // Resolve the JSON-RPC endpoint: prefer card.api.url, fall back to baseUrl
+        var apiUrl = (isMap(card.api) && isString(card.api.url) && card.api.url.trim().length > 0)
+          ? card.api.url.trim()
+          : baseUrl
+
+        var skills = []
+        if (isArray(card.skills)) {
+          card.skills.forEach(function(s) {
+            if (isMap(s) && isString(s.id)) {
+              skills.push({
+                id         : s.id,
+                name       : isString(s.name)        ? s.name        : s.id,
+                description: isString(s.description) ? s.description : "",
+                tags       : isArray(s.tags)         ? s.tags        : []
+              })
+            }
+          })
+        }
+
+        global.__a2aState__.agents.push({
+          name        : card.name,
+          description : isString(card.description) ? card.description : "",
+          version     : isString(card.version)     ? card.version     : "",
+          baseUrl     : baseUrl,
+          apiUrl      : apiUrl,
+          skills      : skills,
+          capabilities: isArray(card.capabilities) ? card.capabilities : []
+        })
+
+        log("[a2a] Registered agent '" + card.name + "' from " + baseUrl + " (" + skills.length + " skill(s))")
+      } catch(e) {
+        var msg = isDef(e) && isString(e.message) ? e.message : stringify(e, __, "")
+        logWarn("[a2a] Failed to load agent card from " + baseUrl + ": " + msg)
+      }
+    })
+
+    if (global.__a2aState__.agents.length === 0) {
+      logWarn("[a2a] No A2A agents registered. Check agent URLs and connectivity.")
+    }
+
+    // Build MCP server identity from the fetched agent card(s)
+    var _a2aAgents = global.__a2aState__.agents
+    if (_a2aAgents.length === 1) {
+      var _a = _a2aAgents[0]
+      args.servername    = "mini-a-a2a-" + _a.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-+|-+$/g, "")
+      args.servertitle   = _a.name
+      args.serverversion = _a.version || "1.0.0"
+    } else if (_a2aAgents.length > 1) {
+      args.servername    = "mini-a-a2a"
+      args.servertitle   = _a2aAgents.map(function(a) { return a.name }).join(", ") + " A2A bridge"
+      args.serverversion = "1.0.0"
+    } else {
+      args.servername    = "mini-a-a2a"
+      args.servertitle   = "OpenAF mini-a A2A agent bridge MCP server"
+      args.serverversion = "1.0.0"
+    }
+
+    // Apply optional serverdesc override (inspired by mcp-pass.yaml)
+    if (isString(args.serverdesc) && args.serverdesc.trim().length > 0) {
+      try {
+        var _sdesc = af.fromJSSLON(args.serverdesc)
+        if (isMap(_sdesc)) {
+          if (isString(_sdesc.name))    args.servername    = _sdesc.name
+          if (isString(_sdesc.title))   args.servertitle   = _sdesc.title
+          if (isString(_sdesc.version)) args.serverversion = _sdesc.version
+        }
+      } catch(e) {
+        logWarn("[a2a] Failed to parse serverdesc: " + (isDef(e) && isString(e.message) ? e.message : stringify(e, __, "")))
+      }
+    }
+
+    log("[a2a] MCP server identity: name='" + String(args.servername).replace(/[\r\n\x00-\x1f]/g, " ") + "', title='" + String(args.servertitle).replace(/[\r\n\x00-\x1f]/g, " ") + "', version='" + String(args.serverversion).replace(/[\r\n\x00-\x1f]/g, " ") + "'")
+
+# ----------------------
+- name : List A2A agents
+  check:
+    in:
+      refresh: toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (!isMap(global.__a2aState__)) {
+      throw new Error("A2A context not initialised")
+    }
+
+    if (args.refresh === true) {
+      var headers = global.__a2aState__.apitoken ? { Authorization: "Bearer " + global.__a2aState__.apitoken } : {}
+      global.__a2aState__.agents.forEach(function(agent) {
+        try {
+          var card = $rest({ requestHeaders: headers }).get(agent.baseUrl + "/.well-known/agent.json")
+          if (isMap(card) && isString(card.name)) {
+            agent.description  = isString(card.description) ? card.description : agent.description
+            agent.version      = isString(card.version)     ? card.version     : agent.version
+            agent.capabilities = isArray(card.capabilities) ? card.capabilities : agent.capabilities
+            if (isArray(card.skills)) {
+              agent.skills = card.skills.filter(function(s) { return isMap(s) && isString(s.id) }).map(function(s) {
+                return {
+                  id         : s.id,
+                  name       : isString(s.name)        ? s.name        : s.id,
+                  description: isString(s.description) ? s.description : "",
+                  tags       : isArray(s.tags)         ? s.tags        : []
+                }
+              })
+            }
+          }
+        } catch(e) {
+          logWarn("[a2a] Refresh failed for '" + agent.name + "': " + (isDef(e) && isString(e.message) ? e.message : stringify(e, __, "")))
+        }
+      })
+    }
+
+    return {
+      count : global.__a2aState__.agents.length,
+      agents: global.__a2aState__.agents.map(function(a) {
+        return {
+          name        : a.name,
+          description : a.description,
+          version     : a.version,
+          baseUrl     : a.baseUrl,
+          skillCount  : a.skills.length,
+          skills      : a.skills,
+          capabilities: a.capabilities
+        }
+      })
+    }
+
+# ----------------------
+- name : Call A2A agent task
+  check:
+    in:
+      agent  : isString
+      input  : isString
+      skill  : isString.default(__)
+      timeout: toNumber.isNumber.default(__)
+  exec : | #js
+    if (!isMap(global.__a2aState__)) {
+      throw new Error("A2A context not initialised")
+    }
+
+    var agentKey = String(args.agent).trim()
+    var agent = global.__a2aState__.agents.filter(function(a) {
+      return a.name === agentKey || a.baseUrl === agentKey || a.apiUrl === agentKey
+    })[0]
+
+    if (isUnDef(agent)) {
+      throw new Error("Unknown agent '" + agentKey + "'. Call a2a-agents to list available agents.")
+    }
+
+    var taskTimeoutSec = isDef(args.timeout) ? Math.max(1, Number(args.timeout)) : global.__a2aState__.timeout
+    var pollMs         = global.__a2aState__.pollInterval
+    var headers        = merge(
+      { "Content-Type": "application/json" },
+      global.__a2aState__.apitoken ? { Authorization: "Bearer " + global.__a2aState__.apitoken } : {}
+    )
+
+    var rpcId = String(nowNano()).substr(-10)
+
+    // Build the JSON-RPC tasks/send request
+    var sendParams = {
+      messages: [
+        {
+          role : "user",
+          parts: [ { type: "text", text: String(args.input) } ]
+        }
+      ],
+      configuration: { timeoutSeconds: taskTimeoutSec }
+    }
+
+    if (isString(args.skill) && args.skill.trim().length > 0) {
+      sendParams.skill = args.skill.trim()
+    }
+
+    var sendBody = {
+      jsonrpc: "2.0",
+      method : "tasks/send",
+      params : sendParams,
+      id     : rpcId
+    }
+
+    var sendResp
+    try {
+      sendResp = $rest({ requestHeaders: headers, throwExceptions: true }).post(agent.apiUrl, sendBody)
+    } catch(e) {
+      throw new Error("Failed to send task to agent '" + agent.name + "': " + (isDef(e) && isString(e.message) ? e.message : stringify(e, __, "")))
+    }
+
+    // Handle JSON-RPC error in response
+    if (isMap(sendResp) && isMap(sendResp.error)) {
+      throw new Error("Agent '" + agent.name + "' rejected task: " + stringify(sendResp.error, __, ""))
+    }
+
+    // Extract the task ID — supports both { result: { task: { id } } } and { result: { id } }
+    var taskResult = isMap(sendResp) && isMap(sendResp.result) ? sendResp.result : {}
+    var taskId = isMap(taskResult.task) && isString(taskResult.task.id)
+      ? taskResult.task.id
+      : (isString(taskResult.id) ? taskResult.id : __)
+
+    if (isUnDef(taskId)) {
+      throw new Error("Agent '" + agent.name + "' did not return a task ID. Response: " + stringify(sendResp, __, ""))
+    }
+
+    // Poll until terminal state or timeout
+    var deadlineMs  = new Date().getTime() + taskTimeoutSec * 1000
+    var pollRpcId   = Number(rpcId) + 1
+    var finalTask   = __
+    var terminalStates = { completed: true, failed: true, canceled: true, cancelled: true }
+
+    while (new Date().getTime() < deadlineMs) {
+      sleep(pollMs, true)
+
+      var getBody = {
+        jsonrpc: "2.0",
+        method : "tasks/get",
+        params : { id: taskId },
+        id     : String(pollRpcId++)
+      }
+
+      var getResp
+      try {
+        getResp = $rest({ requestHeaders: headers, throwExceptions: true }).post(agent.apiUrl, getBody)
+      } catch(e) {
+        // transient error — keep polling
+        continue
+      }
+
+      if (isMap(getResp) && isMap(getResp.error)) {
+        throw new Error("Error polling task '" + taskId + "' on agent '" + agent.name + "': " + stringify(getResp.error, __, ""))
+      }
+
+      var polledTask = isMap(getResp) && isMap(getResp.result)
+        ? (isMap(getResp.result.task) ? getResp.result.task : getResp.result)
+        : __
+
+      if (!isMap(polledTask)) continue
+
+      var state = isMap(polledTask.status) && isString(polledTask.status.state)
+        ? polledTask.status.state.toLowerCase().replace(/^task_state_/, "")
+        : "working"
+
+      if (terminalStates[state] === true) {
+        finalTask = polledTask
+        break
+      }
+    }
+
+    if (isUnDef(finalTask)) {
+      // Attempt a final get before giving up
+      try {
+        var lastGet = $rest({ requestHeaders: headers }).post(agent.apiUrl, {
+          jsonrpc: "2.0", method: "tasks/get", params: { id: taskId }, id: String(pollRpcId)
+        })
+        if (isMap(lastGet) && isMap(lastGet.result)) {
+          finalTask = isMap(lastGet.result.task) ? lastGet.result.task : lastGet.result
+        }
+      } catch(ignoreE) {}
+
+      if (isUnDef(finalTask)) {
+        throw new Error("Task '" + taskId + "' on agent '" + agent.name + "' timed out after " + taskTimeoutSec + "s")
+      }
+    }
+
+    var finalState = isMap(finalTask.status) && isString(finalTask.status.state)
+      ? finalTask.status.state.toLowerCase().replace(/^task_state_/, "")
+      : "unknown"
+
+    if (finalState === "failed") {
+      var failMsg = isMap(finalTask.status) && isString(finalTask.status.message)
+        ? finalTask.status.message
+        : "Task failed on agent '" + agent.name + "'"
+      throw new Error(failMsg)
+    }
+
+    if (finalState === "canceled" || finalState === "cancelled") {
+      throw new Error("Task '" + taskId + "' was cancelled by agent '" + agent.name + "'")
+    }
+
+    // Extract text from artifacts
+    var textParts = []
+    if (isArray(finalTask.artifacts)) {
+      finalTask.artifacts.forEach(function(artifact) {
+        if (isArray(artifact.parts)) {
+          artifact.parts.forEach(function(part) {
+            var kind = isString(part.kind) ? part.kind : (isString(part.type) ? part.type : "")
+            if (kind === "text" && isString(part.text) && part.text.trim().length > 0) {
+              textParts.push(part.text.trim())
+            } else if (kind === "data" && isMap(part.data)) {
+              textParts.push(stringify(part.data))
+            }
+          })
+        }
+      })
+    }
+
+    // Fallback: check messages on the task itself (some agents embed replies in messages)
+    if (textParts.length === 0 && isArray(finalTask.messages)) {
+      finalTask.messages.forEach(function(msg) {
+        if (isMap(msg) && msg.role === "agent" && isArray(msg.parts)) {
+          msg.parts.forEach(function(part) {
+            var kind = isString(part.kind) ? part.kind : (isString(part.type) ? part.type : "")
+            if (kind === "text" && isString(part.text) && part.text.trim().length > 0) {
+              textParts.push(part.text.trim())
+            }
+          })
+        }
+      })
+    }
+
+    return {
+      agent   : agent.name,
+      skill   : isString(args.skill) ? args.skill : __,
+      taskId  : taskId,
+      state   : finalState,
+      output  : textParts.join("\n\n"),
+      artifacts: isArray(finalTask.artifacts) ? finalTask.artifacts.length : 0
+    }

@@ -34,6 +34,10 @@ help:
     desc     : Optional map of environment variables applied to each command
     example  : "(PATH: '/usr/local/bin', LANG: 'C.UTF-8')"
     mandatory: false
+  - name     : extrahooks
+    desc     : Comma-separated list of additional hook directories to load (before_shell/after_shell hooks)
+    example  : "/path/to/hooks1,/path/to/hooks2"
+    mandatory: false
 
 todo:
 - Init shell context
@@ -151,6 +155,7 @@ jobs:
       cwd            : isString.default(__)
       timeout        : toNumber.isNumber.default(__)
       env            : isMap.default(__)
+      extrahooks     : isString.default(__)
   exec : | #js
     var parseList = function(value) {
       if (isUnDef(value) || value === null) return []
@@ -165,6 +170,98 @@ jobs:
     global.__shellDefaultCwd__  = args.cwd
     global.__shellDefaultTimeout__ = args.timeout
     global.__shellDefaultEnv__  = args.env
+
+    function parseHookBoolean(value) {
+      if (isUnDef(value) || value === null) return false
+      var lowered = ("" + value).trim().toLowerCase()
+      return lowered === "true" || lowered === "1" || lowered === "yes" || lowered === "y" || lowered === "on"
+    }
+    function canonicalizeHookPath(path) {
+      if (!isString(path) || path.trim().length === 0) return path
+      try { return io.fileInfo(path).canonicalPath } catch(e) { return path }
+    }
+    function loadHooksFromDir(dirPath, hooks) {
+      var validEvents = ["before_shell", "after_shell"]
+      try {
+        if (!io.fileExists(dirPath)) return
+        var info = io.fileInfo(dirPath)
+        if (!isObject(info) || info.isDirectory !== true) return
+        var listing = io.listFiles(dirPath)
+        if (!isObject(listing) || !isArray(listing.files)) return
+        listing.files.forEach(function(file) {
+          if (!isObject(file) || file.isDirectory === true) return
+          if (!isString(file.filename) || file.filename.length === 0) return
+          if (!/\.(yaml|yml|json)$/i.test(file.filename)) return
+          var fullPath = canonicalizeHookPath(dirPath + "/" + file.filename)
+          try {
+            var hookDef = /\.json$/i.test(file.filename) ? io.readFileJSON(fullPath) : io.readFileYAML(fullPath)
+            if (!isObject(hookDef)) return
+            var event = isString(hookDef.event) ? hookDef.event.trim().toLowerCase() : ""
+            if (validEvents.indexOf(event) < 0) return
+            var cmd = isString(hookDef.command) ? hookDef.command.trim() : ""
+            if (cmd.length === 0) return
+            var toolFilter = []
+            if (isString(hookDef.toolFilter) && hookDef.toolFilter.trim().length > 0) {
+              toolFilter = hookDef.toolFilter.split(",").map(function(s) { return s.trim().toLowerCase() }).filter(function(s) { return s.length > 0 })
+            }
+            hooks[event].push({
+              name        : file.filename.replace(/\.(yaml|yml|json)$/i, ""),
+              command     : cmd,
+              toolFilter  : toolFilter,
+              injectOutput: parseHookBoolean(hookDef.injectOutput),
+              timeout     : (isNumber(hookDef.timeout) && hookDef.timeout > 0) ? hookDef.timeout : 5000,
+              failBlocks  : parseHookBoolean(hookDef.failBlocks),
+              env         : isObject(hookDef.env) ? hookDef.env : {}
+            })
+          } catch(hookParseError) {
+            logWarn("Failed to parse hook file '" + file.filename + "': " + hookParseError)
+          }
+        })
+      } catch(hookLoadError) {
+        logWarn("Failed to load hooks from '" + dirPath + "': " + hookLoadError)
+      }
+    }
+    var shellHooks = { "before_shell": [], "after_shell": [] }
+    var historyHome = java.lang.System.getProperty("user.home")
+    loadHooksFromDir(canonicalizeHookPath(historyHome + "/.openaf-mini-a/hooks"), shellHooks)
+    if (isString(args.extrahooks) && args.extrahooks.trim().length > 0) {
+      args.extrahooks.split(",").map(function(s) { return s.trim() }).filter(function(s) { return s.length > 0 }).forEach(function(dir) {
+        loadHooksFromDir(canonicalizeHookPath(dir), shellHooks)
+      })
+    }
+    global.__shellHooks__ = shellHooks
+    global.__shellRunHooks__ = function(event, contextVars) {
+      var hooksForEvent = (isObject(global.__shellHooks__) && isArray(global.__shellHooks__[event])) ? global.__shellHooks__[event] : []
+      if (hooksForEvent.length === 0) return { outputs: [], blocked: false }
+      var outputs = []
+      var blocked = false
+      var vars = isObject(contextVars) ? contextVars : {}
+      hooksForEvent.forEach(function(hook) {
+        if (hook.toolFilter.length > 0 && isString(vars.MINI_A_TOOL)) {
+          if (hook.toolFilter.indexOf(vars.MINI_A_TOOL.toLowerCase()) < 0) return
+        }
+        try {
+          var env = {}
+          Object.keys(hook.env).forEach(function(k) { env[k] = String(hook.env[k]) })
+          Object.keys(vars).forEach(function(k) { env[k] = String(vars[k]) })
+          env.MINI_A_HOOK_NAME = hook.name
+          env.MINI_A_HOOK_EVENT = event
+          var result = $sh(hook.command).timeout(hook.timeout).envs(env).get(0)
+          var stdout = isString(result.stdout) ? result.stdout.trim() : ""
+          var stderr = isString(result.stderr) ? result.stderr.trim() : ""
+          var exitCode = isNumber(result.exitcode) ? result.exitcode : -1
+          if (exitCode !== 0) {
+            logWarn("Hook '" + hook.name + "' (" + event + ") exited with code " + exitCode + (stderr.length > 0 ? ": " + stderr.substring(0, 200) : ""))
+            if (hook.failBlocks) blocked = true
+          }
+          if (hook.injectOutput && stdout.length > 0) outputs.push({ hookName: hook.name, output: stdout.substring(0, 4096) })
+        } catch(hookExecError) {
+          logWarn("Hook '" + hook.name + "' (" + event + ") failed: " + hookExecError)
+          if (hook.failBlocks) blocked = true
+        }
+      })
+      return { outputs: outputs, blocked: blocked }
+    }
 
 # ---------------------
 - name : Validate command
@@ -250,6 +347,20 @@ jobs:
       }
     }
 
+    if (isFunction(global.__shellRunHooks__)) {
+      var beforeHookResult = global.__shellRunHooks__("before_shell", { MINI_A_SHELL_COMMAND: args.command })
+      if (beforeHookResult.blocked) {
+        return {
+          stdout  : "",
+          stderr  : "[blocked by hook] " + args.command,
+          exitcode: 1,
+          blocked : true,
+          detected: ["hook"],
+          command : args.command
+        }
+      }
+    }
+
     var combinedEnv = {}
     var copyEnv = function(target, source) {
       Object.keys(source).forEach(function(k) {
@@ -273,16 +384,16 @@ jobs:
     var effectiveTimeout = isDef(args.timeout) ? args.timeout : global.__shellDefaultTimeout__
     if (isDef(effectiveTimeout)) runner = runner.timeout(effectiveTimeout)
 
+    var execResult
     try {
-      var result = args.parseJson ? runner.getJson(0) : runner.get(0)
-      result.blocked = false
-      result.command = args.command
-      if (isDef(effectiveCwd)) result.cwd = effectiveCwd
-      if (Object.keys(combinedEnv).length > 0) result.env = combinedEnv
-      result.parseJson = args.parseJson
-      return result
+      execResult = args.parseJson ? runner.getJson(0) : runner.get(0)
+      execResult.blocked = false
+      execResult.command = args.command
+      if (isDef(effectiveCwd)) execResult.cwd = effectiveCwd
+      if (Object.keys(combinedEnv).length > 0) execResult.env = combinedEnv
+      execResult.parseJson = args.parseJson
     } catch(e) {
-      return {
+      execResult = {
         stdout   : "",
         stderr   : "[ERROR] " + (isDef(e.message) ? e.message : String(e)),
         exitcode : -1,
@@ -290,6 +401,14 @@ jobs:
         command  : args.command
       }
     }
+
+    if (isFunction(global.__shellRunHooks__)) {
+      global.__shellRunHooks__("after_shell", {
+        MINI_A_SHELL_COMMAND: args.command,
+        MINI_A_SHELL_OUTPUT : (isString(execResult.stdout) ? execResult.stdout : "").substring(0, 2000)
+      })
+    }
+    return execResult
 
 # -----------------------
 - name : Shell Batch Execute

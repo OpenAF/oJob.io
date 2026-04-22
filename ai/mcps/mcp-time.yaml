@@ -1,9 +1,9 @@
 # Author: OpenAI Assistant
 help:
-  text   : A STDIO/HTTP MCP time and timezone utility server
+  text   : Provides timezone conversions (including Unix epoch to/from formatted dates), precise time retrieval from system or atomic clocks, and delay controls over STDIO/HTTP MCP.
   expects:
   - name     : onport
-    desc     : If defined starts a MCP server on the provided port
+    desc     : Optional HTTP port. When omitted the MCP server runs over STDIO.
     example  : "8888"
     mandatory: false
 
@@ -17,54 +17,68 @@ todo:
     ((description)): &MCPSERVER
       serverInfo:
         name   : mini-a-time
-        title  : OpenAF mini-a MCP time and timezone utility server
-        version: 1.0.0
+        title  : OpenAF mini-a precision time MCP server
+        version: 1.1.0
     ((fnsMeta)): &MCPFNSMETA
       current-time:
         name       : current-time
-        description: Returns the current date and time information, optionally for a specific timezone.
+        description: Retrieves precise current time with support for custom timezones, formats, and atomic clock sources (NTP). Useful for absolute time references.
         inputSchema:
           type      : object
           properties:
             timezone:
               type        : string
-              description : IANA timezone identifier to use instead of the system default.
+              description : IANA timezone identifier used instead of the system default.
               example     : "Europe/Lisbon"
             format:
               type        : string
-              description : Optional Java time pattern used to produce the formatted field.
+              description : Java time pattern used for the `formatted` field (defaults to ISO timestamps).
               example     : "yyyy-MM-dd HH:mm:ss"
             locale:
               type        : string
-              description : Optional BCP 47 language tag to format locale-aware fields.
+              description : BCP 47 language tag applied to locale-aware formatting.
               example     : "en-US"
+            timeSource:
+              type        : string
+              description : Selects which clock to trust. Use `system` for JVM time or `atomic` to query NTP/atomic sources.
+              enum        : [ system, atomic ]
+              example     : "atomic"
+            ntpServer:
+              type        : string
+              description : Optional NTP server hostname used when `timeSource` is atomic (defaults to pool rotation).
+              example     : "time.google.com"
+            ntpTimeoutMs:
+              type        : integer
+              minimum     : 1
+              description : Timeout in milliseconds when requesting atomic time.
+              example     : 4000
           required: []
         annotations:
-          title         : current-time
+          title         : Precise Current Time Retrieval
           readOnlyHint  : true
           idempotentHint: true
 
       timezone-tools:
         name       : timezone-tools
-        description: Performs timezone conversions, offset comparisons, or listings depending on the requested operation.
+        description: Converts timestamps between timezones or Unix epochs (seconds/milliseconds), compares timezone offsets, or lists available zones. Supports ISO 8601 and custom formats.
         inputSchema:
           type      : object
           properties:
             operation:
               type        : string
-              description : Operation to perform. Supported values are convert, difference, and list.
+              description : "Operation to perform: `convert`, `difference`, or `list`."
               enum        : [ convert, difference, list ]
             targetTimezone:
               type        : string
-              description : Target IANA timezone identifier (required for operation=convert).
+              description : Target IANA timezone identifier (required for `convert`).
               example     : "America/New_York"
             sourceTimezone:
               type        : string
-              description : Source IANA timezone identifier (defaults to the system timezone when omitted).
+              description : Source IANA timezone identifier (defaults to the system timezone).
               example     : "Europe/Lisbon"
             datetime:
               type        : string
-              description : Date/time reference (convert/difference). Defaults to the current moment when omitted.
+              description : Date/time reference for `convert`/`difference`. Supports ISO 8601, LocalDateTime strings, or Unix epoch (10-digit seconds, 13-digit milliseconds, negative for pre-1970). Defaults to now.
               example     : "2024-06-01T10:15:00"
             inputFormat:
               type        : string
@@ -72,15 +86,15 @@ todo:
               example     : "yyyy-MM-dd'T'HH:mm:ss"
             outputFormat:
               type        : string
-              description : Optional Java time pattern used to format the convert output.
+              description : Java time pattern used to format the convert output.
               example     : "EEE, dd MMM yyyy HH:mm z"
             firstTimezone:
               type        : string
-              description : First IANA timezone identifier (required for operation=difference).
+              description : First IANA timezone identifier (required for `difference`).
               example     : "Europe/London"
             secondTimezone:
               type        : string
-              description : Second IANA timezone identifier (required for operation=difference).
+              description : Second IANA timezone identifier (required for `difference`).
               example     : "Asia/Tokyo"
             locale:
               type        : string
@@ -92,12 +106,12 @@ todo:
               example     : "America"
           required: [ operation ]
         annotations:
-          title         : timezone-tools
+          title         : Timezone & Unix Epoch Conversions
           readOnlyHint  : true
           idempotentHint: true
       sleep:
         name       : sleep
-        description: Pauses execution for the specified number of milliseconds.
+        description: Blocks execution for a specified duration in milliseconds. Essential for rate limiting, pacing sequences, or introducing controlled delays in workflows.
         inputSchema:
           type      : object
           properties:
@@ -108,7 +122,7 @@ todo:
               example     : 1000
           required: [ milliseconds ]
         annotations:
-          title         : sleep
+          title         : Controlled Sleep/Delay
           readOnlyHint  : false
           idempotentHint: false
     ((fns    )): &MCPFNS
@@ -140,12 +154,16 @@ jobs:
 - name : Current time information
   check:
     in:
-      timezone: isString.default(__)
-      format  : isString.default(__)
-      locale  : isString.default(__)
+      timezone   : isString.default(__)
+      format     : isString.default(__)
+      locale     : isString.default(__)
+      timeSource : isString.default(__)
+      ntpServer  : isString.default(__)
+      ntpTimeoutMs: isNumber.default(__)
   exec : | #js
     var ZoneId = java.time.ZoneId
     var ZonedDateTime = java.time.ZonedDateTime
+    var Instant = java.time.Instant
     var DateTimeFormatter = java.time.format.DateTimeFormatter
     var ChronoUnit = java.time.temporal.ChronoUnit
     var IsoFields = java.time.temporal.IsoFields
@@ -154,7 +172,37 @@ jobs:
 
     var zone = isDef(args.timezone) ? ZoneId.of(args.timezone) : ZoneId.systemDefault()
     var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
-    var now = ZonedDateTime.now(zone)
+    var source = isDef(args.timeSource) ? String(args.timeSource).toLowerCase() : "system"
+    var allowedSources = ["system", "atomic"]
+    if (allowedSources.indexOf(source) < 0) {
+      throw new Error("timeSource must be 'system' or 'atomic'")
+    }
+
+    var atomicServer = (isDef(args.ntpServer) && String(args.ntpServer).trim().length > 0) ? String(args.ntpServer).trim() : __
+    var atomicTimeout = isDef(args.ntpTimeoutMs) ? Number(args.ntpTimeoutMs) : __
+    var currentInstant
+
+    if (source === "atomic") {
+      ow.loadNet()
+
+      try {
+        if (isDef(atomicServer) && isDef(atomicTimeout)) {
+          currentInstant = Instant.ofEpochMilli(ow.net.getActualTime(atomicServer, atomicTimeout).getTime())
+        } else if (isDef(atomicServer)) {
+          currentInstant = Instant.ofEpochMilli(ow.net.getActualTime(atomicServer).getTime())
+        } else if (isDef(atomicTimeout)) {
+          currentInstant = Instant.ofEpochMilli(ow.net.getActualTime(__, atomicTimeout).getTime())
+        } else {
+          currentInstant = Instant.ofEpochMilli(ow.net.getActualTime().getTime())
+        }
+      } catch(e) {
+        throw new Error("Unable to obtain atomic clock time: " + e)
+      }
+    } else {
+      currentInstant = Instant.now()
+    }
+
+    var now = ZonedDateTime.ofInstant(currentInstant, zone)
 
     var pattern = isDef(args.format) ? args.format : "yyyy-MM-dd'T'HH:mm:ssXXX"
     var formatter = DateTimeFormatter.ofPattern(pattern).withLocale(locale)
@@ -166,7 +214,7 @@ jobs:
 
     var offsetSeconds = Number(now.getOffset().getTotalSeconds())
 
-    return {
+    var result = {
       timezone              : String(zone.getId()),
       timezoneDisplay       : String(zone.getDisplayName(TextStyle.FULL, locale)),
       timezoneAbbreviation  : String(zone.getDisplayName(TextStyle.SHORT, locale)),
@@ -185,8 +233,20 @@ jobs:
       weekOfYear            : Number(weekOfYear),
       weekYear              : Number(weekYear),
       isDaylightSaving      : Boolean(zone.getRules().isDaylightSavings(now.toInstant())),
-      locale                : String(locale.toLanguageTag())
+      locale                : String(locale.toLanguageTag()),
+      timeSource            : String(source)
     }
+
+    if (source === "atomic") {
+      if (isDef(atomicServer)) {
+        result.ntpServer = String(atomicServer)
+      }
+      if (isDef(atomicTimeout)) {
+        result.ntpTimeoutMs = Number(atomicTimeout)
+      }
+    }
+
+    return result
 
 # -------------------------
 - name : Timezone utilities
@@ -234,8 +294,24 @@ jobs:
     var ZonedDateTime = java.time.ZonedDateTime
     var LocalDateTime = java.time.LocalDateTime
     var DateTimeFormatter = java.time.format.DateTimeFormatter
+    var Instant = java.time.Instant
     var Locale = java.util.Locale
     var locale = isDef(args.locale) ? Locale.forLanguageTag(args.locale) : Locale.getDefault()
+
+    function parseEpochToZoned(value, zone) {
+      if (isUnDef(value) || value === null) return __
+
+      var raw = String(value).trim()
+      if (raw.length === 0) return __
+      if (!/^-?\d+$/.test(raw)) return __
+
+      var epoch = Number(raw)
+      if (!isFinite(epoch)) return __
+
+      // 13+ digits usually represent milliseconds; smaller magnitudes are treated as seconds.
+      var instant = Math.abs(epoch) >= 1000000000000 ? Instant.ofEpochMilli(Math.trunc(epoch)) : Instant.ofEpochSecond(Math.trunc(epoch))
+      return ZonedDateTime.ofInstant(instant, zone)
+    }
 
     if (op === "convert") {
       if (isUnDef(args.targetTimezone)) {
@@ -249,6 +325,26 @@ jobs:
       function parseDateTime(value) {
         if (isUnDef(value) || value === null || value === "") {
           return ZonedDateTime.now(sourceZone)
+        }
+
+        // Detect numeric epoch input (Unix timestamps)
+        // Supports both seconds (10 digits) and milliseconds (13 digits)
+        // Also supports negative epoch values for historical dates before 1970
+        if (/^-?\d+$/.test(value)) {
+          var Instant = java.time.Instant
+          // Extract digit count (excluding the optional minus sign)
+          var digitCount = value.startsWith('-') ? value.length - 1 : value.length
+          
+          // 10-digit value indicates seconds since epoch
+          if (digitCount === 10) {
+            return ZonedDateTime.ofInstant(Instant.ofEpochSecond(Number(value)), sourceZone)
+          }
+          // 13-digit value indicates milliseconds since epoch
+          else if (digitCount === 13) {
+            return ZonedDateTime.ofInstant(Instant.ofEpochMilli(Number(value)), sourceZone)
+          }
+          // Invalid epoch format - must be 10 or 13 digits
+          throw new Error("Epoch value must be 10 or 13 digits (seconds or milliseconds).")
         }
 
         if (isDef(args.inputFormat)) {
@@ -295,6 +391,9 @@ jobs:
         if (isUnDef(value) || value === null || value === "") {
           return ZonedDateTime.now(firstZone)
         }
+
+        var epochParsed = parseEpochToZoned(value, firstZone)
+        if (isDef(epochParsed)) return epochParsed
 
         if (isDef(args.inputFormat)) {
           var fmt = DateTimeFormatter.ofPattern(args.inputFormat).withLocale(locale)

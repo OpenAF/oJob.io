@@ -172,10 +172,11 @@ jobs:
       }
     }
 
-    global.ensureOafpInit(args.libs)
+    //global.ensureOafpInit(args.libs)
 
 # ------------------------
 - name : List oafp options
+  from : Init
   check:
     in:
       search: isString.default(__)
@@ -220,6 +221,7 @@ jobs:
 
 # -----------------------
 - name : Run oafp command
+  from : Init
   check:
     in:
       params   : isMap.default({})
@@ -251,6 +253,7 @@ jobs:
 
 # -------------------------------------
 - name : Get oafp documentation section
+  from : Init
   check:
     in:
       section: isString.default("usage")

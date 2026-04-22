@@ -1,0 +1,110 @@
+# Author: OpenAI Assistant
+help:
+  text   : A STDIO/HTTP MCP server for the Ollama web search API
+  expects:
+  - name     : apiKey
+    desc     : Ollama API key (can also be provided via OLLAMA_API_KEY env var)
+    mandatory: true
+  - name     : baseUrl
+    desc     : Ollama API base URL
+    example  : "https://ollama.com"
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts an HTTP MCP server on this port; otherwise uses STDIO
+    example  : "8888"
+    mandatory: false
+
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-ollama-web-search
+        title  : OpenAF mini-a MCP Ollama web search server
+        version: 1.0.0
+
+    ((fnsMeta)): &MCPFNSMETA
+      web-search:
+        name       : web-search
+        description: Search the web through Ollama's web_search API endpoint.
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: Search query to send to Ollama.
+            options:
+              type       : object
+              description: Optional extra API payload fields forwarded as-is.
+          required: [ query ]
+        annotations:
+          title         : web-search
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      web-search: Ollama web search
+
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-ollama-web-search.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# -----------
+- name : Init
+  check:
+    in:
+      apiKey : isString.default(__)
+      baseUrl: isString.default("https://ollama.com")
+  exec : | #js
+    if (isUnDef(global.__ollamaWebSearchConfig)) {
+      if (isUnDef(args.apiKey) && isDef(__envs.OLLAMA_API_KEY)) args.apiKey = __envs.OLLAMA_API_KEY
+      _$(args.apiKey, "apiKey").isString().$_()
+
+      global.__ollamaWebSearchConfig = {
+        baseUrl: String(args.baseUrl).replace(/\/$/, ""),
+        apiKey : args.apiKey
+      }
+    }
+
+# ------------------------
+- name : Ollama web search
+  from : Init
+  check:
+    in:
+      query  : isString
+      options: isMap.default({})
+  exec : | #js
+    var payload = merge({ query: args.query }, args.options)
+    var cfg = global.__ollamaWebSearchConfig
+
+    var rest = $rest({
+      requestHeaders: {
+        "Authorization": "Bearer " + cfg.apiKey,
+        "Content-Type" : "application/json"
+      }
+    })
+
+    return rest.post(cfg.baseUrl + "/api/web_search", payload)

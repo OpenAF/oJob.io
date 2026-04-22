@@ -30,6 +30,14 @@ help:
     desc     : Treat message bodies as HTML (otherwise plain text)
     example  : "true"
     mandatory: false
+  - name     : markdown
+    desc     : "Treat message bodies as Markdown and convert them to email-safe HTML using md2email"
+    example  : "true"
+    mandatory: false
+  - name     : markdowntheme
+    desc     : "md2email theme name to use when converting Markdown (for example: default or dark)"
+    example  : default
+    mandatory: false
   - name     : port
     desc     : SMTP server port (defaults to provider standard)
     example  : "587"
@@ -64,7 +72,7 @@ todo:
     ((fnsMeta)): &MCPFNSMETA
       sendEmail:
         name       : sendEmail
-        description: Sends an email (HTML or text) using the configured SMTP server.
+        description: Sends an email (text, HTML or Markdown converted to email HTML) using the configured SMTP server.
         inputSchema:
           type      : object
           properties:
@@ -92,6 +100,15 @@ todo:
             from:
               type        : string
               description : Optional FROM email address override.
+            html:
+              type        : boolean
+              description : Optional per-message override to treat the body as raw HTML.
+            markdown:
+              type        : boolean
+              description : "Optional per-message override to treat the body as Markdown and convert it to email-safe HTML."
+            markdownTheme:
+              type        : string
+              description : "Optional md2email theme name to use for Markdown conversion."
           required: [ subject, body, to ]
         annotations:
           title         : sendEmail
@@ -131,6 +148,8 @@ jobs:
       ssl       : toBoolean.isBoolean.default(false)
       tls       : toBoolean.isBoolean.default(false)
       html      : toBoolean.isBoolean.default(false)
+      markdown  : toBoolean.isBoolean.default(false)
+      markdowntheme: isString.default("default")
       port      : toNumber.isNumber.default(__)
       debug     : toBoolean.isBoolean.default(false)
       forcebcc  : isString.default(__)
@@ -138,8 +157,46 @@ jobs:
     plugin("Email")
     global.emailFrom         = args.from
     global.emailContainsHTML = args.html
-    global.emailClient       = new Email(args.smtpserver, args.from, args.ssl, args.tls, args.html)
+    global.emailContainsMarkdown = args.markdown
+    global.emailMarkdownTheme = args.markdowntheme
+    global.emailClient       = new Email(args.smtpserver, args.from, args.ssl, args.tls, args.html || args.markdown)
     global.forceBCC          = isDef(args.forcebcc) ? args.forcebcc : __
+
+    global.ensureMd2Email = function() {
+      if (isDef(global.md2email) && isDef(global.MD2Email)) return true
+
+      var _miniAPath = getOPackPath("mini-a")
+      var _candidatePaths = []
+
+      if (isString(_miniAPath)) {
+        _candidatePaths.push(String((new java.io.File(_miniAPath + "/../openaf-opacks/md2email")).getCanonicalPath()))
+      }
+
+      _candidatePaths.push(String((new java.io.File("../openaf-opacks/md2email")).getCanonicalPath()))
+
+      var _installedMd2Email = getOPackPath("md2email")
+      if (isString(_installedMd2Email)) _candidatePaths.push(_installedMd2Email)
+
+      _candidatePaths = _candidatePaths.filter(function(_path, _idx, _arr) {
+        return isString(_path) && _path.length > 0 && _arr.indexOf(_path) == _idx
+      })
+
+      for (var i = 0; i < _candidatePaths.length; i++) {
+        var _path = _candidatePaths[i]
+        if (!io.fileExists(_path + "/md2email.js")) continue
+
+        loadExternalJars(_path)
+        loadLib(_path + "/md2email.js")
+
+        if (isDef(global.md2email) && isDef(global.MD2Email)) return true
+      }
+
+      throw "Couldn't load md2email from: " + stringify(_candidatePaths, __, "")
+    }
+
+    if (global.emailContainsMarkdown) {
+      global.ensureMd2Email()
+    }
 
     if (isDef(args.port)) {
       global.emailClient.setPort(args.port)
@@ -178,6 +235,9 @@ jobs:
       cc     : isArray.default(__)
       bcc    : isArray.default(__)
       from   : isString.default(__)
+      html   : toBoolean.isBoolean.default(__)
+      markdown: toBoolean.isBoolean.default(__)
+      markdownTheme: isString.default(__)
   exec : | #js
     if (!isDef(global.emailClient)) {
       return "[ERROR] Email client not initialised"
@@ -187,6 +247,9 @@ jobs:
     var _cc  = isDef(args.cc) ? args.cc : []
     var _bcc = isDef(args.bcc) ? args.bcc : []
     var _from = isDef(args.from) ? args.from : global.emailFrom
+    var _sendAsMarkdown = isDef(args.markdown) ? args.markdown : global.emailContainsMarkdown
+    var _sendAsHTML = isDef(args.html) ? args.html : global.emailContainsHTML
+    var _markdownTheme = isDef(args.markdownTheme) ? args.markdownTheme : global.emailMarkdownTheme
 
     // If forceBCC is defined, override all BCC recipients
     if (isDef(global.forceBCC)) {
@@ -204,7 +267,17 @@ jobs:
 
     try {
       var messageBody = args.body
-      if (global.emailContainsHTML) {
+      if (_sendAsMarkdown) {
+        global.ensureMd2Email()
+        messageBody = md2email.toEmail(messageBody, { yamlFrontMatter: true }, {
+          title: args.subject,
+          subject: args.subject,
+          theme: _markdownTheme,
+          wrap : true
+        })
+        global.emailClient.setHTML(messageBody)
+        messageBody = ""
+      } else if (_sendAsHTML) {
         global.emailClient.setHTML(messageBody)
         messageBody = ""
       }
