@@ -165,7 +165,13 @@ jobs:
       res = $sh().pwd(args.trivyPath).sh("./trivy -f json " + args.options).getJson(0)
     }
 
-    ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res, args)
+    var _r = (isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res
+    traverse(_r, (aK, aV, aP, aO) => {
+      if (aK == "Packages") {
+        aO[aK] = [] 
+      }
+    })
+    ow.oJob.output(_r, args)
 
 # -------------------------------
 - name : Run trivy on a container
@@ -183,4 +189,10 @@ jobs:
       res = $sh("docker run --pull always --rm " + args.dockerOptions + " aquasec/trivy:" + args.trivyVersion + " -f json " + args.options).getJson(0)
     }
 
-    ow.oJob.output((isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res, args)
+    var _r = (isMap(res) && isMap(res.stdout) && res.exitcode == 0) ? res.stdout : res
+    traverse(_r, (aK, aV, aP, aO) => {
+      if (aK == "Packages") {
+        aO[aK] = [] 
+      }
+    })
+    ow.oJob.output(_r, args)

@@ -49,7 +49,7 @@ jobs:
       LOW     : 0
     }
 
-    if (isUnDef(report.Results) && !isArray(report.Results)) {
+    if (isUnDef(report.Results) || !isArray(report.Results)) {
       throw "No trivy results found."
     } else {
       var total = 0
@@ -64,7 +64,7 @@ jobs:
                      .countBy("Severity")
 
             _r.forEach(_s => {
-              result[_s.Severity] = _s._count
+              result[_s.Severity] += _s._count
               total += _s._count
             })
           }
