@@ -130,7 +130,8 @@ jobs:
       "userdel","groupadd","groupdel","shutdown","reboot","poweroff","halt",
       "systemctl","service","fdisk","sfdisk","parted","losetup","mkswap",
       "swapoff","swapon","iptables","nft","grub-install","update-grub",
-      "curl","wget","perl","python","python3","ruby","node","npm","yarn","pip","pip3","gem"
+      "curl","wget","perl","python","python3","ruby","node","npm","yarn","pip","pip3","gem",
+      "mkdir","rmdir","install","touch","tee","ed","ex"
     ]
 
     var exec = false
@@ -152,18 +153,23 @@ jobs:
 
     // detect redirections, pipes or shell control operators which can perform write/replace operations
     var hasRedirectionOrPipe = !(global.shellallowpipes || false) && /[<>|&;]/.test(lcCmd)
+    var hasWriteFlag = !global.readwrite && /\b(sed|perl|awk)\s+-i(\b|$)/.test(lcCmd)
 
     // collect what was detected to show to user
     var detected = []
     if (hasBannedToken) detected = detected.concat(bannedTokens)
     if (hasRedirectionOrPipe) detected.push("redirection/pipe")
+    if (hasWriteFlag) detected.push("write-flag")
 
-    if (!global.readwrite && (hasBannedToken || hasRedirectionOrPipe)) {
+    if (!global.readwrite && (hasBannedToken || hasRedirectionOrPipe || hasWriteFlag)) {
       if (hasBannedToken) {
         errorMsg = "[blocked] Command contains banned operation" + (detected.length ? " (detected: " + detected.join(", ") + ")" : "") + ": " + args.command
         exec = false
       } else if (hasRedirectionOrPipe) {
         errorMsg = "[blocked] Command contains redirection/pipe operations: " + args.command  
+        exec = false
+      } else if (hasWriteFlag) {
+        errorMsg = "[blocked] Command requires readwrite=true (detected: " + detected.join(", ") + "): " + args.command
         exec = false
       } else {
         exec = global.readwrite

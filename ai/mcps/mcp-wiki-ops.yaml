@@ -43,10 +43,6 @@ help:
     desc     : Ignore TLS cert validation on S3 endpoint
     example  : "false"
     mandatory: false
-  - name     : wikiaccess
-    desc     : Wiki access mode (ro or rw). Ops tools need rw for mutations.
-    example  : "rw"
-    mandatory: false
   - name     : toolPrefix
     desc     : Optional prefix prepended to all tool names (e.g. "docs-" -> docs-list, docs-read, ...)
     example  : "wiki-"
@@ -55,6 +51,14 @@ help:
     desc     : Human-readable wiki label injected into templated tool descriptions
     example  : "Team wiki"
     mandatory: true
+  - name     : wikiaccess
+    desc     : Wiki access mode (`rw` or `ro`). Reindex requires `rw`.
+    example  : "rw"
+    mandatory: false
+  - name     : wikiopsreadonly
+    desc     : If true, disable write operations in this MCP server.
+    example  : "false"
+    mandatory: false
 
 todo:
 - Init
@@ -167,10 +171,21 @@ todo:
           readOnlyHint  : false
           idempotentHint: true
 
+      reindex:
+        name       : reindex
+        description: "Trigger a full wiki search reindex in {{label}} (JSON index + Lucene index when available)."
+        inputSchema:
+          type      : object
+        annotations:
+          title         : reindex
+          readOnlyHint  : false
+          idempotentHint: true
+
     ((fns    )): &MCPFNS
       lint    : Wiki lint
       edit    : Wiki edit page
       maintain: Wiki maintain
+      reindex : Wiki reindex
   ((else)):
   - (stdioMCP  ): *MCPSERVER
     ((toolPrefix)): "${toolPrefix:-}"
@@ -208,8 +223,9 @@ jobs:
       wikiregion          : isString.default(__)
       wikiuseversion1     : toBoolean.isBoolean.default(false)
       wikiignorecertcheck : toBoolean.isBoolean.default(false)
-      wikiaccess          : isString.default("rw")
       label               : isString.default("wiki")
+      wikiaccess          : isString.default("rw")
+      wikiopsreadonly     : toBoolean.isBoolean.default(false)
   exec : | #js
     // Standalone wiki manager for MCP wiki server (derived from mini-a-wiki.js)
     if (typeof __miniAErrMsg !== "function") {
@@ -238,8 +254,7 @@ jobs:
     
     MiniAWikiManager.prototype._indexMeta = function() {
       return {
-        file: ".mini-a-wiki-lucene.json",
-        hiddenNames: [".mini-a-wiki-lucene.json", ".mini-a-wiki-lucene.lock"]
+        hiddenNames: [".mini-a-wiki-lucene.lock"]
       }
     }
     
@@ -269,7 +284,6 @@ jobs:
           var parsed = this.parseFrontmatter(raw)
           docs.push({ path: pages[i], title: isString(parsed.meta.title) ? parsed.meta.title : pages[i], raw: raw, body: isString(parsed.body) ? parsed.body : "" })
         }
-        this._backend.write(this._indexMeta().file, stringify(docs, __, ""))
         this._rebuildLuceneIndex(docs)
       } catch(e) { this._logFn('warn', 'Failed to rebuild wiki index: ' + __miniAErrMsg(e)) }
     }
@@ -331,9 +345,8 @@ jobs:
     
     MiniAWikiManager.prototype.configure = function(config) {
       var cfg = isMap(config) ? config : {}
-      var accessRaw  = isDef(cfg.access) ? String(cfg.access).toLowerCase().trim() : "ro"
       var backendRaw = isDef(cfg.backend) ? String(cfg.backend).toLowerCase().trim() : "fs"
-      this._access      = accessRaw === "rw" ? "rw" : "ro"
+      this._access      = "rw"
       this._backendType = ["s3", "es", "s3fs"].indexOf(backendRaw) >= 0 ? backendRaw : "fs"
       this._config  = cfg
       this._backend = this._backendType === "s3" ? this._makeS3Backend(cfg) : (this._backendType === "es" ? this._makeEsBackend(cfg) : (this._backendType === "s3fs" ? this._makeS3FsBackend(cfg) : this._makeFsBackend(cfg)))
@@ -964,7 +977,7 @@ jobs:
     
     MiniAWikiManager.prototype._makeS3FsBackend = function(cfg) {
       var fsb = this._makeFsBackend(cfg)
-      var access = isString(cfg.access) ? cfg.access.toLowerCase() : "rw"
+      var access = "rw"
     
       if (access !== "ro") {
         var s3b = this._makeS3Backend(cfg)
@@ -1218,7 +1231,7 @@ jobs:
     }
     
     MiniAWikiManager.prototype.write = function(path, metaOrRaw, body, options) {
-      if (this._access !== "rw") return { ok: false, error: "wiki is read-only (wikiaccess=ro)" }
+      if (this._access !== "rw") return { ok: false, error: "wiki is read-only" }
       if (!isString(path) || path.trim().length === 0) return { ok: false, error: "path is required" }
       try {
         path = __miniAWikiNormalizePath(path, { requireMarkdown: true })
@@ -1323,7 +1336,7 @@ jobs:
     }
     
     MiniAWikiManager.prototype.delete = function(path) {
-      if (this._access !== "rw") return { ok: false, error: "wiki is read-only (wikiaccess=ro)" }
+      if (this._access !== "rw") return { ok: false, error: "wiki is read-only" }
       if (!isString(path) || path.trim().length === 0) return { ok: false, error: "path is required" }
       try {
         path = __miniAWikiNormalizePath(path, { requireMarkdown: true })
@@ -1594,7 +1607,7 @@ jobs:
     }
     
     MiniAWikiManager.prototype.move = function(from, to, options) {
-      if (this._access !== "rw") return { ok: false, error: "wiki is read-only (wikiaccess=ro)" }
+      if (this._access !== "rw") return { ok: false, error: "wiki is read-only" }
       var opts = isObject(options) ? options : {}
       var fromPath, toPath
       try {
@@ -1862,9 +1875,7 @@ jobs:
 
     args.wikibackend = String(args.wikibackend).toLowerCase().trim()
     if (["fs", "s3", "es", "s3fs"].indexOf(args.wikibackend) < 0) args.wikibackend = "fs"
-    args.wikiaccess = String(args.wikiaccess).toLowerCase().trim()
-    if (["ro", "rw"].indexOf(args.wikiaccess) < 0) args.wikiaccess = "rw"
-
+    args.wikiaccess = String(args.wikiaccess).toLowerCase().trim() === "ro" ? "ro" : "rw"
     var cfg = {
       access : args.wikiaccess,
       backend: args.wikibackend
@@ -1965,3 +1976,16 @@ jobs:
     if (op === "move") return global.__wikiManager.move(args.path, args.to, { leaveRedirect: args.leaveRedirect === true, overwrite: args.overwrite === true })
     return { ok: false, error: "unknown op: " + op + ". use init|move|delete" }
 
+# -------------------
+- name : Wiki reindex
+  exec : | #js
+    if (args.wikiopsreadonly === true || String(args.wikiaccess || "").toLowerCase() !== "rw") return { ok: false, error: "wiki is read-only" }
+    var wm = global.__wikiManager
+    if (!isObject(wm)) return { ok: false, error: "wiki manager not initialized" }
+    try {
+      if (isFunction(wm.reindex)) return wm.reindex()
+      wm._rebuildSearchIndex()
+      return { ok: true }
+    } catch(e) {
+      return { ok: false, error: __miniAErrMsg(e) }
+    }

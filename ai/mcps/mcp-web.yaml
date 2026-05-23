@@ -140,6 +140,24 @@ jobs:
       readwrite: toBoolean.isBoolean.default(false)
   exec : | #js
     global.__webReadWrite__ = args.readwrite === true
+    global.__webIsPrivateOrLocalUrl__ = function(urlStr) {
+      try {
+        var u = new java.net.URI(String(urlStr))
+        var scheme = String(u.getScheme() || "").toLowerCase()
+        if (scheme !== "http" && scheme !== "https") return true
+        var host = String(u.getHost() || "").toLowerCase()
+        if (host.length === 0) return true
+        if (host === "localhost" || host === "::1" || host === "0.0.0.0") return true
+        var addr = java.net.InetAddress.getByName(host)
+        if (addr.isAnyLocalAddress() || addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress()) return true
+        var ip = String(addr.getHostAddress() || "").toLowerCase()
+        if (ip.indexOf("fc") === 0 || ip.indexOf("fd") === 0) return true
+        if (ip.indexOf("fe80:") === 0) return true
+        return false
+      } catch(_) {
+        return true
+      }
+    }
 
 # -----------------
 - name : Web search
@@ -159,6 +177,9 @@ jobs:
       url      : isString
       style    : isString.oneOf([ "html", "basic", "text", "map" ]).default(__)
   exec : | #js
+    if (!global.__webReadWrite__ && isFunction(global.__webIsPrivateOrLocalUrl__) && global.__webIsPrivateOrLocalUrl__(args.url)) {
+      return "[ERROR] Read-only mode blocks localhost/private/non-http URLs"
+    }
     var _s = $rest().get(args.url)
     if (isDef(args.style)) {
       var ws = new WebSearch()
@@ -178,6 +199,9 @@ jobs:
       throwExceptions: toBoolean.isBoolean.default(false)
   exec : | #js
     var method = String(args.method).toLowerCase()
+    if (!global.__webReadWrite__ && isFunction(global.__webIsPrivateOrLocalUrl__) && global.__webIsPrivateOrLocalUrl__(args.url)) {
+      return "[ERROR] Read-only mode blocks localhost/private/non-http URLs"
+    }
     if ([ "post", "put", "patch", "delete" ].indexOf(method) >= 0 && !global.__webReadWrite__) {
       return "[ERROR] Read-only mode. Set readwrite=true to allow write operations"
     }

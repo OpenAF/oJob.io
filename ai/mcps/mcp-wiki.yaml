@@ -215,8 +215,7 @@ jobs:
     
     MiniAWikiManager.prototype._indexMeta = function() {
       return {
-        file: ".mini-a-wiki-lucene.json",
-        hiddenNames: [".mini-a-wiki-lucene.json", ".mini-a-wiki-lucene.lock"]
+        hiddenNames: [".mini-a-wiki-lucene.lock"]
       }
     }
     
@@ -246,7 +245,6 @@ jobs:
           var parsed = this.parseFrontmatter(raw)
           docs.push({ path: pages[i], title: isString(parsed.meta.title) ? parsed.meta.title : pages[i], raw: raw, body: isString(parsed.body) ? parsed.body : "" })
         }
-        this._backend.write(this._indexMeta().file, stringify(docs, __, ""))
         this._rebuildLuceneIndex(docs)
       } catch(e) { this._logFn('warn', 'Failed to rebuild wiki index: ' + __miniAErrMsg(e)) }
     }
@@ -308,9 +306,8 @@ jobs:
     
     MiniAWikiManager.prototype.configure = function(config) {
       var cfg = isMap(config) ? config : {}
-      var accessRaw  = isDef(cfg.access) ? String(cfg.access).toLowerCase().trim() : "ro"
       var backendRaw = isDef(cfg.backend) ? String(cfg.backend).toLowerCase().trim() : "fs"
-      this._access      = accessRaw === "rw" ? "rw" : "ro"
+      this._access      = "ro"
       this._backendType = ["s3", "es", "s3fs"].indexOf(backendRaw) >= 0 ? backendRaw : "fs"
       this._config  = cfg
       this._backend = this._backendType === "s3" ? this._makeS3Backend(cfg) : (this._backendType === "es" ? this._makeEsBackend(cfg) : (this._backendType === "s3fs" ? this._makeS3FsBackend(cfg) : this._makeFsBackend(cfg)))
@@ -941,7 +938,7 @@ jobs:
     
     MiniAWikiManager.prototype._makeS3FsBackend = function(cfg) {
       var fsb = this._makeFsBackend(cfg)
-      var access = isString(cfg.access) ? cfg.access.toLowerCase() : "rw"
+      var access = "ro"
     
       if (access !== "ro") {
         var s3b = this._makeS3Backend(cfg)
@@ -1195,7 +1192,7 @@ jobs:
     }
     
     MiniAWikiManager.prototype.write = function(path, metaOrRaw, body, options) {
-      if (this._access !== "rw") return { ok: false, error: "wiki is read-only (wikiaccess=ro)" }
+      if (this._access !== "rw") return { ok: false, error: "wiki is read-only" }
       if (!isString(path) || path.trim().length === 0) return { ok: false, error: "path is required" }
       try {
         path = __miniAWikiNormalizePath(path, { requireMarkdown: true })
@@ -1300,7 +1297,7 @@ jobs:
     }
     
     MiniAWikiManager.prototype.delete = function(path) {
-      if (this._access !== "rw") return { ok: false, error: "wiki is read-only (wikiaccess=ro)" }
+      if (this._access !== "rw") return { ok: false, error: "wiki is read-only" }
       if (!isString(path) || path.trim().length === 0) return { ok: false, error: "path is required" }
       try {
         path = __miniAWikiNormalizePath(path, { requireMarkdown: true })
@@ -1571,7 +1568,7 @@ jobs:
     }
     
     MiniAWikiManager.prototype.move = function(from, to, options) {
-      if (this._access !== "rw") return { ok: false, error: "wiki is read-only (wikiaccess=ro)" }
+      if (this._access !== "rw") return { ok: false, error: "wiki is read-only" }
       var opts = isObject(options) ? options : {}
       var fromPath, toPath
       try {

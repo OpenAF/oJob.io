@@ -237,8 +237,9 @@ jobs:
       var blocked = false
       var vars = isObject(contextVars) ? contextVars : {}
       hooksForEvent.forEach(function(hook) {
-        if (hook.toolFilter.length > 0 && isString(vars.MINI_A_TOOL)) {
-          if (hook.toolFilter.indexOf(vars.MINI_A_TOOL.toLowerCase()) < 0) return
+        if (hook.toolFilter.length > 0) {
+          var hookTool = isString(vars.MINI_A_TOOL) ? vars.MINI_A_TOOL.toLowerCase() : "shell"
+          if (hook.toolFilter.indexOf(hookTool) < 0) return
         }
         try {
           var env = {}
@@ -276,7 +277,8 @@ jobs:
       "userdel","groupadd","groupdel","shutdown","reboot","poweroff","halt",
       "systemctl","service","fdisk","sfdisk","parted","losetup","mkswap",
       "swapoff","swapon","iptables","nft","grub-install","update-grub",
-      "curl","wget","perl","python","python3","ruby","node","npm","yarn","pip","pip3","gem"
+      "curl","wget","perl","python","python3","ruby","node","npm","yarn","pip","pip3","gem",
+      "mkdir","rmdir","install","touch","tee","ed","ex"
     ]
 
     var execAllowed = false
@@ -302,16 +304,20 @@ jobs:
     var hasBannedToken = bannedTokens.length > 0
     var allowPipes = (global.__shellAllowPipes__ || false)
     var hasRedirectionOrPipe = !allowPipes && /[<>|&;]/.test(lcCmd)
+    var hasWriteFlag = !global.__shellReadWrite__ && /\b(sed|perl|awk)\s+-i(\b|$)/.test(lcCmd)
 
     var detected = []
     if (hasBannedToken) detected = detected.concat(bannedTokens)
     if (hasRedirectionOrPipe) detected.push("redirection/pipe")
+    if (hasWriteFlag) detected.push("write-flag")
 
-    if (!global.__shellReadWrite__ && (hasBannedToken || hasRedirectionOrPipe)) {
+    if (!global.__shellReadWrite__ && (hasBannedToken || hasRedirectionOrPipe || hasWriteFlag)) {
       if (hasBannedToken) {
         errorMsg = "[blocked] Command contains banned operation" + (detected.length ? " (detected: " + detected.join(", ") + ")" : "") + ": " + args.command
       } else if (hasRedirectionOrPipe) {
         errorMsg = "[blocked] Command contains redirection/pipe operations: " + args.command
+      } else if (hasWriteFlag) {
+        errorMsg = "[blocked] Command requires readwrite=true (detected: " + detected.join(", ") + "): " + args.command
       } else {
         errorMsg = "[blocked] Command blocked by security policy: " + args.command
       }
