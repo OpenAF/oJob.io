@@ -171,6 +171,10 @@ jobs:
       tpm            : toNumber.isNumber.default(__)
       maxsteps       : toNumber.isNumber.default(15)
       maxcontext     : toNumber.isNumber.default(0)
+      contextguard   : toBoolean.isBoolean.default(false)
+      contextguardbudget: toNumber.isNumber.default(32000)
+      toolresultmaxinline: toNumber.isNumber.default(__)
+      readresultmaxmatches: toNumber.isNumber.default(__)
       compressgoal   : toBoolean.isBoolean.default(false)
       compressgoaltokens: toNumber.isNumber.default(250)
       compressgoalchars : toNumber.isNumber.default(1000)
@@ -218,7 +222,11 @@ jobs:
       planlog     : true,
       planmode    : true,
       planformat  : true,
-      convertplan : true
+      convertplan : true,
+      contextguard: true,
+      contextguardbudget: true,
+      toolresultmaxinline: true,
+      readresultmaxmatches: true
     }
 
     var mergedArgs = merge({}, baseArgs)
@@ -233,7 +241,7 @@ jobs:
     var booleanKeys = [
       "usetools", "useutils", "mcpdynamic", "mcplazy", "useshell", "readwrite",
       "shellallowpipes", "shellbatch", "checkall", "verbose", "debug", "raw",
-      "chatbotmode", "useplanning", "forceupdates", "planmode", "convertplan", "resumefailed"
+      "chatbotmode", "useplanning", "forceupdates", "planmode", "convertplan", "resumefailed", "contextguard"
     ]
     booleanKeys.forEach(function(key) {
       if (isDef(preparedArgs[key])) {
@@ -241,7 +249,7 @@ jobs:
       }
     })
 
-    var numberKeys = [ "rpm", "rtm", "tpm", "maxsteps", "maxcontext", "compressgoaltokens", "compressgoalchars", "toolcachettl" ]
+    var numberKeys = [ "rpm", "rtm", "tpm", "maxsteps", "maxcontext", "contextguardbudget", "toolresultmaxinline", "readresultmaxmatches", "compressgoaltokens", "compressgoalchars", "toolcachettl" ]
     numberKeys.forEach(function(key) {
       if (isDef(preparedArgs[key])) {
         preparedArgs[key] = toNumber(preparedArgs[key])
