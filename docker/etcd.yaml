@@ -1,16 +1,18 @@
 # Author: Nuno Aguiar
 help:
   text   : Generates a quick docker-compose with etcd
-  expects: 
+  expects:
   - name     : cluster
     desc     : If defined will add the number of etcd nodes specified.
     mandatory: false
     example  : 3
+  - name     : tag
+    desc     : Docker image tag to use (defaults to the latest stable version from quay.io)
+    mandatory: false
+    example  : v3.6.12
 
 init:
   dc: |
-    version: '3.3'
-
     networks:
       etcd:
         driver: bridge
@@ -18,7 +20,7 @@ init:
     services:
     {{#if single}}  etcd       :
         restart    : always
-        image      : bitnami/etcd
+        image      : quay.io/coreos/etcd:{{tag}}
         ports      :
         - "2379:2379"
         networks:
@@ -26,16 +28,17 @@ init:
         healthcheck   :
           test    : [ "CMD-SHELL", "curl --silent --fail http://127.0.0.1:2379/health || exit 1" ]
           interval: 15s
-          timeout : 10s    
-          retries : 3    
+          timeout : 10s
+          retries : 3
         environment:
-          ALLOW_NONE_AUTHENTICATION : "yes"
-          ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+          ETCD_DATA_DIR              : /etcd-data
+          ETCD_LISTEN_CLIENT_URLS    : http://0.0.0.0:2379
+          ETCD_ADVERTISE_CLIENT_URLS : http://etcd:2379
         volumes:
-          - etcd_data:/bitnami/etcd
+          - etcd_data:/etcd-data
     {{else}}{{#each nodes}}  {{name}}      :
         restart : always
-        image   : bitnami/etcd
+        image   : quay.io/coreos/etcd:{{../tag}}
         networks:
         - etcd{{#if first}}
         ports   :
@@ -43,11 +46,11 @@ init:
         healthcheck   :
           test    : [ "CMD-SHELL", "curl --silent --fail http://127.0.0.1:2379/health || exit 1" ]
           interval: 30s
-          timeout : 5s    
-          retries : 3    
-        environment: 
+          timeout : 5s
+          retries : 3
+        environment:
           ETCD_NAME                       : {{name}}
-          ALLOW_NONE_AUTHENTICATION       : "yes"
+          ETCD_DATA_DIR                   : /etcd-data
           ETCD_ADVERTISE_CLIENT_URLS      : http://{{name}}:2379
           ETCD_INITIAL_CLUSTER            : {{{../list}}}
           ETCD_INITIAL_CLUSTER_STATE      : new
@@ -56,7 +59,7 @@ init:
           ETCD_LISTEN_PEER_URLS           : http://0.0.0.0:2380
           ETCD_LISTEN_CLIENT_URLS         : http://0.0.0.0:2379
         volumes:
-          - {{name}}_data:/bitnami/etcd
+          - {{name}}_data:/etcd-data
 
       {{/each}}
     {{/if}}
@@ -90,7 +93,25 @@ jobs:
     in:
       cluster: toNumber().isNumber.default(3)
   exec : |
-    var data = { nodes: [], single: args.cluster == 1 }
+    var tag = _$(args.tag, "tag").default(__)
+    if (isUnDef(tag)) {
+      var res = $rest().get("https://quay.io/api/v1/repository/coreos/etcd/tag/?limit=50&onlyActiveTags=true")
+      var semverCompare = (a, b) => {
+        var pa = a.replace("v", "").split(".").map(Number)
+        var pb = b.replace("v", "").split(".").map(Number)
+        for (var i = 0; i < 3; i++) {
+          if (pa[i] > pb[i]) return -1
+          if (pa[i] < pb[i]) return 1
+        }
+        return 0
+      }
+      tag = res.tags
+        .map(t => t.name)
+        .filter(n => /^v\d+\.\d+\.\d+$/.test(n))
+        .sort(semverCompare)[0]
+    }
+
+    var data = { nodes: [], single: args.cluster == 1, tag: tag }
 
     Array.from(Array(args.cluster).keys()).forEach(node => {
       data.nodes.push({
@@ -99,7 +120,7 @@ jobs:
       })
     })
 
-    if (!data.single) 
+    if (!data.single)
       data.list = data.nodes.map(n => $f("%s=http://%s:2380", n.name, n.name)).join(",")
 
     tprint(args.init.dc, data)

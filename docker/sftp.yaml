@@ -1,8 +1,6 @@
 # Author: Nuno Aguiar
 init:
   compose: |
-    version: '3'
- 
     services:
       sftp:
         image: 'emberstack/sftp'

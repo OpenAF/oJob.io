@@ -132,8 +132,6 @@ include:
 
 init:
   dc  : &DC |
-    version: '3.8'
-
     networks:
       falkordb:
         driver: bridge

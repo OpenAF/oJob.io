@@ -47,8 +47,6 @@ jobs:
 - name : Generate docker-compose
   args :
     dc: |
-      version: '3.4'
-
       services:
         socks:
           hostname: socks

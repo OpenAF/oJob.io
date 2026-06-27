@@ -46,8 +46,6 @@ todo:
 init:
   # docker compose template
   dc: |
-    version: "3"
-
     networks:
       cluster-net:
         driver: bridge
