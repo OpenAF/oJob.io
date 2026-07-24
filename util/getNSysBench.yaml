@@ -1,0 +1,78 @@
+# Author: Nuno Aguiar
+help:
+  text   : Retrieves the latest nsysbench binary for the current operating system and architecture
+  expects:
+  - name     : path
+    desc     : Where the binary should be installed
+    example  : .
+    mandatory: false
+  - name     : os
+    desc     : Force the operating system (linux, macos or windows)
+    example  : linux
+    mandatory: false
+  - name     : arch
+    desc     : Force the architecture (x86_64 or aarch64)
+    example  : aarch64
+    mandatory: false
+
+todo:
+- Get latest nsysbench binary
+
+ojob:
+  opacks      :
+  - openaf: 20231222
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true
+
+jobs:
+# ----------------------------
+- name : Get latest nsysbench binary
+  check:
+    in:
+      path: isString.default(".")
+      os  : isString.default(__)
+      arch: isString.default(__)
+  exec : |
+    var os = args.os
+    var arch = args.arch
+
+    if (!isDef(os)) {
+      var systemOS = String(java.lang.System.getProperty("os.name"))
+      if (systemOS.match(/Windows/)) os = "windows"
+      else if (systemOS.match(/Mac OS/)) os = "macos"
+      else if (systemOS.match(/Linux/)) os = "linux"
+      else throw "Unsupported operating system: " + systemOS
+    }
+    os = String(os).toLowerCase()
+    if (os == "darwin" || os == "mac") os = "macos"
+    if (os != "linux" && os != "macos" && os != "windows") throw "Unsupported operating system: " + os
+
+    if (!isDef(arch)) arch = String(java.lang.System.getProperty("os.arch"))
+    arch = String(arch).toLowerCase()
+    if (arch == "amd64" || arch == "x64" || arch == "x86-64") arch = "x86_64"
+    if (arch == "arm64") arch = "aarch64"
+    if (arch != "x86_64" && arch != "aarch64") throw "Unsupported architecture: " + arch
+
+    var release = $rest().get("https://api.github.com/repos/nmaguiar/nsysbench/releases/latest")
+    if (!isDef(release) || !isString(release.tag_name) || !isArray(release.assets)) throw "Can't determine the latest nsysbench release"
+
+    var archive = "nsysbench-" + release.tag_name + "-" + os + "-" + arch + ".tar.gz"
+    var asset = $from(release.assets).equals("name", archive).at(0)
+    if (!isDef(asset) || !isString(asset.browser_download_url)) {
+      throw "Latest nsysbench release " + release.tag_name + " has no binary for " + os + "/" + arch
+    }
+
+    var tmp = io.createTempFile("nsysbench_", ".tar.gz")
+    log("Downloading nsysbench " + release.tag_name + " for " + os + "/" + arch + "...")
+    $rest().get2File(tmp, asset.browser_download_url)
+
+    var is = Packages.org.apache.commons.compress.archivers.tar.TarArchiveInputStream(io.readFileGzipStream(tmp))
+    var entry = is.getNextTarEntry()
+    var binary = os == "windows" ? "nsysbench.exe" : "nsysbench"
+    while (entry != null && String(entry.getName()).replace(/^.+\//, "") != binary) entry = is.getNextTarEntry()
+    if (entry == null) throw "Can't find '" + binary + "' in " + archive
+
+    var destination = args.path + "/" + binary
+    log("Writing " + destination + "...")
+    ioStreamCopy(io.writeFileStream(destination), is)
+    if (os != "windows") $sh("chmod u+x " + destination).exec()
