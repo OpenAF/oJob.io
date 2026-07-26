@@ -1,0 +1,401 @@
+# Author: Nuno Aguiar
+help:
+  text   : |
+    Runs a series of Java heap allocation / garbage collection stress tests (retained objects,
+    discarded/short-lived objects, GC pressure, an explicit full GC and staged heap growth)
+    while exposing live JVM heap and GC metrics, in OpenMetrics/Prometheus format, over HTTP
+    for scraping. Useful to compare how different JVM versions, vendors or flags (heap sizing,
+    GC algorithm, etc) behave under the same allocation workload: run this same ojob with
+    different "java" binaries/options and compare the resulting /metrics or console output.
+  expects:
+  - name     : port
+    desc     : HTTP port where /metrics (OpenMetrics/Prometheus format) will be exposed
+    example  : "8080"
+    mandatory: false
+  - name     : host
+    desc     : Network interface to bind the metrics HTTP server to (defaults to all interfaces)
+    example  : 0.0.0.0
+    mandatory: false
+  - name     : tests
+    desc     : Comma delimited list of tests to run, in order (retain, discard, pressure, fullgc, growth) or "all"
+    example  : retain,discard,pressure
+    mandatory: false
+  - name     : count
+    desc     : Number of objects to allocate for the retain, discard and growth tests
+    example  : "2000000"
+    mandatory: false
+  - name     : objectSize
+    desc     : Approximate payload size, in characters/bytes, of each allocated object
+    example  : "256"
+    mandatory: false
+  - name     : batchSize
+    desc     : Number of allocations performed between each progress checkpoint (also the garbage batch size used by the discard and pressure tests)
+    example  : "25000"
+    mandatory: false
+  - name     : pressureDuration
+    desc     : How long the GC pressure test keeps allocating short-lived garbage for (time abbreviation)
+    example  : 30s
+    mandatory: false
+  - name     : growthSteps
+    desc     : Number of incremental steps the growth test uses to reach count retained objects
+    example  : "10"
+    mandatory: false
+  - name     : waitBetween
+    desc     : Wait time between tests, right after a full GC used to reset the heap baseline (time abbreviation)
+    example  : 5s
+    mandatory: false
+  - name     : iterations
+    desc     : Number of times the selected test suite is repeated (0 = repeat forever)
+    example  : "1"
+    mandatory: false
+  - name     : keepAlive
+    desc     : If true keeps the metrics HTTP server (and process) running after all tests finish
+    example  : "true"
+    mandatory: false
+
+init:
+  types:
+    all: [ retain, discard, pressure, fullgc, growth ]
+
+todo:
+- Init jsysbench
+- Run test suite
+
+ojob:
+  opacks      :
+  - openaf: 20250915
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true
+  daemon      : true
+
+jobs:
+# --------------------
+- name : Init jsysbench
+  check:
+    in:
+      port            : toNumber.isNumber.default(8080)
+      host            : isString.default(__)
+      tests           : isString.default("all")
+      count           : toNumber.isNumber.default(2000000)
+      objectSize      : toNumber.isNumber.default(256)
+      batchSize       : toNumber.isNumber.default(25000)
+      pressureDuration: isString.default("30s")
+      growthSteps     : toNumber.isNumber.default(10)
+      waitBetween     : isString.default("5s")
+      iterations      : toNumber.isNumber.default(1)
+      keepAlive       : toBoolean.isBoolean.default(true)
+  exec : |
+    ow.loadServer()
+    ow.loadMetrics()
+    ow.loadFormat()
+
+    global.jsysbench = {
+      startedAt     : now(),
+      iteration     : 0,
+      testsCompleted: 0,
+      running       : false,
+      currentTest   : "none",
+      tests         : {}
+    }
+
+    // ------------------------------------------------------------
+    // Helpers shared by every test job (kept on global so any job
+    // in this file, run in any order, can reuse them)
+    // ------------------------------------------------------------
+    global.jsysbenchHeap = function() {
+      var rt    = java.lang.Runtime.getRuntime()
+      var max   = Number(rt.maxMemory())
+      var total = Number(rt.totalMemory())
+      var free  = Number(rt.freeMemory())
+      return { max: max, total: total, used: total - free, free: free }
+    }
+
+    global.jsysbenchGC = function() {
+      var res   = {}
+      var beans = java.lang.management.ManagementFactory.getGarbageCollectorMXBeans()
+      for (var i = 0; i < beans.size(); i++) {
+        var b = beans.get(i)
+        res[String(b.getName())] = { count: Number(b.getCollectionCount()), time: Number(b.getCollectionTime()) }
+      }
+      return res
+    }
+
+    global.jsysbenchPayload = function(aSize) {
+      return "x".repeat(Math.max(1, aSize))
+    }
+
+    global.jsysbenchFullGC = function() {
+      var before = global.jsysbenchHeap()
+      var t = now()
+      java.lang.System.gc()
+      java.lang.Thread.sleep(200) // give the collector a moment to actually run
+      var after = global.jsysbenchHeap()
+      return { durationMs: now() - t, before: before, after: after, freedBytes: before.used - after.used }
+    }
+
+    // Records the outcome of a test, updates global state and logs a summary line
+    global.jsysbenchFinishTest = function(aName, aStartTime, aObjects, aHeapBefore, aGcBefore) {
+      var heapAfter = global.jsysbenchHeap()
+      var gcAfter   = global.jsysbenchGC()
+      var gcCountDelta = 0, gcTimeDelta = 0
+      Object.keys(gcAfter).forEach(k => {
+        gcCountDelta += gcAfter[k].count - (isDef(aGcBefore[k]) ? aGcBefore[k].count : 0)
+        gcTimeDelta  += gcAfter[k].time  - (isDef(aGcBefore[k]) ? aGcBefore[k].time  : 0)
+      })
+
+      var res = {
+        durationMs    : now() - aStartTime,
+        objects       : aObjects,
+        heapUsedBefore: aHeapBefore.used,
+        heapUsedAfter : heapAfter.used,
+        gcCountDelta  : gcCountDelta,
+        gcTimeDeltaMs : gcTimeDelta
+      }
+
+      global.jsysbench.running = false
+      global.jsysbench.testsCompleted++
+      global.jsysbench.tests[aName] = res
+
+      log("[" + aName + "] done in " + res.durationMs + "ms | heap " +
+          ow.format.toBytesAbbreviation(aHeapBefore.used, 2) + " -> " + ow.format.toBytesAbbreviation(heapAfter.used, 2) +
+          " | GCs +" + gcCountDelta + " (" + gcTimeDelta + "ms)")
+
+      return res
+    }
+
+    // ------------------------------------------------------------
+    // Resolve the run configuration once, so every subsequent job
+    // (invoked in any order/loop) sees a consistent configuration
+    // ------------------------------------------------------------
+    global.jsysbench.config = {
+      testList          : (args.tests == "all" ? args.init.types.all : String(args.tests).split(",").map(t => t.trim()).filter(t => t.length > 0)),
+      count             : args.count,
+      objectSize        : args.objectSize,
+      batchSize         : args.batchSize,
+      pressureDurationMs: ow.format.fromTimeAbbreviation(args.pressureDuration),
+      growthSteps       : args.growthSteps,
+      waitBetweenMs      : ow.format.fromTimeAbbreviation(args.waitBetween),
+      iterations        : args.iterations,
+      keepAlive         : args.keepAlive
+    }
+
+    // ------------------------------------------------------------
+    // Expose /metrics (OpenMetrics/Prometheus) with the JVM's own
+    // built-in "mem"/"java"/"os"/"threads" metrics plus a custom
+    // "jsysbench" metric with this run's live state and results
+    // ------------------------------------------------------------
+    global.jsysbench.hs = ow.server.httpd.start(args.port, args.host)
+    ow.server.telemetry.passive(global.jsysbench.hs, "/metrics", true, "jsysbench")
+    log("[jsysbench] metrics exposed at http://" + (isDef(args.host) ? args.host : "0.0.0.0") + ":" + args.port + "/metrics")
+
+    ow.metrics.add("run", () => {
+      var j = global.jsysbench
+      var res = {
+        iteration     : j.iteration,
+        testsCompleted: j.testsCompleted,
+        running       : j.running ? 1 : 0,
+        currentTest   : j.currentTest
+      }
+      Object.keys(j.tests).forEach(t => {
+        var lt = j.tests[t]
+        res["last_" + t] = {
+          durationMs    : lt.durationMs,
+          objects       : lt.objects,
+          heapUsedBefore: lt.heapUsedBefore,
+          heapUsedAfter : lt.heapUsedAfter,
+          heapDeltaBytes: lt.heapUsedAfter - lt.heapUsedBefore,
+          gcCountDelta  : lt.gcCountDelta,
+          gcTimeDeltaMs : lt.gcTimeDeltaMs
+        }
+      })
+      return res
+    })
+
+# ----------------------------------------------------------------
+# Orchestrates the selected tests, looping "iterations" times and,
+# between every test, dropping any retained references, forcing a
+# full GC and waiting "waitBetween" so each test starts from a
+# clean, comparable heap baseline.
+# ----------------------------------------------------------------
+- name : Run test suite
+  exec : |
+    var cfg = global.jsysbench.config
+    var testJobs = {
+      retain  : "Test retain",
+      discard : "Test discard",
+      pressure: "Test pressure",
+      fullgc  : "Test fullgc",
+      growth  : "Test growth"
+    }
+
+    var iteration = 0
+    while (cfg.iterations <= 0 || iteration < cfg.iterations) {
+      iteration++
+      global.jsysbench.iteration = iteration
+      log("=== jsysbench iteration " + iteration + (cfg.iterations > 0 ? "/" + cfg.iterations : "") + " ===")
+
+      cfg.testList.forEach(test => {
+        if (isUnDef(testJobs[test])) {
+          logErr("[jsysbench] unknown test '" + test + "', skipping (valid: " + Object.keys(testJobs).join(", ") + ")")
+          return
+        }
+
+        // Drop any retained references from previous tests so the full GC below can actually reclaim them
+        global.jsysbenchRetain = void 0
+        global.jsysbenchRetainGrowth = void 0
+
+        var cleared = global.jsysbenchFullGC()
+        log("[jsysbench] cleared heap before '" + test + "' (freed " + ow.format.toBytesAbbreviation(cleared.freedBytes, 2) +
+            "), waiting " + cfg.waitBetweenMs + "ms...")
+        sleep(cfg.waitBetweenMs, true)
+
+        $job(testJobs[test], {})
+      })
+    }
+
+    log("[jsysbench] finished: " + global.jsysbench.testsCompleted + " test run(s) over " + iteration + " iteration(s).")
+
+    if (!cfg.keepAlive) {
+      log("[jsysbench] keepAlive=false, shutting down.")
+      ow.server.httpd.stop(global.jsysbench.hs)
+      exit(0)
+    }
+
+# ----------------------------------------------------------------
+# Allocates "count" objects into a java.util.HashMap and keeps a
+# strong reference to it, so the garbage collector can't reclaim
+# any of them. Simulates a growing, long-lived live set.
+# ----------------------------------------------------------------
+- name : Test retain
+  exec : |
+    var cfg = global.jsysbench.config
+    global.jsysbench.currentTest = "retain"
+    global.jsysbench.running = true
+    log("[retain] allocating " + cfg.count + " objects (~" + cfg.objectSize + " chars each) and keeping references...")
+
+    var heapBefore = global.jsysbenchHeap()
+    var gcBefore = global.jsysbenchGC()
+    var t = now()
+
+    var m = new java.util.HashMap()
+    for (var i = 0; i < cfg.count; i++) {
+      m.put(i, { id: i, payload: global.jsysbenchPayload(cfg.objectSize) })
+      if (i > 0 && i % cfg.batchSize == 0) {
+        log("[retain] " + i + "/" + cfg.count + " objects (heap used: " + ow.format.toBytesAbbreviation(global.jsysbenchHeap().used, 2) + ")")
+      }
+    }
+    global.jsysbenchRetain = m // strong reference: kept until the next "clear heap" step
+
+    global.jsysbenchFinishTest("retain", t, cfg.count, heapBefore, gcBefore)
+
+# ----------------------------------------------------------------
+# Performs the same amount of HashMap-based allocation as "retain"
+# but periodically drops the map, making every entry unreachable
+# and available for garbage collection.
+# ----------------------------------------------------------------
+- name : Test discard
+  exec : |
+    var cfg = global.jsysbench.config
+    global.jsysbench.currentTest = "discard"
+    global.jsysbench.running = true
+    log("[discard] allocating " + cfg.count + " objects (~" + cfg.objectSize + " chars each) without keeping references...")
+
+    var heapBefore = global.jsysbenchHeap()
+    var gcBefore = global.jsysbenchGC()
+    var t = now()
+
+    var m = new java.util.HashMap()
+    for (var i = 0; i < cfg.count; i++) {
+      m.put(i % cfg.batchSize, { id: i, payload: global.jsysbenchPayload(cfg.objectSize) })
+      if (i > 0 && i % cfg.batchSize == 0) {
+        m = new java.util.HashMap() // drop all previous entries: eligible for GC from here on
+        log("[discard] " + i + "/" + cfg.count + " objects (heap used: " + ow.format.toBytesAbbreviation(global.jsysbenchHeap().used, 2) + ")")
+      }
+    }
+    m = void 0
+
+    global.jsysbenchFinishTest("discard", t, cfg.count, heapBefore, gcBefore)
+
+# ----------------------------------------------------------------
+# Given the current heap, allocates short-lived garbage as fast as
+# possible for "pressureDuration", trying to force the JVM into
+# recurrent (young and, if the heap is small enough, full) GCs.
+# ----------------------------------------------------------------
+- name : Test pressure
+  exec : |
+    var cfg = global.jsysbench.config
+    global.jsysbench.currentTest = "pressure"
+    global.jsysbench.running = true
+    log("[pressure] allocating short-lived garbage as fast as possible for " + cfg.pressureDurationMs + "ms...")
+
+    var heapBefore = global.jsysbenchHeap()
+    var gcBefore = global.jsysbenchGC()
+    var t = now()
+    var deadline = t + cfg.pressureDurationMs
+    var created = 0
+    var m = new java.util.HashMap()
+
+    while (now() < deadline) {
+      for (var i = 0; i < cfg.batchSize; i++) {
+        m.put(i, { id: created, payload: global.jsysbenchPayload(cfg.objectSize) })
+        created++
+      }
+      m.clear() // drop the whole batch: keeps allocation churn high without growing the live set
+    }
+    m = void 0
+
+    global.jsysbenchFinishTest("pressure", t, created, heapBefore, gcBefore)
+
+# ----------------------------------------------------------------
+# Forces (and times) an explicit full GC. Useful, right after a
+# "retain" or "growth" test, to measure full-GC pause cost for a
+# given live set size and JVM/GC configuration.
+# ----------------------------------------------------------------
+- name : Test fullgc
+  exec : |
+    global.jsysbench.currentTest = "fullgc"
+    global.jsysbench.running = true
+    log("[fullgc] forcing an explicit full GC...")
+
+    var heapBefore = global.jsysbenchHeap()
+    var gcBefore = global.jsysbenchGC()
+    var t = now()
+
+    java.lang.System.gc()
+    java.lang.Thread.sleep(200) // give the collector a moment to actually run
+
+    global.jsysbenchFinishTest("fullgc", t, 0, heapBefore, gcBefore)
+
+# ----------------------------------------------------------------
+# Grows a retained live set in "growthSteps" increments, pausing
+# "waitBetween" after each one, so heap/committed-memory growth
+# and any triggered GCs can be observed step by step (e.g. to see
+# how -Xms/-Xmx and the GC algorithm react to a growing live set).
+# ----------------------------------------------------------------
+- name : Test growth
+  exec : |
+    var cfg = global.jsysbench.config
+    global.jsysbench.currentTest = "growth"
+    global.jsysbench.running = true
+    log("[growth] growing retained heap in " + cfg.growthSteps + " steps up to " + cfg.count + " objects...")
+
+    var heapBefore = global.jsysbenchHeap()
+    var gcBefore = global.jsysbenchGC()
+    var t = now()
+
+    var m = new java.util.HashMap()
+    var perStep = Math.ceil(cfg.count / cfg.growthSteps)
+    var created = 0
+
+    for (var s = 0; s < cfg.growthSteps; s++) {
+      for (var i = 0; i < perStep && created < cfg.count; i++, created++) {
+        m.put(created, { id: created, payload: global.jsysbenchPayload(cfg.objectSize) })
+      }
+      var h = global.jsysbenchHeap()
+      log("[growth] step " + (s + 1) + "/" + cfg.growthSteps + " -> " + created + " objects, heap used: " +
+          ow.format.toBytesAbbreviation(h.used, 2) + " / committed: " + ow.format.toBytesAbbreviation(h.total, 2))
+      sleep(cfg.waitBetweenMs, true)
+    }
+    global.jsysbenchRetainGrowth = m // strong reference: kept until the next "clear heap" step
+
+    global.jsysbenchFinishTest("growth", t, created, heapBefore, gcBefore)
