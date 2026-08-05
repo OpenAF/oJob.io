@@ -34,6 +34,22 @@ help:
     desc     : Optional comma-delimited list of prefixes applied to tools per connection order; use an empty entry for no prefix.
     example  : "main-,other1-,,other3-"
     mandatory: false
+  - name     : authtoken
+    desc     : If defined (or env OJOB_MCP_AUTH_TOKEN), requires this bearer token on every request to the HTTP MCP endpoint (onport). If not defined, no authentication is enforced (default behavior).
+    example  : "s3cr3t"
+    mandatory: false
+  - name     : authheader
+    desc     : The request header to read the credential from (default "authorization", or env OJOB_MCP_AUTH_HEADER).
+    mandatory: false
+  - name     : authscheme
+    desc     : The authorization scheme prefix expected before the token (default "Bearer", or env OJOB_MCP_AUTH_SCHEME).
+    mandatory: false
+  - name     : authrealm
+    desc     : The realm reported in the WWW-Authenticate challenge (default is the MCP server's name, or env OJOB_MCP_AUTH_REALM).
+    mandatory: false
+  - name     : authchallenge
+    desc     : If true (default), unauthenticated/unauthorized requests receive a WWW-Authenticate header (or env OJOB_MCP_AUTH_CHALLENGE).
+    mandatory: false
 
 ojob:
   opacks      :
@@ -250,6 +266,32 @@ jobs:
       }
     }
 
+    // Optional bearer-token authentication for the HTTP MCP endpoint (opt-in; fails open when unconfigured)
+    var _authToken     = _$(args.authtoken).default(getEnv("OJOB_MCP_AUTH_TOKEN"))
+    var _authHeader    = String(_$(args.authheader).default(getEnv("OJOB_MCP_AUTH_HEADER") || "authorization")).toLowerCase()
+    var _authScheme    = _$(args.authscheme).default(getEnv("OJOB_MCP_AUTH_SCHEME") || "Bearer")
+    var _authRealm     = _$(args.authrealm).default(getEnv("OJOB_MCP_AUTH_REALM") || description.serverInfo.name)
+    var _authChallenge = toBoolean(_$(args.authchallenge).default(getEnv("OJOB_MCP_AUTH_CHALLENGE") || "true"))
+    var _authEnabled   = isString(_authToken) && _authToken.length > 0
+
+    var _authCheck = headerValue => {
+      if (!isString(headerValue)) return false
+      var _m = headerValue.match(new RegExp("^" + _authScheme + "\\s+(.+)$", "i"))
+      if (isNull(_m)) return false
+      return sha512(_m[1]) == sha512(_authToken)
+    }
+
+    var _authReject = () => {
+      var _hdrs = {}
+      if (_authChallenge) _hdrs["WWW-Authenticate"] = _authScheme + " realm=\"" + _authRealm + "\""
+      return {
+        data    : stringify({ jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized" } }, __, ""),
+        mimetype: "application/json",
+        status  : 401,
+        header  : _hdrs
+      }
+    }
+
     // Create a function for each tool that calls the tool on the corresponding MCP server and store them in a global variable for later use by the tools
     var fns = {}
     tools.forEach(tl => {
@@ -295,7 +337,15 @@ jobs:
       var hs = ow.server.httpd.start(args.onport)
       ow.server.httpd.route(hs, {
         [routeURI]: function(req, aHs) {
+          if (_authEnabled) {
+            var _hdr = isMap(req) && isMap(req.header) ? req.header[_authHeader] : __
+            if (!_authCheck(_hdr)) return _authReject()
+          }
           var reqMeta = isMap(req) && isMap(req.header) ? { headers: clone(req.header, true) } : __
+          if (_authEnabled && isMap(reqMeta) && isMap(reqMeta.headers)) {
+            delete reqMeta.headers[_authHeader]
+            delete reqMeta.headers.authorization
+          }
           var _rpcFns = getRpcFns(reqMeta)
           if (toBoolean(args.usesse)) {
             var _rpcRes = ow.server.httpd.replyJSONRPC(aHs, req, _rpcFns, logErr)

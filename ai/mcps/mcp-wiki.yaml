@@ -11,7 +11,7 @@ help:
     example  : "fs"
     mandatory: false
   - name     : wikiroot
-    desc     : "Base directory for fs backend (default: current directory)"
+    desc     : "Base directory or local .zip/.okt archive for fs backend (archives are always read-only)"
     example  : "./wiki"
     mandatory: false
   - name     : wikibucket
@@ -42,6 +42,14 @@ help:
   - name     : wikiignorecertcheck
     desc     : Ignore TLS cert validation on S3 endpoint
     example  : "false"
+    mandatory: false
+  - name     : wikis3artifactprefix
+    desc     : "Optional S3 prefix containing a published local wiki cache (.mini-a-wiki-lucene/ and .mini-a-wiki-graph/graph.json). It is downloaded to wikiindexdir at startup."
+    example  : "wiki-artifacts/"
+    mandatory: false
+  - name     : wikiindexdir
+    desc     : Local cache directory used for downloaded S3 search and graph artifacts
+    example  : "/var/cache/mini-a/wiki"
     mandatory: false
   - name     : toolPrefix
     desc     : Optional prefix prepended to all tool names (e.g. "docs-" -> docs-list, docs-read, ...)
@@ -84,6 +92,10 @@ help:
     desc     : Maximum graph-hint pages appended to search results
     example  : "5"
     mandatory: false
+  - name     : audit
+    desc     : If true (or env OJOB_MCP_AUDIT), logs every MCP tool call (tool name and arguments) via OpenAF's log() function. Handled generically by oJobMCP.yaml.
+    example  : "false"
+    mandatory: false
 
 todo:
 - Init
@@ -98,7 +110,7 @@ todo:
     ((description)): &MCPSERVER
       serverInfo:
         name   : mcp-wiki
-        title  : OpenAF standalone MCP wiki server
+        title  : "{{label}} knowledge base"
         version: 1.0.0
     ((fnsMeta)): &MCPFNSMETA
       context:
@@ -196,6 +208,47 @@ todo:
           readOnlyHint  : true
           idempotentHint: true
 
+      tree:
+        name       : tree
+        description: "Show the folder/page hierarchy of {{label}} as a tree. Use for orientation when you need the shape of the whole wiki rather than a targeted lookup."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Optional section folder to start the tree from.
+            depth:
+              type       : integer
+              description: Maximum tree depth to expand.
+              default    : 3
+            compact:
+              type       : boolean
+              description: Return compact tree output.
+              default    : true
+        annotations:
+          title         : tree
+          readOnlyHint  : true
+          idempotentHint: true
+
+      backlinks:
+        name       : backlinks
+        description: "List the pages in {{label}} that link to a given page. Use to find the context a page sits in, or to check what would break before proposing a change."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Wiki page path to find inbound links for.
+            compact:
+              type       : boolean
+              description: Return compact output.
+              default    : true
+          required  : [ path ]
+        annotations:
+          title         : backlinks
+          readOnlyHint  : true
+          idempotentHint: true
+
       list:
         name       : list
         description: "List pages in {{label}}. Use withMeta=true to get path+title+description+type+updated per page — efficient for scanning the full page inventory in one call."
@@ -219,11 +272,13 @@ todo:
           idempotentHint: true
 
     ((fns    )): &MCPFNS
-      context: Wiki context overview
-      search : Wiki search pages
-      read   : Wiki read page
-      browse : Wiki browse section
-      list   : Wiki list pages
+      context  : Wiki context overview
+      search   : Wiki search pages
+      read     : Wiki read page
+      browse   : Wiki browse section
+      tree     : Wiki tree
+      backlinks: Wiki backlinks
+      list     : Wiki list pages
   ((else)):
   - (stdioMCP  ): *MCPSERVER
     ((toolPrefix)): "${toolPrefix:-}"
@@ -261,6 +316,8 @@ jobs:
       wikiregion          : isString.default(__)
       wikiuseversion1     : toBoolean.isBoolean.default(false)
       wikiignorecertcheck : toBoolean.isBoolean.default(false)
+      wikis3artifactprefix: isString.default(__)
+      wikiindexdir         : isString.default(__)
       usewikigraph        : toBoolean.isBoolean.default(false)
       wikigraphfalkorhost : isString.default(__)
       wikigraphfalkorport : toNumber.isNumber.default(__)

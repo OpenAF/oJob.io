@@ -1,0 +1,276 @@
+# Author: OpenAI Assistant
+help:
+  text   : A standalone STDIO/HTTP MCP wiki server with restricted retrieval only (opaque references, bounded excerpts, budgeted; safe for untrusted clients)
+  expects:
+  - name     : onport
+    desc     : If defined starts an HTTP MCP server on this port; otherwise uses STDIO
+    example  : "8888"
+    mandatory: false
+  - name     : wikibackend
+    desc     : Wiki backend type (fs, s3, s3fs or es)
+    example  : "fs"
+    mandatory: false
+  - name     : wikiroot
+    desc     : "Base directory or local .zip/.okt archive for fs backend (archives are always read-only)"
+    example  : "./wiki"
+    mandatory: false
+  - name     : wikibucket
+    desc     : S3 bucket for s3 backend
+    example  : "my-wiki-bucket"
+    mandatory: false
+  - name     : wikiprefix
+    desc     : S3 key prefix for s3/s3fs backend, or Elasticsearch index for es backend
+    example  : "wiki/"
+    mandatory: false
+  - name     : wikiurl
+    desc     : S3 endpoint/base URL for s3/s3fs, or Elasticsearch/OpenSearch base URL for es (internal esurl)
+    example  : "https://s3.amazonaws.com"
+    mandatory: false
+  - name     : wikiaccesskey
+    desc     : S3 access key, or Elasticsearch username for es backend
+    mandatory: false
+  - name     : wikisecret
+    desc     : S3 secret key, or Elasticsearch password for es backend
+    mandatory: false
+  - name     : wikiregion
+    desc     : S3 region
+    mandatory: false
+  - name     : wikiuseversion1
+    desc     : Force S3 signature version 1
+    example  : "false"
+    mandatory: false
+  - name     : wikiignorecertcheck
+    desc     : Ignore TLS cert validation on S3 endpoint
+    example  : "false"
+    mandatory: false
+  - name     : wikis3artifactprefix
+    desc     : "Optional S3 prefix containing a published local Lucene cache. It is downloaded to wikiindexdir at startup. Graph hints remain disabled by default in restricted retrieval."
+    example  : "wiki-artifacts/"
+    mandatory: false
+  - name     : usewikigraph
+    desc     : "Opt in to graph-backed related-page hints in restricted search. Hints remain opaque read references and do not expose graph paths or relationship metadata."
+    example  : "true"
+    mandatory: false
+  - name     : wikiindexdir
+    desc     : Local cache directory used for downloaded S3 Lucene artifacts
+    example  : "/var/cache/mini-a/wiki"
+    mandatory: false
+  - name     : toolPrefix
+    desc     : Optional prefix prepended to all tool names (e.g. "docs-" -> docs-search, docs-read)
+    example  : "wiki-"
+    mandatory: false
+  - name     : label
+    desc     : Human-readable wiki label injected into templated tool descriptions
+    example  : "Team wiki"
+    mandatory: true
+  - name     : wikimounts
+    desc     : "SLON/JSON array of read-only wiki mounts: [{name, backend, root|bucket|prefix|url|...}]"
+    example  : "[{name: 'team', backend: 'fs', root: './team-wiki'}]"
+    mandatory: false
+  - name     : wikirestrictprofile
+    desc     : "Restricted retrieval default profile: tight, moderate, relaxed or off. Defaults to tight. Explicit individual restriction settings override profile values. 'off' disables restricted retrieval entirely (raw search/read, no opaque references, no budgets) -- equivalent to running the unrestricted mcp-wiki.yaml server; only use it for trusted clients."
+    example  : "moderate"
+    mandatory: false
+  - name     : wikirestrictsearchlimit
+    desc     : "Maximum search results (default: 3; ceiling: 10)"
+    mandatory: false
+  - name     : wikirestrictminquerychars
+    desc     : "Minimum useful query length (default: 4)"
+    mandatory: false
+  - name     : wikirestrictmetachars
+    desc     : "Metadata character cap per result (default: 300)"
+    mandatory: false
+  - name     : wikirestrictreadlines
+    desc     : "Maximum excerpt lines (default: 40; ceiling: 100)"
+    mandatory: false
+  - name     : wikirestrictreadchars
+    desc     : "Maximum excerpt characters (default: 6000; ceiling: 16000)"
+    mandatory: false
+  - name     : wikirestrictrefttl
+    desc     : "Opaque reference lifetime in seconds (default: 120)"
+    mandatory: false
+  - name     : wikirestrictmaxsearches
+    desc     : "Searches per budget window (default: 30)"
+    mandatory: false
+  - name     : wikirestrictmaxreads
+    desc     : "Reads per budget window (default: 15)"
+    mandatory: false
+  - name     : wikirestrictmaxchars
+    desc     : "Total disclosed characters per budget window (default: 60000)"
+    mandatory: false
+  - name     : wikirestrictwindow
+    desc     : "Budget window in seconds (default: 3600)"
+    mandatory: false
+  - name     : wikirestrictpagecooldown
+    desc     : "Delay before a page may receive another reference (default: 3600)"
+    mandatory: false
+  - name     : wikirestrictstate
+    desc     : Optional persistent restricted-retrieval ledger path outside wikiroot
+    mandatory: false
+  - name     : wikirestrictrefch
+    desc     : "SLON/JSON OpenAF channel definition to store search-issued references and page cooldowns (default: this process's own memory only). Set this to share references across multiple mcp-wiki-safe replicas behind the same load balancer (e.g. Kubernetes), so a read call can consume a reference issued by a search call on a different replica. Use a channel with real per-key ops across writers, such as redis (`simple`/`file` are single-writer only, fine standalone but unsafe shared by concurrent replicas). Entries are discarded once their TTL/cooldown elapses."
+    example  : "(type: 'redis', options: (host: 'redis.svc', port: 6379))"
+    mandatory: false
+  - name     : audit
+    desc     : If true (or env OJOB_MCP_AUDIT), logs every MCP tool call (tool name and arguments) via OpenAF's log() function. Handled generically by oJobMCP.yaml.
+    example  : "false"
+    mandatory: false
+
+todo:
+- Init
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((toolPrefix )): "${toolPrefix:-}"
+    ((tplDesc    )): true
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mcp-wiki-safe
+        title  : "{{label}} knowledge base"
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      search:
+        name       : search
+        description: "Search on {{label}} for a targeted answer. Results contain opaque, short-lived read references only."
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: Targeted query (minimum configured length).
+          required  : [ query ]
+        annotations:
+          title         : search
+          readOnlyHint  : true
+          idempotentHint: true
+
+      read:
+        name       : read
+        description: "Read one bounded excerpt using an opaque reference returned by search. References are single-use."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: Opaque reference returned by search.
+            startLine:
+              type       : integer
+              description: Optional bounded excerpt start line.
+            endLine:
+              type       : integer
+              description: Optional bounded excerpt end line.
+            section:
+              type       : string
+              description: Optional heading name.
+          required  : [ path ]
+        annotations:
+          title         : read
+          readOnlyHint  : true
+          idempotentHint: true
+
+    ((fns    )): &MCPFNS
+      search: Wiki search pages
+      read  : Wiki read page
+  ((else)):
+  - (stdioMCP  ): *MCPSERVER
+    ((toolPrefix)): "${toolPrefix:-}"
+    ((tplDesc   )): true
+    ((fnsMeta   )): *MCPFNSMETA
+    ((fns       )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - mini-a     : 20260612
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  daemon      : true
+  unique      :
+    pidFile     : .mcp-wiki-safe.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+- name : Init
+  check:
+    in:
+      wikibackend             : isString.default("fs")
+      wikiroot                : isString.default(__)
+      wikibucket              : isString.default(__)
+      wikiprefix              : isString.default("wiki/")
+      wikiurl                 : isString.default("https://s3.amazonaws.com")
+      wikiaccesskey           : isString.default(__)
+      wikisecret              : isString.default(__)
+      wikiregion              : isString.default(__)
+      wikiuseversion1         : toBoolean.isBoolean.default(false)
+      wikiignorecertcheck     : toBoolean.isBoolean.default(false)
+      wikis3artifactprefix    : isString.default(__)
+      wikiindexdir            : isString.default(__)
+      usewikigraph            : toBoolean.isBoolean.default(false)
+      wikirestrictprofile     : isString.default("tight")
+      wikirestrictsearchlimit : toNumber.isNumber.default(__)
+      wikirestrictminquerychars: toNumber.isNumber.default(__)
+      wikirestrictmetachars   : toNumber.isNumber.default(__)
+      wikirestrictreadlines   : toNumber.isNumber.default(__)
+      wikirestrictreadchars   : toNumber.isNumber.default(__)
+      wikirestrictrefttl      : toNumber.isNumber.default(__)
+      wikirestrictmaxsearches : toNumber.isNumber.default(__)
+      wikirestrictmaxreads    : toNumber.isNumber.default(__)
+      wikirestrictmaxchars    : toNumber.isNumber.default(__)
+      wikirestrictwindow      : toNumber.isNumber.default(__)
+      wikirestrictpagecooldown: toNumber.isNumber.default(__)
+      wikirestrictstate       : isString.default(__)
+      wikirestrictrefch       : isString.default(__)
+      label                   : isString.default("wiki")
+      wikimounts              : isString.default(__)
+  exec : | #js
+    loadLib("mini-a-mcp-wiki.js")
+    // restricted retrieval is this server's default and only supported mode,
+    // regardless of any caller-supplied/env "wikirestrict" value, EXCEPT for
+    // the explicit "off" profile below, which is an opt-in escape hatch that
+    // turns this server into an unrestricted one (same as mcp-wiki.yaml).
+    var restrictOff = isString(args.wikirestrictprofile) && args.wikirestrictprofile.trim().toLowerCase() === "off"
+    args.wikirestrict = !restrictOff
+    var info = __miniAMcpWikiInit(args, {
+      access                  : "ro",
+      readonly                : true,
+      allowRestrictedGraphHints: args.usewikigraph === true,
+      logPrefix               : "mcp-wiki-safe"
+    })
+    if (restrictOff) {
+      if (isMap(info.restriction) && info.restriction.enabled === true) throw "mcp-wiki-safe: restricted retrieval failed to deactivate"
+      printErrnl("[mcp-wiki-safe] WARNING: restricted retrieval disabled (profile: off) -- serving raw, unbounded search/read; only expose this to trusted clients")
+    } else {
+      if (!isMap(info.restriction) || info.restriction.enabled !== true) throw "mcp-wiki-safe: restricted retrieval failed to activate"
+    }
+
+- name : Wiki search pages
+  check:
+    in:
+      query        : isString
+      limit        : toNumber.isNumber.default(20)
+      caseSensitive: toBoolean.isBoolean.default(false)
+      regex        : toBoolean.isBoolean.default(false)
+      contextLines : toNumber.isNumber.default(0)
+      path         : isString.default("")
+  exec : | #js
+    return __miniAMcpWikiRestrictedSearch(args)
+
+- name : Wiki read page
+  check:
+    in:
+      path      : isString
+      startLine : toNumber.isNumber.default(__)
+      endLine   : toNumber.isNumber.default(__)
+      section   : isString.default(__)
+      countLines: toBoolean.isBoolean.default(false)
+      compact   : toBoolean.isBoolean.default(false)
+  exec : | #js
+    return __miniAMcpWikiRestrictedRead(args)
