@@ -84,6 +84,10 @@ help:
     desc     : If true, disable write operations in this MCP server.
     example  : "false"
     mandatory: false
+  - name     : wikilexical
+    desc     : "SLON/JSON Lucene lexical configuration. Defaults to {language: 'english'}; supports explicit synonym rules."
+    example  : "{ language: 'english', synonyms: [['js', 'javascript']] }"
+    mandatory: false
   - name     : wikimounts
     desc     : "SLON/JSON array of read-only wiki mounts: [{name, backend, root|bucket|prefix|url|...}]"
     example  : "[{name: 'team', backend: 'fs', root: './team-wiki'}]"
@@ -259,7 +263,7 @@ ojob:
   opacks      :
   - openaf     : 20250915
   - oJob-common: 20250914
-  - mini-a     : 20260612
+  - mini-a     : 20260807
   catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
   logToConsole: false
   argsFromEnvs: true
@@ -295,6 +299,7 @@ jobs:
       label               : isString.default("wiki")
       wikiaccess          : isString.default("rw")
       wikiopsreadonly     : toBoolean.isBoolean.default(false)
+      wikilexical         : isString.default(__)
       wikimounts          : isString.default(__)
   exec : | #js
     loadLib("mini-a-mcp-wiki.js")

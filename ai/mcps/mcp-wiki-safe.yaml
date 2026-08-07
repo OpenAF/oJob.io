@@ -55,6 +55,10 @@ help:
     desc     : Local cache directory used for downloaded S3 Lucene artifacts
     example  : "/var/cache/mini-a/wiki"
     mandatory: false
+  - name     : wikilexical
+    desc     : "SLON/JSON Lucene lexical configuration. Defaults to {language: 'english'}; supports explicit synonym rules."
+    example  : "{ language: 'english', synonyms: [['js', 'javascript']] }"
+    mandatory: false
   - name     : toolPrefix
     desc     : Optional prefix prepended to all tool names (e.g. "docs-" -> docs-search, docs-read)
     example  : "wiki-"
@@ -185,7 +189,7 @@ ojob:
   opacks      :
   - openaf     : 20250915
   - oJob-common: 20250914
-  - mini-a     : 20260612
+  - mini-a     : 20260807
   catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
   logToConsole: false
   argsFromEnvs: true
@@ -213,6 +217,7 @@ jobs:
       wikiignorecertcheck     : toBoolean.isBoolean.default(false)
       wikis3artifactprefix    : isString.default(__)
       wikiindexdir            : isString.default(__)
+      wikilexical             : isString.default(__)
       usewikigraph            : toBoolean.isBoolean.default(false)
       wikirestrictprofile     : isString.default("tight")
       wikirestrictsearchlimit : toNumber.isNumber.default(__)
