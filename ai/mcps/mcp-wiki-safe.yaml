@@ -138,13 +138,32 @@ todo:
     ((fnsMeta)): &MCPFNSMETA
       search:
         name       : search
-        description: "Search on {{label}} for a targeted answer. Results contain opaque, short-lived read references only."
+        description: "[START HERE] Search {{label}} for a targeted answer. This is lexical keyword retrieval, not semantic question answering: use specific keywords, names, aliases, and short phrases. A compatible Lucene index is used when available; otherwise the permitted wiki scope is scanned. When explicitly enabled, graph-related pages may be returned only as opaque supplemental references. Always call this before read. Returns bounded title+description metadata and an opaque, short-lived read reference per match; it never returns page paths or full content. Safe-mode policy caps results and disables broad/scoped/regex/context searches."
         inputSchema:
           type      : object
           properties:
             query:
               type       : string
-              description: Targeted query (minimum configured length).
+              description: "Lexical keyword query for page metadata/body. Prefer exact terms, names, aliases, and short phrases; this is not a semantic natural-language question-answering field. Must meet the configured minimum length."
+            limit:
+              type       : integer
+              description: Maximum results requested; safe-mode policy applies its lower configured cap.
+              default    : 20
+            caseSensitive:
+              type       : boolean
+              description: Accepted for compatibility; safe mode always uses case-insensitive matching.
+              default    : false
+            regex:
+              type       : boolean
+              description: Accepted for compatibility; safe mode never enables regular-expression matching.
+              default    : false
+            contextLines:
+              type       : integer
+              description: Accepted for compatibility; safe mode returns bounded metadata instead of line snippets.
+              default    : 0
+            path:
+              type       : string
+              description: Accepted for compatibility; safe mode searches the permitted wiki scope rather than a caller-supplied path.
           required  : [ query ]
         annotations:
           title         : search
@@ -153,22 +172,30 @@ todo:
 
       read:
         name       : read
-        description: "Read one bounded excerpt using an opaque reference returned by search. References are single-use."
+        description: "Read a bounded excerpt from {{label}} using the opaque reference returned by search. References are single-use and short-lived. For a focused excerpt, use section= or a valid startLine/endLine range; the configured line and character caps still apply."
         inputSchema:
           type      : object
           properties:
             path:
               type       : string
-              description: Opaque reference returned by search.
+              description: Opaque reference returned by search, not a wiki page path.
             startLine:
               type       : integer
-              description: Optional bounded excerpt start line.
+              description: Optional 1-based excerpt start line; the requested range must fit within the safe-mode line cap.
             endLine:
               type       : integer
-              description: Optional bounded excerpt end line.
+              description: Optional 1-based excerpt end line; the requested range must fit within the safe-mode line cap.
             section:
               type       : string
-              description: Optional heading name.
+              description: Read only the body under this heading name, subject to the safe-mode excerpt caps.
+            countLines:
+              type       : boolean
+              description: Accepted for compatibility but unavailable in safe mode, because it would disclose page structure.
+              default    : false
+            compact:
+              type       : boolean
+              description: Accepted for compatibility; safe mode always returns its bounded content-only response.
+              default    : false
           required  : [ path ]
         annotations:
           title         : read

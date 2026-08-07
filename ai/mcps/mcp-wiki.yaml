@@ -130,13 +130,13 @@ todo:
 
       search:
         name       : search
-        description: "[START HERE] Search {{label}} pages. Always call this before read. Returns path+title+description per match (no full page content). Then call read() with the most relevant path."
+        description: "[START HERE] Search {{label}} pages. This is lexical keyword retrieval, not semantic question answering: use specific keywords, names, aliases, and short phrases. A compatible Lucene index is used when available; otherwise the wiki is scanned. When enabled, graph-related pages may be appended as supplemental hints. Always call this before read. Returns path+title+description per match (no full page content). Then call read() with the most relevant path."
         inputSchema:
           type      : object
           properties:
             query:
               type       : string
-              description: Text query to search in page metadata/body.
+              description: "Lexical keyword query for page metadata/body. Prefer exact terms, names, aliases, and short phrases; this is not a semantic natural-language question-answering field."
             limit:
               type       : integer
               description: Maximum number of search results.
