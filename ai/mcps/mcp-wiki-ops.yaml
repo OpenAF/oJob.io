@@ -85,12 +85,16 @@ help:
     example  : "false"
     mandatory: false
   - name     : wikilexical
-    desc     : "SLON/JSON Lucene lexical configuration. Defaults to {language: 'english'}; supports explicit synonym rules."
-    example  : "{ language: 'english', synonyms: [['js', 'javascript']] }"
+    desc     : "SLON/JSON Lucene lexical configuration. Defaults to {language: 'english'}; supports inline synonyms and an optional synonymsFile."
+    example  : "{ language: 'english', synonymsFile: 'synonyms.txt' }"
     mandatory: false
   - name     : wikimounts
     desc     : "SLON/JSON array of read-only wiki mounts: [{name, backend, root|bucket|prefix|url|...}]"
     example  : "[{name: 'team', backend: 'fs', root: './team-wiki'}]"
+    mandatory: false
+  - name     : audit
+    desc     : "If true (or env OJOB_MCP_AUDIT), logs every MCP tool call (tool name and arguments, handled generically by oJobMCP.yaml) plus every page actually fetched from a remote wikibackend (s3, es) -- backend, resolved location (s3://bucket/key or es:index/path), and byte count -- via OpenAF's log() function. The latter also covers pages fetched internally while serving lint/reindex/graph_build, not just the top-level edit/maintain tool calls."
+    example  : "false"
     mandatory: false
 
 todo:
@@ -301,6 +305,7 @@ jobs:
       wikiopsreadonly     : toBoolean.isBoolean.default(false)
       wikilexical         : isString.default(__)
       wikimounts          : isString.default(__)
+      audit               : default(__)
   exec : | #js
     loadLib("mini-a-mcp-wiki.js")
     var access = String(args.wikiaccess || "rw").toLowerCase().trim() === "ro" ? "ro" : "rw"
