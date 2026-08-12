@@ -191,7 +191,10 @@ todo:
           properties:
             path:
               type       : string
-              description: Opaque reference returned by search, not a wiki page path.
+              description: "Opaque reference returned by search, not a wiki page path. \"reference\" is also accepted as an alias for this same value."
+            reference:
+              type       : string
+              description: Alias for "path" -- the opaque reference returned by search. Provide either this or "path", not both.
             startLine:
               type       : integer
               description: Optional 1-based excerpt start line; the requested range must fit within the safe-mode line cap.
@@ -316,7 +319,8 @@ jobs:
 - name : Wiki read page
   check:
     in:
-      path      : isString
+      path      : isString.default(__)
+      reference : isString.default(__)
       startLine : toNumber.isNumber.default(__)
       endLine   : toNumber.isNumber.default(__)
       section   : isString.default(__)
