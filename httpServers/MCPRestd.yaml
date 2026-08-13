@@ -1,0 +1,306 @@
+# Template          : MCP REST wrapper server
+# Author            : Nuno Aguiar
+# How to run        : ojob MCPRestd.yaml mcps="[(name: math, cmd: 'ojob ai/mcps/mcp-math.yaml')]"
+# oPack dependencies: latest ojob-common;
+
+init:
+  port : &PORT 8888
+  uri  : &URI  "/mcp"
+  pid  : &PID  MCPRestd.pid
+  debug: &DEBUG false
+
+ojob:
+  daemon      : true
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false
+  argsFromEnvs: true
+  unique      :
+    pidFile     : *PID
+    killPrevious: false
+
+include:
+- oJobHTTPd.yaml
+
+help:
+  text   : Starts a REST wrapper, with a generated OpenAPI 3.1 document, over one or more MCP servers given as $mcp() connection descriptors. Connections are opened lazily on first use, kept alive, and reconnected once on a transport failure. When 'token' is set every route on this port, including /healthz and /metrics, requires a "Bearer <token>" Authorization header.
+  expects:
+  - name     : mcps
+    desc     : JSSLON/JSON array (or single map) of $mcp() connection descriptors. Each descriptor may include an extra 'name' key used to namespace its routes (defaults to mcp0, mcp1, ...). All $mcp() options are supported (type, url, cmd, pwd, envs, envsOnly, id, timeout, sse, strict, debug, shared, clientInfo, blacklist, options, auth, protocolVersion, capabilities).
+    example  : "[(name: math, cmd: 'ojob ai/mcps/mcp-math.yaml'), (name: time, type: remote, url: 'http://127.0.0.1:17879/mcp')]"
+    mandatory: true
+  - name     : port
+    desc     : The port where the server should be made available (default is 8888)
+    example  : "8888"
+    mandatory: false
+  - name     : host
+    desc     : Optionally the interface where the server should be listening (default is all)
+    mandatory: false
+  - name     : uri
+    desc     : The base URI where the MCP REST API will be available (default is /mcp)
+    mandatory: false
+  - name     : token
+    desc     : If defined, requires a "Bearer <token>" Authorization header on every route on this port, including /healthz and /metrics (default is no authentication)
+    mandatory: false
+  - name     : keystore
+    desc     : Optionally to create a HTTPS server provide a keystore file
+    mandatory: false
+  - name     : pass
+    desc     : The password for the keystore of a HTTPS server
+    mandatory: false
+  - name     : debug
+    desc     : Default $mcp() debug flag applied to descriptors that don't set their own (default false)
+    mandatory: false
+
+jobs:
+# Closes all MCP connections currently held open
+#
+# ----------------------------------------------
+- name: Close MCP connections
+  type: shutdown
+  exec: | #js
+    if (isUnDef(global.__mcpRest) || !isMap(global.__mcpRest.clients)) return
+    Object.keys(global.__mcpRest.clients).forEach(function(name) {
+      log("Closing MCP connection '" + name + "'...")
+      try { global.__mcpRest.clients[name].destroy() } catch(ignore) {}
+    })
+
+# Parses the 'mcps' descriptors and prepares the (lazy) connection registry
+#
+# --------------------------------------------------------------------------
+- name: Prepare MCP clients
+  exec: | #js
+    args.mcps  = _$(args.mcps, "mcps").$_()
+    args.token = _$(args.token, "token").isString().default(__)
+    args.uri   = _$(args.uri, "uri").isString().default(args.init.uri)
+    args.debug = _$(args.debug, "debug").isBoolean().default(args.init.debug)
+
+    var _parsed = isString(args.mcps) ? af.fromJSSLON(args.mcps) : args.mcps
+    if (!isArray(_parsed)) _parsed = [ _parsed ]
+
+    global.__mcpRest = {
+      token  : args.token,
+      uri    : args.uri,
+      cfgs   : {},
+      order  : [],
+      clients: {}
+    }
+
+    _parsed.forEach(function(entry, idx) {
+      var _cfg = isString(entry) ? af.fromJSSLON(entry) : entry
+      if (!isMap(_cfg)) throw "Invalid MCP descriptor at index " + idx + ". Expected a map or a JSSLON string."
+
+      var _name = (isString(_cfg.name) && _cfg.name.length > 0) ? _cfg.name : ("mcp" + idx)
+      delete _cfg.name
+
+      if (isDef(global.__mcpRest.cfgs[_name])) throw "Duplicate MCP server name '" + _name + "'."
+      if (isUnDef(_cfg.debug)) _cfg.debug = args.debug
+
+      global.__mcpRest.cfgs[_name] = _cfg
+      global.__mcpRest.order.push(_name)
+    })
+
+    // Lazy connection registry: clients are only created (and $mcp()-initialized) on first use.
+    // A transport-level failure (thrown exception, or a JSON-RPC {error:...} envelope returned as
+    // a value) triggers destroying the client and retrying exactly once with a fresh connection.
+    // A tool-level failure (MCP result with isError:true) is NOT a transport failure and is passed
+    // through untouched, without reconnecting.
+    global.__mcpRestFns = {
+      getClient: function(name, forceNew) {
+        if (forceNew === true && isDef(global.__mcpRest.clients[name])) {
+          try { global.__mcpRest.clients[name].destroy() } catch(ignore) {}
+          delete global.__mcpRest.clients[name]
+        }
+        var _client = global.__mcpRest.clients[name]
+        if (isUnDef(_client)) {
+          _client = $mcp(clone(global.__mcpRest.cfgs[name]))
+          _client.initialize()
+          global.__mcpRest.clients[name] = _client
+        }
+        return _client
+      },
+      isTransportError: function(res) {
+        return isMap(res) && isDef(res.error)
+      },
+      call: function(name, fn) {
+        var _res
+        try {
+          _res = fn(global.__mcpRestFns.getClient(name))
+        } catch(e) {
+          _res = { error: { message: (e.message || String(e)) } }
+        }
+
+        if (global.__mcpRestFns.isTransportError(_res)) {
+          try {
+            _res = fn(global.__mcpRestFns.getClient(name, true))
+          } catch(e) {
+            return { ok: false, error: (e.message || String(e)) }
+          }
+          if (global.__mcpRestFns.isTransportError(_res)) {
+            return { ok: false, error: (_res.error.message || stringify(_res.error, __, "")) }
+          }
+        }
+
+        return { ok: true, result: _res }
+      },
+      buildOpenAPI: function(onlyName) {
+        var _names = isDef(onlyName) ? [ onlyName ] : global.__mcpRest.order
+        var _paths = {}
+
+        _names.forEach(function(name) {
+          var _lst = global.__mcpRestFns.call(name, function(client) { return client.listTools() })
+          var _tools = (_lst.ok && isMap(_lst.result) && isArray(_lst.result.tools)) ? _lst.result.tools : []
+
+          _tools.forEach(function(tool) {
+            var _schema = isMap(tool.inputSchema) ? tool.inputSchema : { type: "object", properties: {} }
+            _paths[global.__mcpRest.uri + "/" + name + "/tools/" + tool.name] = {
+              post: {
+                operationId: name + "_" + tool.name,
+                summary    : _$(tool.description, "description").isString().default(tool.name),
+                requestBody: {
+                  required: true,
+                  content : { "application/json": { schema: _schema } }
+                },
+                responses: {
+                  "200": { description: "MCP tool result" },
+                  "401": { description: "Unauthorized" },
+                  "404": { description: "Unknown server or tool" },
+                  "502": { description: "Upstream MCP transport error" }
+                }
+              }
+            }
+          })
+        })
+
+        var _doc = {
+          openapi: "3.1.0",
+          info   : { title: "MCPRestd", version: "1.0.0" },
+          paths  : _paths
+        }
+
+        if (isDef(global.__mcpRest.token)) {
+          _doc.components = { securitySchemes: { bearerAuth: { type: "http", scheme: "bearer" } } }
+          _doc.security = [ { bearerAuth: [] } ]
+        }
+
+        return _doc
+      }
+    }
+
+    log("Registered " + global.__mcpRest.order.length + " MCP server(s): " + global.__mcpRest.order.join(", "))
+
+todo:
+- Close MCP connections
+- Prepare MCP clients
+
+# -----------------
+- name: HTTP Start Server
+  args: |
+    ({ port    : (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       host    : args.host,
+       keystore: args.keystore,
+       pass    : args.pass })
+
+# --------------------
+- name: HTTP Default Auth
+  args: |
+    ({ port    : (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       execAuth: `
+    if (isDef(global.__mcpRest.token)) {
+      var _hdr = _$(request.header, "header").isMap().default({}).authorization
+      var _m = isString(_hdr) ? _hdr.match(/^Bearer\\s+(.+)$/i) : null
+      if (isNull(_m) || sha512(_m[1]) != sha512(global.__mcpRest.token)) {
+        return ow.server.httpd.reply({ error: "Unauthorized" }, 401, "application/json", { "WWW-Authenticate": 'Bearer realm="MCPRestd"' })
+      }
+    }
+    ` })
+
+# ---------------
+- name: HTTP Healthz
+  args: |
+    ({ port: (isDef(args.port) ? Number(args.port) : global.args.init.port) })
+
+# ---------------
+- name: HTTP Metrics
+  args: |
+    ({ port  : (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       prefix: "mcprestd" })
+
+# ------------------
+- name: HTTP Service
+  args: |
+    ({ port   : (isDef(args.port) ? Number(args.port) : global.args.init.port),
+       uri    : global.__mcpRest.uri,
+       execURI: `
+    var _base = uri
+    var _path = String(request.uri)
+    var _sub  = (_path.indexOf(_base) === 0) ? _path.substring(_base.length) : _path
+    var _parts = _sub.split("/").filter(function(p) { return p.length > 0 })
+    var _method = String(request.method || "GET").toUpperCase()
+
+    var _json = function(status, obj, hdrs) {
+      return ow.server.httpd.reply(obj, status, "application/json", hdrs || {})
+    }
+
+    if (_parts.length === 0) {
+      if (_method != "GET") return _json(405, { error: "Method not allowed" })
+      var _servers = global.__mcpRest.order.map(function(n) {
+        var _c = global.__mcpRest.clients[n]
+        return {
+          name     : n,
+          type     : _$(global.__mcpRest.cfgs[n].type, "type").isString().default("stdio"),
+          connected: (isDef(_c) && _c._initialized === true)
+        }
+      })
+      return _json(200, { servers: _servers })
+    }
+
+    if (_parts.length === 1 && _parts[0] == "openapi.json") {
+      if (_method != "GET") return _json(405, { error: "Method not allowed" })
+      return _json(200, global.__mcpRestFns.buildOpenAPI())
+    }
+
+    var _name = _parts[0]
+    if (global.__mcpRest.order.indexOf(_name) < 0) return _json(404, { error: "Unknown MCP server '" + _name + "'" })
+
+    if (_parts.length === 2 && _parts[1] == "openapi.json") {
+      if (_method != "GET") return _json(405, { error: "Method not allowed" })
+      return _json(200, global.__mcpRestFns.buildOpenAPI(_name))
+    }
+
+    if (_parts.length === 2 && _parts[1] == "tools") {
+      if (_method != "GET") return _json(405, { error: "Method not allowed" })
+      var _lst = global.__mcpRestFns.call(_name, function(client) { return client.listTools() })
+      if (!_lst.ok) return _json(502, { error: _lst.error })
+      return _json(200, _lst.result)
+    }
+
+    if (_parts.length === 3 && _parts[1] == "tools") {
+      if (_method != "POST") return _json(405, { error: "Method not allowed" })
+      var _tool = _parts[2]
+      var _raw = __
+      if (isDef(request.files) && isDef(request.files.postData)) {
+        _raw = request.files.postData
+      } else if (isDef(request.params) && isDef(request.params["NanoHttpd.QUERY_STRING"])) {
+        _raw = request.params["NanoHttpd.QUERY_STRING"]
+      }
+
+      var _body = {}
+      if (isDef(_raw) && String(_raw).trim().length > 0) {
+        try {
+          _body = jsonParse(_raw)
+          if (!isMap(_body)) _body = {}
+        } catch(e) {
+          return _json(400, { error: "Invalid JSON body: " + e.message })
+        }
+      }
+
+      var _call = global.__mcpRestFns.call(_name, function(client) { return client.callTool(_tool, _body) })
+      if (!_call.ok) return _json(502, { error: _call.error })
+      return _json(200, _call.result)
+    }
+
+    return _json(404, { error: "Not found" })
+    ` })
