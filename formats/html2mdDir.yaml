@@ -1,0 +1,58 @@
+# Author: Nuno Aguiar
+help:
+  text   : Recreates a source folder's structure on a target folder and converts all .html files found into .md files on the corresponding target subfolders
+  expects:
+  - name     : source
+    desc     : The source folder to scan recursively for .html files
+    example  : ./site
+    mandatory: true
+  - name     : target
+    desc     : The target folder where the folder structure and converted .md files will be written
+    example  : ./site-md
+    mandatory: true
+
+todo:
+- Recreate folder structure
+- Convert HTML files to Markdown
+
+ojob:
+  sequential  : true
+  opacks      :
+  - openaf: 20221216
+  - mdconvert
+  loadLibs    :
+  - mdconvert.js
+  catch       : logErr(exception)
+  logToConsole: true
+
+jobs:
+# ---------------------------
+- name: Recreate folder structure
+  check:
+    in:
+      source: isString
+      target: isString
+  exec: |
+    args.source = args.source.replace(/[\/\\]+$/, "")
+    args.target = args.target.replace(/[\/\\]+$/, "")
+
+    io.mkdir(args.target)
+
+    global.entries = listFilesRecursive(args.source)
+
+    global.entries.filter(f => f.isDirectory).forEach(f => {
+      io.mkdir(args.target + f.filepath.substring(args.source.length))
+    })
+
+# -------------------------------------
+- name: Convert HTML files to Markdown
+  exec: |
+    var htmlFiles = global.entries.filter(f =>
+      !f.isDirectory && /\.html$/i.test(f.filename)
+    )
+
+    pForEach(htmlFiles, f => {
+      var rel  = f.filepath.substring(args.source.length).replace(/\.html$/i, ".md")
+      var html = io.readFileString(f.canonicalPath)
+      io.writeFileString(args.target + rel, mdconvert.html2md(html))
+    }, e => logErr(e))
