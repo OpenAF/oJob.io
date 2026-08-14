@@ -1,0 +1,79 @@
+# Author: Nuno Aguiar
+help:
+  text   : Builds (or rebuilds) a mini-a-wiki-index.zip bundle from a wiki's .mini-a-wiki-lucene and .mini-a-wiki-graph folders, for publishing a static HTTP or S3 wiki artifact bundle.
+  expects:
+  - name     : wikiroot
+    desc     : The wiki root folder containing the .mini-a-wiki-lucene and .mini-a-wiki-graph folders
+    example  : /shared/wiki
+    mandatory: false
+  - name     : output
+    desc     : The target mini-a-wiki-index.zip file to create or rebuild
+    example  : /shared/wiki/mini-a-wiki-index.zip
+    mandatory: false
+  - name     : delete
+    desc     : If true, deletes the original .mini-a-wiki-lucene and .mini-a-wiki-graph folders after the zip is built successfully
+    example  : true
+    mandatory: false
+
+todo:
+- Check for wiki index folders
+- Build wiki index zip
+- Delete source folders
+
+ojob:
+  opacks      :
+  - openaf: 20250915
+  catch       : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
+  logToConsole: true
+
+jobs:
+# -----------------------------------
+- name: Check for wiki index folders
+  check:
+    in:
+      wikiroot: isString.default(".")
+      output  : isString.default(__)
+      delete  : toBoolean.isBoolean.default(false)
+  exec: | #js
+    global.wikiroot = String(new java.io.File(args.wikiroot).getCanonicalPath())
+    global.delete   = args.delete
+
+    global.lucenePath = global.wikiroot + "/.mini-a-wiki-lucene"
+    global.graphPath  = global.wikiroot + "/.mini-a-wiki-graph"
+
+    if (!io.fileExists(global.lucenePath) || !io.fileInfo(global.lucenePath).isDirectory)
+      throw "No .mini-a-wiki-lucene folder found on '" + global.wikiroot + "'."
+
+    global.hasGraph = io.fileExists(global.graphPath) && io.fileInfo(global.graphPath).isDirectory
+    if (!global.hasGraph) log("No .mini-a-wiki-graph folder found; the zip will only include .mini-a-wiki-lucene.")
+
+    global.output = isUnDef(args.output) ? global.wikiroot + "/mini-a-wiki-index.zip" : String(new java.io.File(args.output).getAbsolutePath())
+
+# ------------------------
+- name: Build wiki index zip
+  exec: | #js
+    if (io.fileExists(global.output)) {
+      log("Removing previous '" + global.output + "'...")
+      io.rm(global.output)
+    }
+
+    var folders = global.hasGraph ? [".mini-a-wiki-lucene", ".mini-a-wiki-graph"] : [".mini-a-wiki-lucene"]
+
+    log("Building '" + global.output + "' from " + folders.join(", ") + "...")
+    var res = $sh(["zip", "-r", "-q", global.output].concat(folders)).pwd(global.wikiroot).get(0)
+    if (res.exitcode != 0) throw "zip failed (exitcode " + res.exitcode + "): " + res.stderr
+
+    log("Built '" + global.output + "' (" + io.fileInfo(global.output).size + " bytes).")
+
+# --------------------------
+- name: Delete source folders
+  exec: | #js
+    if (!global.delete) return
+
+    log("Deleting '" + global.lucenePath + "'...")
+    io.rm(global.lucenePath)
+
+    if (global.hasGraph) {
+      log("Deleting '" + global.graphPath + "'...")
+      io.rm(global.graphPath)
+    }
