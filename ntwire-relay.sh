@@ -3,18 +3,56 @@
 # https://github.com/nmaguiar/ntwire
 # Author: Nuno Aguiar
 #
-# Usage: ./ntwire-relay.sh
+# Usage: ./ntwire-relay.sh [-d|--download-only] [-o|--output-dir <dir>]
 #
 # Env vars:
-#   INSTALL_DIR - where to install the binary (default: /usr/local/bin)
-#   ARCH        - override the detected architecture (default: uname -m)
-#   SYST        - override the detected OS (default: uname -s)
+#   INSTALL_DIR   - where to install the binary (default: /usr/local/bin)
+#   DOWNLOAD_ONLY - if set (1/true/yes), just download & extract the binary
+#                   without installing it (same as --download-only)
+#   OUTPUT_DIR    - where to place the binary when DOWNLOAD_ONLY is set
+#                   (default: current directory)
+#   ARCH          - override the detected architecture (default: uname -m)
+#   SYST          - override the detected OS (default: uname -s)
 
 set -e
 
 REPO="nmaguiar/ntwire"
 BIN="ntwire-relay"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
+DOWNLOAD_ONLY="${DOWNLOAD_ONLY:-}"
+OUTPUT_DIR="${OUTPUT_DIR:-.}"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -d|--download-only)
+      DOWNLOAD_ONLY="1"
+      shift
+      ;;
+    -o|--output-dir)
+      OUTPUT_DIR="$2"
+      shift 2
+      ;;
+    -h|--help)
+      echo "Usage: $0 [-d|--download-only] [-o|--output-dir <dir>]"
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+case "$DOWNLOAD_ONLY" in
+  1|true|yes) DOWNLOAD_ONLY="1" ;;
+  *) DOWNLOAD_ONLY="" ;;
+esac
+
+# Resolve to an absolute path now, since we later cd into a temp dir.
+case "$OUTPUT_DIR" in
+  /*) ;;
+  *) OUTPUT_DIR="$(pwd)/$OUTPUT_DIR" ;;
+esac
 
 ARCH=${ARCH:-$(uname -m)}
 SYST=${SYST:-$(uname -s)}
@@ -125,6 +163,13 @@ if [ ! -f "$BINFILE" ]; then
 fi
 
 chmod +x "$BINFILE"
+
+if [ -n "$DOWNLOAD_ONLY" ]; then
+  mkdir -p "$OUTPUT_DIR" 2>/dev/null || true
+  mv -f "$BINFILE" "$OUTPUT_DIR/$BINFILE"
+  echo "Downloaded $BIN $VERSION to $OUTPUT_DIR/$BINFILE"
+  exit 0
+fi
 
 mkdir -p "$INSTALL_DIR" 2>/dev/null || true
 if [ -w "$INSTALL_DIR" ]; then
