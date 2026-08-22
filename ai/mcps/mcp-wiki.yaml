@@ -201,9 +201,81 @@ todo:
               type       : boolean
               description: Return compact output (path/title/body only).
               default    : false
+            maxChars:
+              type       : integer
+              description: Maximum characters returned by agentic MCP reads (default 8000; continuation is returned when exceeded).
           required  : [ path ]
         annotations:
           title         : read
+          readOnlyHint  : true
+          idempotentHint: true
+
+      open:
+        name       : open
+        description: "Inspect a page cheaply before reading it. Returns front matter, size, links, and heading boundaries, never the Markdown body. Pass a path or a wiki: reference returned by agentic search."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: "Wiki path or wiki: reference."
+            maxHeadings:
+              type       : integer
+              description: Maximum heading descriptors to return.
+              default    : 40
+          required  : [ path ]
+        annotations:
+          title         : open
+          readOnlyHint  : true
+          idempotentHint: true
+
+      navigate:
+        name       : navigate
+        description: "Navigate a wiki folder or a page's heading structure without returning page bodies. For a page, section= returns its parent, children, adjacent sections and deterministic line boundaries."
+        inputSchema:
+          type      : object
+          properties:
+            path:
+              type       : string
+              description: "Folder, page path, or wiki: reference."
+            section:
+              type       : string
+              description: Optional heading title or id for document-level navigation.
+          required  : [ path ]
+        annotations:
+          title         : navigate
+          readOnlyHint  : true
+          idempotentHint: true
+
+      grep:
+        name       : grep
+        description: "Find exact terms inside one known page or folder. Returns bounded matching lines and small surrounding context; it never returns a whole document."
+        inputSchema:
+          type      : object
+          properties:
+            path: { type: string, description: "Known page, folder, mount path, or wiki: reference." }
+            pattern: { type: string, description: "Literal match by default; set regex=true only when needed." }
+            limit: { type: integer, default: 20 }
+            contextLines: { type: integer, default: 1 }
+            regex: { type: boolean, default: false }
+            caseSensitive: { type: boolean, default: false }
+          required  : [ path, pattern ]
+        annotations:
+          title         : grep
+          readOnlyHint  : true
+          idempotentHint: true
+
+      related:
+        name       : related
+        description: "Optional follow-up discovery from backlinks and the existing graph. Use only when lexical search and page structure leave a gap."
+        inputSchema:
+          type       : object
+          properties:
+            path: { type: string, description: "Known page path or wiki: reference." }
+            limit: { type: integer, default: 10 }
+          required   : [ path ]
+        annotations:
+          title         : related
           readOnlyHint  : true
           idempotentHint: true
 
@@ -292,6 +364,10 @@ todo:
       context  : Wiki context overview
       search   : Wiki search pages
       read     : Wiki read page
+      open     : Wiki inspect page structure
+      navigate : Wiki navigate structure
+      grep     : Wiki grep known content
+      related  : Wiki related pages
       browse   : Wiki browse section
       tree     : Wiki tree
       backlinks: Wiki backlinks
@@ -356,6 +432,7 @@ jobs:
     __miniAMcpWikiInit(args, {
       access   : "ro",
       readonly : true,
+      agenticRetrieval: true,
       logPrefix: "mcp-wiki"
     })
 

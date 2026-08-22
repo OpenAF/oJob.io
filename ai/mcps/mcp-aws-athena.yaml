@@ -1,0 +1,490 @@
+# Author: Nuno Aguiar
+help:
+  text   : A STDIO/HTTP MCP AWS Athena server (run queries sync or async and fetch results)
+  expects:
+  - name     : accessKey
+    desc     : AWS access key ID (falls back to the environment/instance role when not provided)
+    example  : AKIA...
+    mandatory: false
+  - name     : secret
+    desc     : AWS secret access key
+    example  : WJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+    mandatory: false
+  - name     : sessionToken
+    desc     : Optional temporary AWS session token
+    example  : IQoJb3JpZ2luX2VjE...
+    mandatory: false
+  - name     : region
+    desc     : AWS region to run Athena queries against
+    example  : eu-west-1
+    mandatory: false
+  - name     : database
+    desc     : Default Athena database to use when a tool call doesn't provide one
+    example  : my_database
+    mandatory: false
+  - name     : catalog
+    desc     : Default Athena data catalog to use when a tool call doesn't provide one
+    example  : AwsDataCatalog
+    mandatory: false
+  - name     : workGroup
+    desc     : Default Athena work group to use when a tool call doesn't provide one
+    example  : primary
+    mandatory: false
+  - name     : outputLocation
+    desc     : Default s3://bucket/prefix/ location to store query results (not needed if the work group has one configured)
+    example  : s3://my-bucket/athena-results/
+    mandatory: false
+  - name     : readwrite
+    desc     : 'If true, enables operations that mutate query state or delete results (stop query, delete results). Default is false'
+    example  : "true"
+    mandatory: false
+  - name     : onport
+    desc     : If defined starts a MCP server on the provided port
+    example  : "8888"
+    mandatory: false
+
+todo:
+- Init Athena client
+- Close Athena client on exit
+- (if    ): "isDef(args.onport)"
+  ((then)):
+  - (httpdStart   ): "${onport:-8080}"
+  - (httpdHealthz ): "${onport:-8080}"
+  - (httpdMetrics ): "${onport:-8080}"
+  - (httpdMCP     ): "${onport:-8080}"
+    ((description)): &MCPSERVER
+      serverInfo:
+        name   : mini-a-aws-athena
+        title  : OpenAF mini-a MCP AWS Athena server
+        version: 1.0.0
+    ((fnsMeta)): &MCPFNSMETA
+      athena-query:
+        name       : athena-query
+        description: Runs an Athena query synchronously - starts the query, waits for it to finish and returns the results (unless fetchResults is false). Use athena-start-query-execution instead for a fire-and-forget/async flow.
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: SQL query string to run.
+            database:
+              type       : string
+              description: Athena database to run the query against; defaults to the configured database when omitted.
+            catalog:
+              type       : string
+              description: Athena data catalog to run the query against; defaults to the configured catalog when omitted.
+            workGroup:
+              type       : string
+              description: Athena work group to use; defaults to the configured work group when omitted.
+            outputLocation:
+              type       : string
+              description: 's3://bucket/prefix/ location to store results; defaults to the configured output location when omitted (not needed if the work group has one configured).'
+            executionParameters:
+              type       : array
+              description: Array of values for a parameterized query (positional ? placeholders).
+              items:
+                type: string
+            clientRequestToken:
+              type       : string
+              description: Optional client-provided idempotency token.
+            pollIntervalMs:
+              type       : number
+              description: Milliseconds between status polls (defaults to 1000).
+            timeoutMs:
+              type       : number
+              description: Milliseconds to wait for the query to finish before failing (defaults to 300000).
+            fetchResults:
+              type       : boolean
+              description: If true (default) fetches the results as an array once the query succeeds.
+            skipHeaderRow:
+              type       : boolean
+              description: If true skips the duplicated header row Athena includes as the first result row. Defaults to true for SELECT-like statements and false for DDL/UTILITY statements (SHOW/DESCRIBE).
+            maxResultPages:
+              type       : number
+              description: Max number of result pages to fetch (defaults to -1, meaning all pages).
+            deleteResults:
+              type       : boolean
+              description: If true deletes the query results from S3 once fetched. Requires the server to be started with readwrite=true.
+          required  : [ query ]
+        annotations:
+          title         : athena-query
+          readOnlyHint  : true
+          idempotentHint: false
+
+      athena-start-query-execution:
+        name       : athena-start-query-execution
+        description: Starts an Athena query asynchronously and immediately returns its QueryExecutionId without waiting for completion. Poll with athena-get-query-execution and fetch results with athena-get-query-results once it succeeds.
+        inputSchema:
+          type      : object
+          properties:
+            query:
+              type       : string
+              description: SQL query string to run.
+            database:
+              type       : string
+              description: Athena database to run the query against; defaults to the configured database when omitted.
+            catalog:
+              type       : string
+              description: Athena data catalog to run the query against; defaults to the configured catalog when omitted.
+            workGroup:
+              type       : string
+              description: Athena work group to use; defaults to the configured work group when omitted.
+            outputLocation:
+              type       : string
+              description: 's3://bucket/prefix/ location to store results; defaults to the configured output location when omitted (not needed if the work group has one configured).'
+            executionParameters:
+              type       : array
+              description: Array of values for a parameterized query (positional ? placeholders).
+              items:
+                type: string
+            clientRequestToken:
+              type       : string
+              description: Optional client-provided idempotency token.
+          required  : [ query ]
+        annotations:
+          title         : athena-start-query-execution
+          readOnlyHint  : true
+          idempotentHint: false
+
+      athena-get-query-execution:
+        name       : athena-get-query-execution
+        description: Retrieves the status and statistics of a previously started query execution.
+        inputSchema:
+          type      : object
+          properties:
+            queryExecutionId:
+              type       : string
+              description: The QueryExecutionId returned by athena-start-query-execution or athena-query.
+          required  : [ queryExecutionId ]
+        annotations:
+          title         : athena-get-query-execution
+          readOnlyHint  : true
+          idempotentHint: true
+
+      athena-get-query-results:
+        name       : athena-get-query-results
+        description: Fetches the results of a finished (SUCCEEDED) query execution as an array of row objects keyed by column label, paginating internally until done or maxResultPages is reached.
+        inputSchema:
+          type      : object
+          properties:
+            queryExecutionId:
+              type       : string
+              description: The QueryExecutionId of a finished query execution.
+            maxResultsPerPage:
+              type       : number
+              description: Max rows to request per underlying page.
+            maxResultPages:
+              type       : number
+              description: Max number of pages to fetch (defaults to -1, meaning all pages).
+            skipHeaderRow:
+              type       : boolean
+              description: If true (default) skips the duplicated header row Athena includes as the first result row.
+          required  : [ queryExecutionId ]
+        annotations:
+          title         : athena-get-query-results
+          readOnlyHint  : true
+          idempotentHint: true
+
+      athena-stop-query-execution:
+        name       : athena-stop-query-execution
+        description: Cancels a running query execution. Requires the server to be started with readwrite=true.
+        inputSchema:
+          type      : object
+          properties:
+            queryExecutionId:
+              type       : string
+              description: The QueryExecutionId of the query execution to cancel.
+          required  : [ queryExecutionId ]
+        annotations:
+          title         : athena-stop-query-execution
+          readOnlyHint  : false
+          idempotentHint: true
+
+      athena-delete-query-results:
+        name       : athena-delete-query-results
+        description: Deletes the S3 result object(s) of a finished query execution (Athena has no native delete API - this removes the underlying file(s) from S3 directly). Requires the server to be started with readwrite=true.
+        inputSchema:
+          type      : object
+          properties:
+            queryExecutionId:
+              type       : string
+              description: The QueryExecutionId whose results should be deleted.
+            deleteMetadataFile:
+              type       : boolean
+              description: If true (default) also (best-effort) deletes the .metadata sidecar file Athena writes alongside a single-file query result.
+          required  : [ queryExecutionId ]
+        annotations:
+          title         : athena-delete-query-results
+          readOnlyHint  : false
+          idempotentHint: true
+
+      athena-list-query-executions:
+        name       : athena-list-query-executions
+        description: Lists recent query execution IDs, optionally scoped to a work group.
+        inputSchema:
+          type      : object
+          properties:
+            workGroup:
+              type       : string
+              description: Work group to list query executions from; defaults to the configured work group when omitted.
+            maxResults:
+              type       : number
+              description: Maximum number of query execution IDs to return (defaults to 50).
+            nextToken:
+              type       : string
+              description: Pagination token from a previous call.
+          required  : []
+        annotations:
+          title         : athena-list-query-executions
+          readOnlyHint  : true
+          idempotentHint: true
+    ((fns    )): &MCPFNS
+      athena-query                : Athena Query
+      athena-start-query-execution: Athena Start Query Execution
+      athena-get-query-execution  : Athena Get Query Execution
+      athena-get-query-results    : Athena Get Query Results
+      athena-stop-query-execution : Athena Stop Query Execution
+      athena-delete-query-results : Athena Delete Query Results
+      athena-list-query-executions: Athena List Query Executions
+  ((else)):
+  - (stdioMCP ): *MCPSERVER
+    ((fnsMeta)): *MCPFNSMETA
+    ((fns    )): *MCPFNS
+
+ojob:
+  opacks      :
+  - openaf     : 20250915
+  - oJob-common: 20250914
+  - AWS        : 20260821
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  argsFromEnvs: true
+  daemon      : true
+  loadLibs    :
+  - aws_athena.js
+  unique      :
+    pidFile     : .mcp-aws-athena.pid
+    killPrevious: true
+
+include:
+- oJobMCP.yaml
+
+jobs:
+# ------------------------------
+- name : Init Athena client
+  check:
+    in:
+      accessKey     : isString.default(__)
+      secret        : isString.default(__)
+      sessionToken  : isString.default(__)
+      region        : isString.default("us-east-1")
+      database      : isString.default(__)
+      catalog       : isString.default(__)
+      workGroup     : isString.default(__)
+      outputLocation: isString.default(__)
+      readwrite     : toBoolean.isBoolean.default(false)
+  exec : | #js
+    global.__athenaClient__   = new AWS(args.accessKey, args.secret, args.sessionToken, args.region)
+    global.__athenaRegion__   = args.region
+    global.__athenaDefaults__ = {
+      database      : args.database,
+      catalog       : args.catalog,
+      workGroup     : args.workGroup,
+      outputLocation: args.outputLocation
+    }
+    global.__athenaReadWrite__ = args.readwrite
+
+# -----------------------------------
+- name : Close Athena client on exit
+  type : shutdown
+  check:
+    in:
+      accessKey     : isString.default(__)
+      secret        : isString.default(__)
+      sessionToken  : isString.default(__)
+      region        : isString.default("us-east-1")
+      database      : isString.default(__)
+      catalog       : isString.default(__)
+      workGroup     : isString.default(__)
+      outputLocation: isString.default(__)
+      readwrite     : toBoolean.isBoolean.default(false)
+  exec : | #js
+    global.__athenaClient__   = __
+    global.__athenaDefaults__ = __
+
+# -------------------
+- name : Athena Query
+  check:
+    in:
+      query              : isString
+      database           : isString.default(__)
+      catalog            : isString.default(__)
+      workGroup          : isString.default(__)
+      outputLocation     : isString.default(__)
+      executionParameters: isArray.default(__)
+      clientRequestToken : isString.default(__)
+      pollIntervalMs     : toNumber.isNumber.default(__)
+      timeoutMs          : toNumber.isNumber.default(__)
+      fetchResults       : toBoolean.isBoolean.default(true)
+      skipHeaderRow      : toBoolean.isBoolean.default(__)
+      maxResultPages     : toNumber.isNumber.default(__)
+      deleteResults      : toBoolean.isBoolean.default(false)
+  exec : | #js
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    if (args.deleteResults && !global.__athenaReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow deleting query results"
+    }
+    var defs = global.__athenaDefaults__
+    var options = {
+      database           : isDef(args.database) ? args.database : defs.database,
+      catalog            : isDef(args.catalog) ? args.catalog : defs.catalog,
+      workGroup          : isDef(args.workGroup) ? args.workGroup : defs.workGroup,
+      outputLocation     : isDef(args.outputLocation) ? args.outputLocation : defs.outputLocation,
+      executionParameters: args.executionParameters,
+      clientRequestToken : args.clientRequestToken,
+      pollIntervalMs     : args.pollIntervalMs,
+      timeoutMs          : args.timeoutMs,
+      fetchResults       : args.fetchResults,
+      skipHeaderRow      : args.skipHeaderRow,
+      maxResultPages     : args.maxResultPages,
+      deleteResults      : args.deleteResults
+    }
+    try {
+      return global.__athenaClient__.ATHENA_Query(global.__athenaRegion__, args.query, options)
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# --------------------------------------
+- name : Athena Start Query Execution
+  check:
+    in:
+      query              : isString
+      database           : isString.default(__)
+      catalog            : isString.default(__)
+      workGroup          : isString.default(__)
+      outputLocation     : isString.default(__)
+      executionParameters: isArray.default(__)
+      clientRequestToken : isString.default(__)
+  exec : | #js
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    var defs = global.__athenaDefaults__
+    var options = {
+      database           : isDef(args.database) ? args.database : defs.database,
+      catalog            : isDef(args.catalog) ? args.catalog : defs.catalog,
+      workGroup          : isDef(args.workGroup) ? args.workGroup : defs.workGroup,
+      outputLocation     : isDef(args.outputLocation) ? args.outputLocation : defs.outputLocation,
+      executionParameters: args.executionParameters,
+      clientRequestToken : args.clientRequestToken
+    }
+    try {
+      var res = global.__athenaClient__.ATHENA_StartQueryExecution(global.__athenaRegion__, args.query, options)
+      if (isDef(res.error)) return "[ERROR] " + af.toSLON(res.error)
+      return res
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# ------------------------------------
+- name : Athena Get Query Execution
+  check:
+    in:
+      queryExecutionId: isString
+  exec : | #js
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    try {
+      var res = global.__athenaClient__.ATHENA_GetQueryExecution(global.__athenaRegion__, args.queryExecutionId)
+      if (isDef(res.error)) return "[ERROR] " + af.toSLON(res.error)
+      return res
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# ----------------------------------
+- name : Athena Get Query Results
+  check:
+    in:
+      queryExecutionId : isString
+      maxResultsPerPage: toNumber.isNumber.default(__)
+      maxResultPages   : toNumber.isNumber.default(-1)
+      skipHeaderRow    : toBoolean.isBoolean.default(true)
+  exec : | #js
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    try {
+      return global.__athenaClient__.ATHENA_GetQueryResultsAsArray(global.__athenaRegion__, args.queryExecutionId, {
+        maxResults   : args.maxResultsPerPage,
+        maxPages     : args.maxResultPages,
+        skipHeaderRow: args.skipHeaderRow
+      })
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# -------------------------------------
+- name : Athena Stop Query Execution
+  check:
+    in:
+      queryExecutionId: isString
+  exec : | #js
+    if (!global.__athenaReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow stopping query executions"
+    }
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    try {
+      var res = global.__athenaClient__.ATHENA_StopQueryExecution(global.__athenaRegion__, args.queryExecutionId)
+      if (isDef(res.error)) return "[ERROR] " + af.toSLON(res.error)
+      return res
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# -------------------------------------
+- name : Athena Delete Query Results
+  check:
+    in:
+      queryExecutionId  : isString
+      deleteMetadataFile: toBoolean.isBoolean.default(true)
+  exec : | #js
+    if (!global.__athenaReadWrite__) {
+      return "[ERROR] Read-only mode. Set readwrite=true to allow deleting query results"
+    }
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    try {
+      return global.__athenaClient__.ATHENA_DeleteQueryResults(global.__athenaRegion__, args.queryExecutionId, {
+        deleteMetadataFile: args.deleteMetadataFile
+      })
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }
+
+# -------------------------------------
+- name : Athena List Query Executions
+  check:
+    in:
+      workGroup : isString.default(__)
+      maxResults: toNumber.isNumber.default(50)
+      nextToken : isString.default(__)
+  exec : | #js
+    if (isUnDef(global.__athenaClient__)) {
+      return "[ERROR] Athena client not initialised"
+    }
+    var workGroup = isDef(args.workGroup) ? args.workGroup : global.__athenaDefaults__.workGroup
+    try {
+      var res = global.__athenaClient__.ATHENA_ListQueryExecutions(global.__athenaRegion__, args.nextToken, workGroup, args.maxResults)
+      if (isDef(res.error)) return "[ERROR] " + af.toSLON(res.error)
+      return res
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    }

@@ -193,6 +193,42 @@ todo:
           title         : s3-presign-get
           readOnlyHint  : true
           idempotentHint: false
+
+      s3-select-object:
+        name       : s3-select-object
+        description: Runs a server-side S3 Select SQL query against a CSV, JSON or Parquet object and returns the matching records.
+        inputSchema:
+          type      : object
+          properties:
+            bucket:
+              type       : string
+              description: Bucket name containing the object; defaults to the configured bucket when omitted.
+            key:
+              type       : string
+              description: Object key to query.
+            sql:
+              type       : string
+              description: 'S3 Select SQL expression to run against the object, e.g. SELECT s.name, s.age FROM S3Object s WHERE CAST(s.age AS INT) >= 18'
+            inputSerialization:
+              type       : object
+              description: 'Input format description. type: CSV (default), JSON or PARQUET. CSV options: compression (NONE/GZIP/BZIP2), allowQuotedRecordDelimiter, fieldDelimiter, recordDelimiter, fileHeaderInfo (USE/IGNORE/NONE), quoteCharacter, quoteEscapeCharacter, comments. JSON options: compression, jsonType (LINES/DOCUMENT). Delimiter/quote values must be single characters.'
+            outputSerialization:
+              type       : object
+              description: 'Output format description. type: CSV (default) or JSON. CSV options: fieldDelimiter, recordDelimiter, quoteCharacter, quoteFields (ALWAYS/ASNEEDED), quoteEscapeCharacter. JSON options: recordDelimiter. Delimiter/quote values must be single characters.'
+            options:
+              type       : object
+              description: Optional request options - requestProgress (boolean), scanStartRange (number), scanEndRange (number).
+            encoding:
+              type       : string
+              description: Output encoding for the query result (text/base64/json). json parses JSON Lines output into an array of records, falling back to a single JSON document.
+            charset:
+              type       : string
+              description: Charset to use when decoding the result content.
+          required  : [ key, sql ]
+        annotations:
+          title         : s3-select-object
+          readOnlyHint  : true
+          idempotentHint: true
     ((fns    )): &MCPFNS
       s3-list-buckets: S3 List Buckets
       s3-list-objects: S3 List Objects
@@ -200,6 +236,7 @@ todo:
       s3-put-object  : S3 Put Object
       s3-delete-object: S3 Delete Object
       s3-presign-get : S3 Presign Get URL
+      s3-select-object: S3 Select Object
   ((else)):
   - (stdioMCP ): *MCPSERVER
     ((fnsMeta)): *MCPFNSMETA
@@ -209,7 +246,7 @@ ojob:
   opacks      :
   - openaf     : 20250915
   - oJob-common: 20250914
-  - S3         : 20251005
+  - S3         : 20260821
   catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
   logToConsole: false   # to change when finished
   argsFromEnvs: true
@@ -477,3 +514,67 @@ jobs:
     } catch(e) {
       return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
     }
+
+# -----------------------------
+- name : S3 Select Object
+  check:
+    in:
+      bucket             : isString.default(__)
+      key                : isString
+      sql                : isString
+      inputSerialization : isMap.default({})
+      outputSerialization: isMap.default({})
+      options            : isMap.default({})
+      encoding           : isString.default("text")
+      charset            : isString.default("utf-8")
+  exec : | #js
+    if (isUnDef(global.__s3Client__)) {
+      return "[ERROR] S3 client not initialised"
+    }
+    var bucket = isDef(args.bucket) ? args.bucket : global.__s3DefaultBucket__
+    if (isUnDef(bucket)) {
+      return "[ERROR] Bucket not provided"
+    }
+    var encoding = String(args.encoding || "text").toLowerCase()
+    var charset  = args.charset || "utf-8"
+    var stream, bytes, stats
+    try {
+      stream = global.__s3Client__.selectObjectContent(bucket, args.key, args.sql, args.inputSerialization, args.outputSerialization, args.options)
+      bytes  = af.fromInputStream2Bytes(stream)
+      try { stats = stream.stats() } catch(ignore) {}
+    } catch(e) {
+      return "[ERROR] " + (isDef(e.message) ? e.message : String(e))
+    } finally {
+      if (isDef(stream) && isDef(stream.close)) {
+        try { stream.close() } catch(ignore) {}
+      }
+    }
+    var result = {
+      bucket  : bucket,
+      key     : args.key,
+      sql     : args.sql,
+      encoding: encoding
+    }
+    if (isDef(stats)) result.stats = stats
+    try {
+      switch(encoding) {
+      case "base64":
+        result.content = af.fromBytes2String(af.toBase64Bytes(bytes))
+        break
+      case "json":
+        var text  = af.fromBytes2String(bytes, charset)
+        var lines = text.split("\n").map(function(l) { return l.replace(/\r$/, "") }).filter(function(l) { return l.trim().length > 0 })
+        try {
+          result.content = lines.map(function(l) { return jsonParse(l) })
+        } catch(e1) {
+          result.content = jsonParse(text)
+        }
+        break
+      default:
+        result.content = af.fromBytes2String(bytes, charset)
+        result.encoding = "text"
+      }
+    } catch(e) {
+      return "[ERROR] Failed to decode content: " + (isDef(e.message) ? e.message : String(e))
+    }
+    return result
