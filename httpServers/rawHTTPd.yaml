@@ -1,0 +1,45 @@
+# Author: Nuno Aguiar
+help:
+  text   : Raw HTTPd job
+  expects: 
+  - name     : port
+    desc     : Port to listen on
+    example  : "8000"
+    mandatory: true
+  - name     : uri
+    desc     : URI to serve
+    example  : "/"
+    mandatory: false
+  - name     : path
+    desc     : Path to serve files from
+    example  : "."
+    mandatory: false
+
+todo:
+- HTTPd
+
+ojob:
+  opacks      :
+  - openaf: 20260728
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: false   # to change when finished
+  daemon      : true 
+
+jobs:
+# ------------
+- name : HTTPd
+  check:
+    in:
+      port: toNumber.isNumber
+      uri : isString.default("/")
+      path: isString.default(".")
+  exec : |
+    ow.loadServer()
+    var _s = ow.server.httpd.start(args.port)
+    log("Serving HTTP on port " + args.port + " with URI " + args.uri + " and path " + args.path)
+    ow.server.httpd.route(_s, {
+      "/": r => {
+             log(af.toSLON(r))
+             return ow.server.httpd.replyFile(_s, args.path, args.uri, r.uri)
+           }
+    })
