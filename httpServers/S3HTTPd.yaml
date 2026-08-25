@@ -1,0 +1,147 @@
+# Template          : S3-backed HTTP server
+# Author            : Nuno Aguiar
+# How to run        : ojob S3HTTPd.yaml port=8080 uri=/data s3url=https://s3.example.com s3bucket=my-bucket s3prefix=public/
+# oPack dependencies: latest oJob-common; S3;
+#
+# Environment variables can also be used for every init value (for example
+# OJOB_PORT, OJOB_S3URL, OJOB_S3BUCKET, OJOB_S3ACCESSKEY and OJOB_S3SECRET).
+
+init:
+  # Listener configuration
+  port: &PORT 8080
+  host: &HOST __
+  uri : &URI  "/"
+  pid : &PID  S3HTTPd.pid
+
+  # S3 connection and object location
+  s3url      : &S3URL      __
+  s3accessKey: &S3ACCESSKEY __
+  s3secret   : &S3SECRET   __
+  s3region   : &S3REGION   __
+  s3bucket   : &S3BUCKET   __
+  s3prefix   : &S3PREFIX   ""
+
+ojob:
+  daemon     : true
+  sequential : true
+  opacks:
+  - oJob-common: 20250405
+  - S3: 20250821
+  unique:
+    pidFile     : *PID
+    killPrevious: false
+  argsFromEnvs: true
+
+include:
+- oJobHTTPd.yaml
+
+help:
+  text: Starts an HTTP server that streams every object below s3prefix directly from S3.
+  expects:
+  - name: port
+    desc: "Listener port (default: 8080)."
+  - name: host
+    desc: "Optional listener host/interface."
+  - name: uri
+    desc: "Base URI to expose (default: '/'). A request for /data/my/file.txt with uri=/data maps to s3prefix + my/file.txt."
+  - name: s3url
+    desc: "S3-compatible endpoint URL."
+  - name: s3bucket
+    desc: "Bucket containing the served objects."
+  - name: s3prefix
+    desc: "Optional object-name prefix; a trailing slash is added when needed."
+  - name: s3accessKey
+    desc: "Optional S3 access key."
+  - name: s3secret
+    desc: "Optional S3 secret key."
+  - name: s3region
+    desc: "Optional S3 region."
+
+jobs:
+- name: Prepare S3 HTTP service
+  deps:
+  - HTTP Start Server
+  to: HTTP Service
+  args:
+    port : *PORT
+    uri  : *URI
+    audit: true
+    error: true
+    auditTemplate: "AUDIT S3 HTTP | {{method}} {{uri}} {{reply.status}} {{{reply.mimetype}}} ({{header.remote-addr}}; {{header.user-agent}})"
+    execURI: | #js
+      var cfg = global.__s3HTTPd[String(port)]
+      var requestURI = String(request.uri)
+      var relativeURI
+
+      // HTTP Service routes are prefix routes. Only map paths at this mount.
+      if (cfg.uri == "/") {
+        relativeURI = requestURI.replace(/^\/+/, "")
+      } else if (requestURI == cfg.uri || requestURI == cfg.uri + "/") {
+        relativeURI = ""
+      } else if (requestURI.indexOf(cfg.uri + "/") == 0) {
+        relativeURI = requestURI.substring(cfg.uri.length + 1)
+      } else {
+        logWarn("S3 HTTP | rejected request outside base URI: " + requestURI)
+        return ow.server.httpd.reply({ error: "Not found" }, 404, "application/json")
+      }
+
+      try {
+        relativeURI = decodeURIComponent(relativeURI)
+      } catch(e) {
+        logWarn("S3 HTTP | rejected malformed URI: " + requestURI)
+        return ow.server.httpd.reply({ error: "Invalid URI" }, 400, "application/json")
+      }
+
+      // S3 object names are not filesystem paths. Reject traversal and Windows
+      // separators instead of normalising them into another object name.
+      if (relativeURI.length == 0 || relativeURI.indexOf("\\") >= 0 || relativeURI.split("/").some(p => p == "." || p == "..")) {
+        logWarn("S3 HTTP | rejected unsafe URI: " + requestURI)
+        return ow.server.httpd.reply({ error: "Not found" }, 404, "application/json")
+      }
+
+      var objectName = cfg.prefix + relativeURI
+      log("S3 HTTP | " + request.method + " " + requestURI + " -> s3://" + cfg.bucket + "/" + objectName)
+      try {
+        return ow.server.httpd.replyFile(server, cfg.s3.getObjectStream(cfg.bucket, objectName), cfg.uri, requestURI, __, __, {
+          "Content-Type": ow.server.httpd.getMimeType(relativeURI)
+        })
+      } catch(e) {
+        var message = String(e)
+        var status = (message.indexOf("NoSuchKey") >= 0 || message.indexOf("NoSuchObject") >= 0 || message.indexOf("not found") >= 0) ? 404 : 502
+        logErr("S3 HTTP | " + request.method + " " + requestURI + " -> s3://" + cfg.bucket + "/" + objectName + " failed: " + message)
+        return ow.server.httpd.reply({ error: status == 404 ? "Not found" : "Unable to retrieve S3 object" }, status, "application/json")
+      }
+  exec: | #js
+    loadLib("s3.js")
+
+    var init = args.init
+    init.port       = _$(init.port).toNumber().isNumber().default(8080)
+    init.uri        = _$(init.uri).isString().default("/").replace(/\/+$/, "") || "/"
+    init.s3url      = _$(init.s3url, "s3url").isString().$_()
+    init.s3bucket   = _$(init.s3bucket, "s3bucket").isString().$_()
+    init.s3prefix   = _$(init.s3prefix).isString().default("").replace(/^\/+/, "")
+    init.s3accessKey = isNull(init.s3accessKey) ? __ : init.s3accessKey
+    init.s3secret    = isNull(init.s3secret) ? __ : init.s3secret
+    init.s3region    = isNull(init.s3region) ? __ : init.s3region
+    if (init.s3prefix.length > 0 && !init.s3prefix.endsWith("/")) init.s3prefix += "/"
+
+    global.__s3HTTPd = _$(global.__s3HTTPd).isMap().default({})
+    global.__s3HTTPd[String(init.port)] = {
+      uri   : init.uri,
+      bucket: init.s3bucket,
+      prefix: init.s3prefix,
+      s3    : new S3(init.s3url, init.s3accessKey, init.s3secret, init.s3region)
+    }
+    // The job arguments use defaults so that the descriptor is self-contained;
+    // replace them with the effective CLI/environment init values before
+    // forwarding to HTTP Service.
+    args.port = init.port
+    args.uri  = init.uri
+    log("S3 HTTP | serving s3://" + init.s3bucket + "/" + init.s3prefix + " at " + init.uri + " on port " + init.port)
+
+todo:
+- name: HTTP Start Server
+  args: |
+    ({ port: global.args.init.port, host: global.args.init.host, mapLibs: false })
+
+- name: Prepare S3 HTTP service
