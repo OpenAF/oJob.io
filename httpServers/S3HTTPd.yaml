@@ -9,7 +9,7 @@
 init:
   # Listener configuration
   port: &PORT 8080
-  host: &HOST __
+  host: &HOST "0.0.0.0"
   uri : &URI  "/"
   pid : &PID  S3HTTPd.pid
 
@@ -115,6 +115,7 @@ jobs:
     loadLib("s3.js")
 
     var init = args.init
+    init.host       = _$(init.host).isString().default("0.0.0.0")
     init.port       = _$(init.port).toNumber().isNumber().default(8080)
     init.uri        = _$(init.uri).isString().default("/").replace(/\/+$/, "") || "/"
     init.s3url      = _$(init.s3url, "s3url").isString().$_()
@@ -124,6 +125,7 @@ jobs:
     init.s3secret    = isNull(init.s3secret) ? __ : init.s3secret
     init.s3region    = isNull(init.s3region) ? __ : init.s3region
     if (init.s3prefix.length > 0 && !init.s3prefix.endsWith("/")) init.s3prefix += "/"
+    global._init = init
 
     global.__s3HTTPd = _$(global.__s3HTTPd).isMap().default({})
     global.__s3HTTPd[String(init.port)] = {
@@ -142,6 +144,6 @@ jobs:
 todo:
 - name: HTTP Start Server
   args: |
-    ({ port: global.args.init.port, host: global.args.init.host, mapLibs: false })
+    ({ port: global._init.port, host: global._init.host, mapLibs: false })
 
 - name: Prepare S3 HTTP service
