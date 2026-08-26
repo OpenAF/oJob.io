@@ -6,29 +6,15 @@
 # Environment variables can also be used for every init value (for example
 # OJOB_PORT, OJOB_S3URL, OJOB_S3BUCKET, OJOB_S3ACCESSKEY and OJOB_S3SECRET).
 
-init:
-  # Listener configuration
-  port: &PORT 8080
-  host: &HOST "0.0.0.0"
-  uri : &URI  "/"
-  pid : &PID  S3HTTPd.pid
-
-  # S3 connection and object location
-  s3url      : &S3URL      __
-  s3accessKey: &S3ACCESSKEY __
-  s3secret   : &S3SECRET   __
-  s3region   : &S3REGION   __
-  s3bucket   : &S3BUCKET   __
-  s3prefix   : &S3PREFIX   ""
-
 ojob:
   daemon     : true
   sequential : true
   opacks:
   - oJob-common: 20250405
   - S3: 20250821
+  catch         : printErrnl("[" + job.name + "] "); if (isDef(exception.javaException)) exception.javaException.printStackTrace(); else printErr(exception)
   unique:
-    pidFile     : *PID
+    pidFile     : "S3HTTPd.pid"
     killPrevious: false
   argsFromEnvs: true
 
@@ -58,16 +44,19 @@ help:
     desc: "Optional S3 region."
 
 jobs:
+# -----------------------------
 - name: Prepare S3 HTTP service
   deps:
   - HTTP Start Server
   to: HTTP Service
+  check:
+    in:
+      port : toNumber.isNumber.default(8080)
+      uri  : isString.default("/") 
+      audit: toBoolean.isBoolean.default(true)
+      error: toBoolean.isBoolean.default(true)
+      auditTemplate: isString.default("AUDIT S3 HTTP | {{method}} {{uri}} {{reply.status}} {{{reply.mimetype}}} ({{header.remote-addr}}; {{header.user-agent}})")
   args:
-    port : *PORT
-    uri  : *URI
-    audit: true
-    error: true
-    auditTemplate: "AUDIT S3 HTTP | {{method}} {{uri}} {{reply.status}} {{{reply.mimetype}}} ({{header.remote-addr}}; {{header.user-agent}})"
     execURI: | #js
       var cfg = global.__s3HTTPd[String(port)]
       var requestURI = String(request.uri)
@@ -114,36 +103,35 @@ jobs:
   exec: | #js
     loadLib("s3.js")
 
-    var init = args.init
-    init.host       = _$(init.host).isString().default("0.0.0.0")
-    init.port       = _$(init.port).toNumber().isNumber().default(8080)
-    init.uri        = _$(init.uri).isString().default("/").replace(/\/+$/, "") || "/"
-    init.s3url      = _$(init.s3url, "s3url").isString().$_()
-    init.s3bucket   = _$(init.s3bucket, "s3bucket").isString().$_()
-    init.s3prefix   = _$(init.s3prefix).isString().default("").replace(/^\/+/, "")
-    init.s3accessKey = isNull(init.s3accessKey) ? __ : init.s3accessKey
-    init.s3secret    = isNull(init.s3secret) ? __ : init.s3secret
-    init.s3region    = isNull(init.s3region) ? __ : init.s3region
-    if (init.s3prefix.length > 0 && !init.s3prefix.endsWith("/")) init.s3prefix += "/"
-    global._init = init
+    args.host       = _$(args.host).isString().default("0.0.0.0")
+    args.port       = _$(args.port).toNumber().isNumber().default(8080)
+    args.uri        = _$(args.uri).isString().default("/").replace(/\/+$/, "") || "/"
+    args.s3url      = _$(args.s3url, "s3url").isString().$_()
+    args.s3bucket   = _$(args.s3bucket, "s3bucket").isString().$_()
+    args.s3prefix   = _$(args.s3prefix).isString().default("").replace(/^\/+/, "")
+    args.s3accessKey = isNull(args.s3accessKey) ? __ : args.s3accessKey
+    args.s3secret    = isNull(args.s3secret) ? __ : args.s3secret
+    args.s3region    = isNull(args.s3region) ? __ : args.s3region
+    if (args.s3prefix.length > 0 && !args.s3prefix.endsWith("/")) args.s3prefix += "/"
+    global._args = args
 
     global.__s3HTTPd = _$(global.__s3HTTPd).isMap().default({})
-    global.__s3HTTPd[String(init.port)] = {
-      uri   : init.uri,
-      bucket: init.s3bucket,
-      prefix: init.s3prefix,
-      s3    : new S3(init.s3url, init.s3accessKey, init.s3secret, init.s3region)
+    global.__s3HTTPd[String(args.port)] = {
+      uri   : args.uri,
+      bucket: args.s3bucket,
+      prefix: args.s3prefix,
+      s3    : new S3(args.s3url, args.s3accessKey, args.s3secret, args.s3region)
     }
     // The job arguments use defaults so that the descriptor is self-contained;
     // replace them with the effective CLI/environment init values before
     // forwarding to HTTP Service.
-    args.port = init.port
-    args.uri  = init.uri
-    log("S3 HTTP | serving s3://" + init.s3bucket + "/" + init.s3prefix + " at " + init.uri + " on port " + init.port)
+    args.port = args.port
+    args.uri  = args.uri
+    log("S3 HTTP | serving s3://" + args.s3bucket + "/" + args.s3prefix + " at " + args.uri + " on port " + args.port)
 
 todo:
 - name: HTTP Start Server
   args: |
-    ({ port: global._init.port, host: global._init.host, mapLibs: false })
+    ({ port: args.port, host: args.host, mapLibs: false })
 
 - name: Prepare S3 HTTP service
