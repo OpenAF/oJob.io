@@ -74,15 +74,20 @@ init:
 
 help:
   text   : Given a maven dependency list file (.maven.yaml) will download all the corresponding JAR files (REQUIRES mvn to be installed)
-  expects: 
+  expects:
   - name     : folder
     desc     : The output folder where the JAR files will be placed
     example  : .
+    mandatory: false
+  - name     : updateTransitive
+    desc     : If true, transitive dependencies of the declared artifacts will also be added as direct dependencies pinned to their own latest version (overriding whatever older version was pulled in transitively)
+    example  : true
     mandatory: false
 
 ojob:
   opacks      :
   - openaf: 20211229
+  - Maven  : 20260528
   catch       : logErr(exception)
   logToConsole: true   # to change when finished 
 
@@ -101,6 +106,7 @@ jobs:
 - name : Write pom.xml file and process templates
   exec : |
     args.folder = _$(args.folder, "folder").default(".")
+    args.updateTransitive = toBoolean(_$(args.updateTransitive, "updateTransitive").default(false))
 
     var fdata
     if (io.fileExists(args.folder + "/.maven.yaml")) {
@@ -123,7 +129,7 @@ jobs:
     if (isArray(fdata.artifacts)) {
       data.deps = fdata.artifacts.map(r => {
         if (isDef(r.id) && isDef(r.group)) {
-            if (isUnDef(r.version)) r.version = (new ow.java.maven()).getLatestVersion((r.group + "." + r.id).replace(/\./g, "/"))
+            if (isUnDef(r.version) || r.latest === true) r.version = (new ow.java.maven()).getLatestVersion((r.group + "." + r.id).replace(/\./g, "/"))
             if (isDef(r.template)) {
               io.writeFileYAML(args.init.tmpfolder + "/.maven.yaml", { artifacts: [ { id: r.id, group: r.group, version: r.version, template: r.template } ]})
               var m = new ow.java.maven()
@@ -138,6 +144,31 @@ jobs:
       })
 
       data.deps = data.deps.filter(r => !isNull(r))
+    }
+
+    if (args.updateTransitive) {
+      loadLib(getOPackPath("Maven") + "/maven.js")
+      var m = new Maven()
+      var seenGA = {}
+      data.deps.forEach(r => { seenGA[r.group + ":" + r.id] = true })
+
+      var extras = {}
+      data.deps.forEach(r => {
+        try {
+          m.resolve(r.group + ":" + r.id + ":" + r.version).forEach(a => {
+            var ga = a.groupId + ":" + a.artifactId
+            if (!seenGA[ga] && isUnDef(extras[ga])) extras[ga] = { group: a.groupId, id: a.artifactId }
+          })
+        } catch(e) {
+          log("Could not resolve transitive dependencies for " + r.group + ":" + r.id + ":" + r.version + ": " + String(e))
+        }
+      })
+
+      Object.keys(extras).forEach(ga => {
+        var e = extras[ga]
+        e.version = (new ow.java.maven()).getLatestVersion((e.group + "." + e.id).replace(/\./g, "/"))
+        data.deps.push(e)
+      })
     }
 
     io.writeFileString(args.init.tmpfolder + "/pom.xml", templify(args.init.pomxml, data))
