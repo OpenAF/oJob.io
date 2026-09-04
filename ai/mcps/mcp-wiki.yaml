@@ -68,6 +68,18 @@ help:
     desc     : "SLON/JSON Lucene lexical configuration. Defaults to {language: 'english'}; supports inline synonyms and an optional synonymsFile."
     example  : "{ language: 'english', synonymsFile: 'synonyms.txt' }"
     mandatory: false
+  - name     : wikisourceurl
+    desc     : "Optional Handlebars template rendering a page's canonical citation URL (e.g. its published docs site). Available: path, pathNoExt, encodedPath, backend, root, bucket, prefix, url, mount, section, anchor, title. addOpenAFHelpers/addConditionalHelpers plus $encodeURI/$encodeURIComponent/$encodePath are registered; percent-encoding via {{$encodePath ...}} is recommended over triple-brace escaping. A wikimounts entry may set its own wikisourceurl. Not applicable to mcp-wiki-safe.yaml's restricted retrieval, which hides real page paths."
+    example  : "https://docs.example.com/{{$encodePath pathNoExt}}"
+    mandatory: false
+  - name     : wikisourcefield
+    desc     : Result field name the rendered citation URL is written to
+    example  : "sourceUrl"
+    mandatory: false
+  - name     : wikisourceinline
+    desc     : "Also append the rendered URL into search results' description/summary text, for models that attend to prose more reliably than to sibling JSON keys"
+    example  : "false"
+    mandatory: false
   - name     : toolPrefix
     desc     : Optional prefix prepended to all tool names (e.g. "docs-" -> docs-list, docs-read, ...)
     example  : "wiki-"
@@ -109,6 +121,30 @@ help:
     desc     : Maximum graph-hint pages appended to search results
     example  : "5"
     mandatory: false
+  - name     : wikigraphcross
+    desc     : Join this wiki's graph with mounted wikis' graphs at query time (explicit @-links, shared tags/aliases/concepts). Requires wikigraphmounts.
+    example  : "true"
+    mandatory: false
+  - name     : wikigraphcrossjoin
+    desc     : "CSV of enabled cross-wiki join kinds: link,tag,alias,concept"
+    example  : "link,tag,alias,concept"
+    mandatory: false
+  - name     : wikigraphcrosscap
+    desc     : Maximum cross-wiki entries appended per query
+    example  : "5"
+    mandatory: false
+  - name     : wikigraphcrossdepth
+    desc     : "Cross-wiki traversal depth: 1 resolves explicit links, 2 also pulls the target's in-mount related pages"
+    example  : "1"
+    mandatory: false
+  - name     : wikigraphcrossmaxdf
+    desc     : Skip a shared tag/alias/concept join key present on more than this fraction of a mount's docs
+    example  : "0.25"
+    mandatory: false
+  - name     : wikigraphcrossminkeylen
+    desc     : Minimum length for a shared join key to be used for cross-wiki matching
+    example  : "3"
+    mandatory: false
   - name     : audit
     desc     : "If true (or env OJOB_MCP_AUDIT), logs every MCP tool call (tool name and arguments, handled generically by oJobMCP.yaml) plus every page actually fetched from a remote wikibackend (s3, http, es) -- backend, resolved location (s3://bucket/key, URL, or es:index/path), and byte count -- via OpenAF's log() function. The latter also covers pages fetched internally while serving search/lint/list, not just the top-level read tool call."
     example  : "false"
@@ -143,7 +179,7 @@ todo:
 
       search:
         name       : search
-        description: "[START HERE] Search {{label}} pages. This is lexical keyword retrieval, not semantic question answering: use specific keywords, names, aliases, and short phrases. A compatible Lucene index is used when available; otherwise the wiki is scanned. When enabled, graph-related pages may be appended as supplemental hints. Always call this before read. Returns path+title+description per match (no full page content). Then call read() with the most relevant path."
+        description: "[START HERE] Search {{label}} pages. This is lexical keyword retrieval, not semantic question answering: use specific keywords, names, aliases, and short phrases. A compatible Lucene index is used when available; otherwise the wiki is scanned. When enabled, graph-related pages may be appended as supplemental hints. Always call this before read. Returns path+title+description per match (no full page content). Then call read() with the most relevant path.{{#if ($wikiHasSourceUrl)}} Each result also carries a {{$wikiSourceField}} URL, that page's canonical citation source; cite it when you use the page's content.{{/if}}"
         inputSchema:
           type      : object
           properties:
@@ -177,7 +213,7 @@ todo:
 
       read:
         name       : read
-        description: "Read a page from {{label}} by path. For long pages: call with countLines=true first, then with section= to read only the relevant heading. Never read a full page when a section read suffices."
+        description: "Read a page from {{label}} by path. For long pages: call with countLines=true first, then with section= to read only the relevant heading. Never read a full page when a section read suffices.{{#if ($wikiHasSourceUrl)}} The result carries a {{$wikiSourceField}} URL, that page's canonical citation source; cite it when you use the page's content.{{/if}}"
         inputSchema:
           type      : object
           properties:
@@ -212,7 +248,7 @@ todo:
 
       open:
         name       : open
-        description: "Inspect a page cheaply before reading it. Returns front matter, size, links, and heading boundaries, never the Markdown body. Pass a path or a wiki: reference returned by agentic search."
+        description: "Inspect a page cheaply before reading it. Returns front matter, size, links, and heading boundaries, never the Markdown body. Pass a path or a wiki: reference returned by agentic search.{{#if ($wikiHasSourceUrl)}} The result carries a {{$wikiSourceField}} URL, that page's canonical citation source; cite it when you use the page's content.{{/if}}"
         inputSchema:
           type      : object
           properties:
@@ -249,7 +285,7 @@ todo:
 
       grep:
         name       : grep
-        description: "Find exact terms inside one known page or folder. Returns bounded matching lines and small surrounding context; it never returns a whole document."
+        description: "Find exact terms inside one known page or folder. Returns bounded matching lines and small surrounding context; it never returns a whole document.{{#if ($wikiHasSourceUrl)}} The result carries a {{$wikiSourceField}} URL, that page's canonical citation source; cite it when you use the page's content.{{/if}}"
         inputSchema:
           type      : object
           properties:
@@ -267,7 +303,7 @@ todo:
 
       related:
         name       : related
-        description: "Optional follow-up discovery from backlinks and the existing graph. Use only when lexical search and page structure leave a gap."
+        description: "Optional follow-up discovery from backlinks and the existing graph, including related pages in mounted wikis (@name/path.md) reached via explicit links or shared tags/aliases/concepts. Use only when lexical search and page structure leave a gap.{{#if ($wikiHasSourceUrl)}} Results carry a {{$wikiSourceField}} URL, that page's canonical citation source; cite it when you use the page's content.{{/if}}"
         inputSchema:
           type       : object
           properties:
@@ -416,6 +452,9 @@ jobs:
       wikiartifactrefreshsecs: toNumber.isNumber.default(0)
       wikiindexdir         : isString.default(__)
       wikilexical          : isString.default(__)
+      wikisourceurl        : isString.default(__)
+      wikisourcefield      : isString.default("sourceUrl")
+      wikisourceinline     : toBoolean.isBoolean.default(false)
       usewikigraph        : toBoolean.isBoolean.default(false)
       wikigraphfalkorhost : isString.default(__)
       wikigraphfalkorport : toNumber.isNumber.default(__)
@@ -424,6 +463,12 @@ jobs:
       wikigraphfalkorpass : isString.default(__)
       wikigraphsearchhints: toBoolean.isBoolean.default(__)
       wikigraphhintcap    : toNumber.isNumber.default(__)
+      wikigraphcross      : toBoolean.isBoolean.default(__)
+      wikigraphcrossjoin  : isString.default(__)
+      wikigraphcrosscap   : toNumber.isNumber.default(__)
+      wikigraphcrossdepth : toNumber.isNumber.default(__)
+      wikigraphcrossmaxdf : toNumber.isNumber.default(__)
+      wikigraphcrossminkeylen: toNumber.isNumber.default(__)
       label               : isString.default("wiki")
       wikimounts          : isString.default(__)
       audit               : default(__)

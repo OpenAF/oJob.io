@@ -88,6 +88,18 @@ help:
     desc     : "SLON/JSON Lucene lexical configuration. Defaults to {language: 'english'}; supports inline synonyms and an optional synonymsFile."
     example  : "{ language: 'english', synonymsFile: 'synonyms.txt' }"
     mandatory: false
+  - name     : wikisourceurl
+    desc     : "Optional Handlebars template rendering a page's canonical citation URL. This server's tools (lint/edit/maintain/reindex/graph_*) don't expose retrieval results, so this is symmetry with mcp-wiki.yaml/mini-a's wiki tool rather than something this server's own output uses today."
+    example  : "https://docs.example.com/{{$encodePath pathNoExt}}"
+    mandatory: false
+  - name     : wikisourcefield
+    desc     : Result field name the rendered citation URL is written to
+    example  : "sourceUrl"
+    mandatory: false
+  - name     : wikisourceinline
+    desc     : Also append the rendered URL into search-shaped results' description/summary text
+    example  : "false"
+    mandatory: false
   - name     : wikimounts
     desc     : "SLON/JSON array of read-only wiki mounts: [{name, backend, root|bucket|prefix|url|...}]"
     example  : "[{name: 'team', backend: 'fs', root: './team-wiki'}]"
@@ -304,6 +316,9 @@ jobs:
       wikiaccess          : isString.default("rw")
       wikiopsreadonly     : toBoolean.isBoolean.default(false)
       wikilexical         : isString.default(__)
+      wikisourceurl       : isString.default(__)
+      wikisourcefield     : isString.default(__)
+      wikisourceinline    : toBoolean.isBoolean.default(false)
       wikimounts          : isString.default(__)
       audit               : default(__)
   exec : | #js
