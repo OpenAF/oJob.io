@@ -10,6 +10,9 @@ help:
     desc     : The target folder where the folder structure and converted .md files will be written
     example  : ./site-md
     mandatory: true
+  - name     : addtitle
+    desc     : If Markdown has no level-one heading, prepend a title from the filename, replacing hyphens and underscores with spaces (defaults to false)
+    example  : true
 
 todo:
 - Recreate folder structure
@@ -46,6 +49,9 @@ jobs:
 
 # -------------------------------------
 - name: Convert HTML files to Markdown
+  check:
+    in:
+      addtitle: toBoolean.isBoolean.default(false)
   exec: |
     var htmlFiles = global.entries.filter(f =>
       !f.isDirectory && /\.html$/i.test(f.filename)
@@ -54,5 +60,27 @@ jobs:
     pForEach(htmlFiles, f => {
       var rel  = f.filepath.substring(args.source.length).replace(/\.html$/i, ".md")
       var html = io.readFileString(f.canonicalPath)
-      io.writeFileString(args.target + rel, mdconvert.html2md(html))
+      var md   = mdconvert.html2md(html)
+      if (args.addtitle) {
+        // Ignore fenced code when looking for ATX or Setext level-one headings.
+        var fence, previous = "", hasTitle = false
+        md.split(/\r?\n/).forEach(line => {
+          var match = line.match(/^ {0,3}(`{3,}|~{3,})/)
+          if (fence) {
+            if (match && match[1].charAt(0) == fence.charAt(0) && match[1].length >= fence.length && /^\s*$/.test(line.substring(match[0].length))) fence = undefined
+            previous = ""
+          } else if (match) {
+            fence = match[1]
+            previous = ""
+          } else {
+            if (/^ {0,3}#(?:\s|$)/.test(line) || (previous.trim().length > 0 && /^ {0,3}=+\s*$/.test(line))) hasTitle = true
+            previous = line
+          }
+        })
+        if (!hasTitle) {
+          var title = f.filename.replace(/\.html$/i, "").replace(/[-_]+/g, " ").trim()
+          md = "# " + title + "\n\n" + md
+        }
+      }
+      io.writeFileString(args.target + rel, md)
     }, e => logErr(e))
