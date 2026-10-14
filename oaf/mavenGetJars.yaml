@@ -83,6 +83,10 @@ help:
     desc     : If true, transitive dependencies of the declared artifacts will also be added as direct dependencies pinned to their own latest version (overriding whatever older version was pulled in transitively)
     example  : true
     mandatory: false
+  - name     : updateLevel
+    desc     : "Opt-in upgrades of declared numeric release versions: 0 (default) keeps pinned versions; 1 selects the latest patch within the same major/minor; 2 selects the latest minor/patch within the same major. Qualified versions and version ranges are kept. Missing versions and latest=true retain their existing latest-version behavior. Does not change updateTransitive."
+    example  : 1
+    mandatory: false
 
 ojob:
   opacks      :
@@ -107,6 +111,9 @@ jobs:
   exec : |
     args.folder = _$(args.folder, "folder").default(".")
     args.updateTransitive = toBoolean(_$(args.updateTransitive, "updateTransitive").default(false))
+    args.updateLevel = String(_$(args.updateLevel, "updateLevel").default(0))
+    if (["0", "1", "2"].indexOf(args.updateLevel) < 0) throw "updateLevel must be 0, 1 or 2"
+    args.updateLevel = Number(args.updateLevel)
 
     var fdata
     if (io.fileExists(args.folder + "/.maven.yaml")) {
@@ -122,6 +129,43 @@ jobs:
     ow.loadJava()
     var data = { deps: [] }
 
+    // Maven metadata lists every version; latest alone can cross the requested boundary.
+    var updateVersion = r => {
+      var original = String(r.version)
+      if (!/^\d+\.\d+(?:\.\d+)*$/.test(original)) {
+        log("Keeping non-numeric release version for " + r.group + ":" + r.id + ":" + original)
+        return r.version
+      }
+      try {
+        var maven = new ow.java.maven()
+        plugin("XML")
+        var uri = r.group.replace(/\./g, "/") + "/" + r.id
+        var metadata = new XML(ow.obj.rest.get(maven._getURL() + "/" + uri + "/maven-metadata.xml").response).toNativeXML()
+        var versions = metadata.versioning.versions.version
+        var base = original.split(".").map(Number), best = original, bestParts = base
+        for (var i = 0; i < versions.length(); i++) {
+          var candidate = versions[i].toString()
+          if (!/^\d+\.\d+(?:\.\d+)*$/.test(candidate)) continue
+          var parts = candidate.split(".").map(Number)
+          if (parts[0] != base[0] || (args.updateLevel == 1 && parts[1] != base[1])) continue
+          for (var j = 0; j < Math.max(parts.length, bestParts.length); j++) {
+            var next = parts[j] || 0, current = bestParts[j] || 0
+            if (next > current) {
+              best = candidate
+              bestParts = parts
+              break
+            }
+            if (next < current) break
+          }
+        }
+        if (best != original) log("Updating " + r.group + ":" + r.id + " from " + original + " to " + best)
+        return best
+      } catch(e) {
+        log("Could not check updates for " + r.group + ":" + r.id + ":" + original + ": " + String(e) + "; keeping declared version")
+        return r.version
+      }
+    }
+
     io.rm(args.init.tmpfolder)
     io.mkdir(args.init.tmpfolder)
     io.mkdir(args.init.tmpfolder + "/target")
@@ -130,6 +174,7 @@ jobs:
       data.deps = fdata.artifacts.map(r => {
         if (isDef(r.id) && isDef(r.group)) {
             if (isUnDef(r.version) || r.latest === true) r.version = (new ow.java.maven()).getLatestVersion((r.group + "." + r.id).replace(/\./g, "/"))
+            else if (args.updateLevel > 0) r.version = updateVersion(r)
             if (isDef(r.template)) {
               io.writeFileYAML(args.init.tmpfolder + "/.maven.yaml", { artifacts: [ { id: r.id, group: r.group, version: r.version, template: r.template } ]})
               var m = new ow.java.maven()
