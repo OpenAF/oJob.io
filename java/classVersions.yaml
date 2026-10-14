@@ -49,21 +49,26 @@ jobs:
     var res = [], data = []
     ow.loadJava()
 
+    // Normalize Java byte[] before getClassVersion's JavaScript type checks.
+    var classVersion = file => ow.java.getClassVersion(Array.from(io.readFileBytes(file)))
+    var jarClasses = file => {
+      plugin("ZIP")
+      var zip = new ZIP()
+      return Object.keys(zip.list(file)).filter(cls => cls.endsWith(".class"))
+    }
+
     if (isDef(args.file) && io.fileInfo(args.file).isFile) {
       if (args.file.endsWith(".jar")) {
-        plugin("ZIP")
-        var zip = new ZIP()
-        Object.keys(zip.list(args.file))
-        .filter(cls => cls.endsWith(".class"))
+        jarClasses(args.file)
         .forEach(cls => {
-          var ver = ow.java.getClassVersion(args.file + "::" + cls)
+          var ver = classVersion(args.file + "::" + cls)
           data.push({
             class  : cls,
             version: ver
           })
         })
       } else {
-        var ver = ow.java.getClassVersion(args.file)
+        var ver = classVersion(args.file)
         data.push({
           class  : args.file,
           version: ver
@@ -77,14 +82,19 @@ jobs:
         .select(cls => {
           var ver
           if (cls.filename.endsWith(".class")) {
-            ver = ow.java.getClassVersion(cls.canonicalPath)
+            ver = classVersion(cls.canonicalPath)
             data.push({
               classOrJar: cls.filename,
               version   : ver
             })
           }
           if (cls.filename.endsWith(".jar")) {
-            ow.java.getJarVersion(cls.canonicalPath).forEach(ver => {
+            var versions = []
+            jarClasses(cls.canonicalPath).forEach(entry => {
+              var version = classVersion(cls.canonicalPath + "::" + entry)
+              if (isDef(version) && versions.indexOf(version) < 0) versions.push(version)
+            })
+            versions.forEach(ver => {
               data.push({
                 classOrJar: cls.filename,
                 version   : ver
