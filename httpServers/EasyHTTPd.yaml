@@ -4,14 +4,10 @@
 # oPack dependencies: latest ojob-common;
 
 init:
-  port: &PORT 8888
-  path: &PATH "."
-  uri : &URI  "/"
   pid : &PID  easyHTTPd.pid
 
 ojob:
   daemon      : true
-  sequential  : true
   opacks      :
   - oJob-common: 20250405
   - openaf     : 20250315
@@ -19,6 +15,9 @@ ojob:
     pidFile     : *PID
     killPrevious: false
   argsFromEnvs: true
+  catch       : printErrnl("[" + job.name + "] "); $err(exception, __, __, job.exec)
+  logToConsole: true
+  shareArgs   : true
 
 include:
   - oJobHTTPd.yaml
@@ -33,24 +32,21 @@ help:
   - name: uri
     desc: "The default URI to use (default to '/')"
 
-jobs: []
+jobs: 
+# -----------
+- name : Init
+  check:
+    in:
+      port   : toNumber.isNumber.default(8888)
+      uri    : isString.default("/")
+      path   : isString.default(".")
+      mapList: toBoolean.isBoolean.default(true)
+      sortTab: toBoolean.isBoolean.default(true)
+      incURI : toBoolean.isBoolean.default(false)
 
 todo:
+- Init
+- HTTP Start Server
+- HTTP Default
+- HTTP File Browse
 
-  - name: HTTP Start Server
-    args: |
-      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port), 
-         "mapLibs": true })
-
-  - name: HTTP Default
-    args: |
-      ({ "port": (isDef(args.port) ? Number(args.port) : global.args.init.port),
-         "uri" : "/" })
-
-  - name: HTTP File Browse
-    args: |
-      ({ "port"   : (isDef(args.port) ? Number(args.port) : global.args.init.port),
-         "path"   : (isDef(args.path) ? String(args.path) : global.args.init.path),
-         "uri"    : (isDef(args.uri)  ? String(args.uri)  : global.args.init.uri),
-         "incURI" : false,
-         "sortTab": true })
