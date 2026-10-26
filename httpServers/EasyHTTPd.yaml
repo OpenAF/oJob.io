@@ -40,7 +40,7 @@ jobs:
       port   : toNumber.isNumber.default(8888)
       uri    : isString.default("/")
       path   : isString.default(".")
-      mapList: toBoolean.isBoolean.default(true)
+      mapLibs: toBoolean.isBoolean.default(true)
       sortTab: toBoolean.isBoolean.default(true)
       incURI : toBoolean.isBoolean.default(false)
 
